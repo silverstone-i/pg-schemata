@@ -142,4 +142,77 @@ function normalizeSQL(sql) {
   return sql.replace(/\s+/g, ' ').replace(/;$/, '').trim();
 }
 
-export { createTableSQL, addAuditFields, createIndexesSQL, normalizeSQL };
+function createColumnSet(schema, pgp) {
+  //Remove any audit fields from the column set
+  const auditFields = ['created_at', 'created_by', 'updated_at', 'updated_by'];
+  const columnsetColumns = schema.columns.filter(
+    col => !auditFields.includes(col.name)
+  );
+  const hasAuditFields = columnsetColumns.length !== schema.columns.length;
+
+  // Create column set for insert and update operations
+  const columns = columnsetColumns
+    .map(col => {
+      const isPrimaryKey = schema.constraints?.primaryKey?.includes(col.name);
+      const hasDefault = col.hasOwnProperty('default');
+
+      if (
+        col.type === 'serial' ||
+        (col.type === 'uuid' && isPrimaryKey && hasDefault)
+      ) {
+        return null; // Skip serial or uuid with primary key and default
+      }
+
+      const columnObject = {
+        name: col.name,
+        prop: col.name,
+      };
+
+      if (isPrimaryKey) {
+        columnObject.cnd = true; // Mark primary keys as conditions
+      } else {
+        columnObject.skip = c => !c.exists; // Skip missing columns during updates
+      }
+
+      if (hasDefault) {
+        columnObject.def = col.default;
+      }
+
+      return columnObject;
+    })
+    .filter(col => col !== null); // Remove nulls (skipped columns)
+
+  const cs = {};
+
+  cs[schema.table] = new pgp.helpers.ColumnSet(columns, {
+    table: {
+      table: schema.table,
+      schema: schema.schema,
+    },
+  });
+
+  if (hasAuditFields) {
+    cs.insert = cs[schema.table].extend(['created_by']);
+    cs.update = cs[schema.table].extend([
+      {
+        name: 'updated_at',
+        mod: '^',
+        def: 'CURRENT_TIMESTAMP',
+      },
+      'updated_by',
+    ]);
+  } else {
+    cs.insert = cs[schema.table];
+    cs.update = cs[schema.table];
+  }
+
+  return cs;
+}
+
+export {
+  createTableSQL,
+  addAuditFields,
+  createIndexesSQL,
+  normalizeSQL,
+  createColumnSet,
+};
