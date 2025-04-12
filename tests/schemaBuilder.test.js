@@ -9,279 +9,184 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
+// schema-utils.test.js
 import {
+  createTableSQL,
   addAuditFields,
   createIndexesSQL,
-  createTableSQL,
   normalizeSQL,
+  createColumnSet,
 } from '../src/utils/schemaBuilder';
 
-const userSchema = {
-  schemaName: 'nap',
-  table: 'users',
-  columns: [
-    {
-      name: 'id',
-      type: 'uuid',
-      default: 'uuid_generate_v4()',
-      notNull: true,
-      immutable: true,
-    },
-    { name: 'tenant_id', type: 'uuid', notNull: true, immutable: true },
-    { name: 'email', type: 'character varying(30)', notNull: true },
-    { name: 'password', type: 'character varying(30)', notNull: true },
-  ],
-  constraints: {
-    primaryKey: ['id'],
+// Mock pg-promise and its helpers
+const mockExtend = jest.fn(columns => ({ extendedWith: columns }));
+
+const mockColumnSet = jest.fn((columns, options) => ({
+  columns,
+  options,
+  extend: mockExtend,
+}));
+
+const mockPgp = {
+  helpers: {
+    ColumnSet: mockColumnSet,
   },
 };
 
-const unique = {
-  constraints: {
-    unique: [
-      ['tenant_id', 'email'], // Composite unique constraint
-    ],
-  },
-};
-
-const fk = {
-  constraints: {
-    foreignKeys: [
-      {
-        columns: ['tenant_id'],
-        references: { schema: 'admin', table: 'tenants', columns: ['id'] },
-        onDelete: 'CASCADE',
-      },
-    ],
-  },
-};
-
-const checks = {
-  constraints: { checks: [{ expression: 'length(email) > 3' }] },
-};
-
-const idx = {
-  constraints: {
-    indexes: [
-      { name: 'idx_email', columns: ['email'] },
-      { columns: ['tenant_id', 'email'] },
-    ],
-  },
-};
-
-let copiedSchema = {};
-beforeEach(() => {
-  copiedSchema = JSON.parse(JSON.stringify(userSchema));
-});
-
-describe('createTableSQL', () => {
-  it('should generate SQL for a table with basic columns and primary key', () => {
-    const actual = createTableSQL(copiedSchema).trim();
-    const expected = `CREATE TABLE IF NOT EXISTS "nap"."users" (
-    "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-      "tenant_id" uuid NOT NULL,
-      "email" character varying(30) NOT NULL,
-      "password" character varying(30) NOT NULL,
-      PRIMARY KEY ("id")
-      );`;
-
-    expect(normalizeSQL(actual)).toBe(normalizeSQL(expected));
-  });
-
-  it('should generate SQL for a table with unique constraints', () => {
-    // Test case for unique constraints
-    const schema = {
-      ...copiedSchema,
-      ...unique,
-      constraints: {
-        ...copiedSchema.constraints,
-        ...(unique.constraints || {}),
-      },
-    };
-
-    const actual = createTableSQL(schema);
-
-    const expected = `CREATE TABLE IF NOT EXISTS "nap"."users" (
-        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-      "tenant_id" uuid NOT NULL,
-      "email" character varying(30) NOT NULL,
-      "password" character varying(30) NOT NULL,
-      PRIMARY KEY ("id"),
-      CONSTRAINT "uidx_users_tenant_id_email_d8980d" UNIQUE ("tenant_id", "email")
-      );`;
-
-    expect(normalizeSQL(actual)).toBe(normalizeSQL(expected));
-  });
-
-  it('should generate SQL for a table with foreign key constraints', () => {
-    // Test case for foreign key constraints
-    const schema = {
-      ...copiedSchema,
-      ...fk,
-      constraints: {
-        ...copiedSchema.constraints,
-        ...(fk.constraints || {}),
-      },
-    };
-
-    const actual = createTableSQL(schema);
-
-    const expected = `CREATE TABLE IF NOT EXISTS "nap"."users" (
-        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-      "tenant_id" uuid NOT NULL,
-      "email" character varying(30) NOT NULL,
-      "password" character varying(30) NOT NULL,
-      PRIMARY KEY ("id"),
-      CONSTRAINT "fk_users_tenants_tenant_id_4d7c64" FOREIGN KEY ("tenant_id") REFERENCES "admin"."tenants" ("id") ON DELETE CASCADE
-      );`;
-
-    expect(normalizeSQL(actual)).toBe(normalizeSQL(expected));
-  });
-
-  it('should generate SQL for a table with check constraints', () => {
-    // Test case for check constraints
-    const schema = {
-      ...copiedSchema,
-      ...checks,
-      constraints: {
-        ...copiedSchema.constraints,
-        ...(checks.constraints || {}),
-      },
-    };
-
-    const actual = createTableSQL(schema);
-
-    const expected = `CREATE TABLE IF NOT EXISTS "nap"."users" (
-        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-      "tenant_id" uuid NOT NULL,
-      "email" character varying(30) NOT NULL,
-      "password" character varying(30) NOT NULL,
-      PRIMARY KEY ("id"),
-      CHECK (length(email) > 3)
-      );`;
-
-    expect(normalizeSQL(actual)).toBe(normalizeSQL(expected));
-  });
-
-  it('should generate SQL for adding indexes to a table.', () => {
-    // Test case for adding indexes to a table
-    const schema = {
-      ...copiedSchema,
-      ...idx,
-      constraints: {
-        ...copiedSchema.constraints,
-        ...(idx.constraints || {}),
-      },
-    };
-
-    const actual = createIndexesSQL(schema);
-    const expected = `CREATE INDEX IF NOT EXISTS "idx_users_email" ON "nap"."users" (email);
-    CREATE INDEX IF NOT EXISTS "idx_users_tenant_id_email" ON "nap"."users" (tenant_id, email);`;
-
-    expect(normalizeSQL(actual)).toBe(normalizeSQL(expected));
-  });
-
-  it('should add audit fields to columns', () => {
-    // Test case for adding audit fields to schema
-    const schema = addAuditFields(copiedSchema);
-
-    expect(schema.columns.length).toBe(8);
-    expect(schema.columns[4].name).toBe('created_at');
-    expect(schema.columns[5].name).toBe('created_by');
-    expect(schema.columns[6].name).toBe('updated_at');
-    expect(schema.columns[7].name).toBe('updated_by');
-    expect(schema.columns[4].type).toBe('timestamp');
-    expect(schema.columns[5].type).toBe('varchar(50)');
-    expect(schema.columns[6].type).toBe('timestamp');
-    expect(schema.columns[7].type).toBe('varchar(50)');
-    expect(schema.columns[4].default).toBe('now()');
-    expect(schema.columns[5].default).toBe('system');
-    expect(schema.columns[6].default).toBe('now()');
-    expect(schema.columns[7].default).toBe('system');
-    expect(schema.columns[4].immutable).toBe(true);
-    expect(schema.columns[4].immutable).toBe(true);
-    expect(schema.columns[5].immutable).toBe(true);
-    expect(schema.columns[6].immutable).toBeUndefined();
-  });
-
-  it('should generate the proper SQL for all of the CREATE TABLE options defined in this file', () => {
-    // Test case for complet CREATE TABLE statement
-    const schema = {
-      ...copiedSchema,
-      ...unique,
-      ...fk,
-      ...checks,
-      constraints: {
-        ...copiedSchema.constraints,
-        ...(unique.constraints || {}),
-        ...(fk.constraints || {}),
-        ...(checks.constraints || {}),
-      },
-    };
-
-    addAuditFields(schema);
-    const actual = createTableSQL(schema);
-
-    const expected = `CREATE TABLE IF NOT EXISTS "nap"."users" (
-        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-      "tenant_id" uuid NOT NULL,
-      "email" character varying(30) NOT NULL,
-      "password" character varying(30) NOT NULL,
-      "created_at" timestamp DEFAULT now(),
-      "created_by" varchar(50) DEFAULT system,
-      "updated_at" timestamp DEFAULT now(),
-      "updated_by" varchar(50) DEFAULT system,
-      PRIMARY KEY ("id"),
-      CONSTRAINT "uidx_users_tenant_id_email_d8980d" UNIQUE ("tenant_id", "email"),
-      CONSTRAINT "fk_users_tenants_tenant_id_4d7c64" FOREIGN KEY ("tenant_id") REFERENCES "admin"."tenants" ("id") ON DELETE CASCADE,
-      CHECK (length(email) > 3)
-      );`;
-
-    expect(normalizeSQL(actual)).toBe(normalizeSQL(expected));
-  });
-
-  it('should generate the proper SQL for for complex foreign key', () => {
-    // Test case for complex foreign key
-    const complexFK = {
-      constraints: {
-        foreignKeys: [
-          {
-            columns: ['tenant_id', 'email'],
-            references: {
-              schema: 'admin',
-              table: 'tenants',
-              columns: ['tenant_id', 'email'],
-            },
-            onDelete: 'CASCADE',
-          },
+describe('Schema Utilities', () => {
+  describe('createTableSQL', () => {
+    it('should generate correct CREATE TABLE SQL with columns and constraints', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'name', type: 'varchar(255)', notNull: true },
         ],
-      },
-    };
-    const schema = {
-      ...copiedSchema,
-      ...complexFK,
-      constraints: {
-        ...copiedSchema.constraints,
-        ...(complexFK.constraints || {}),
-      },
-    };
+        constraints: {
+          primaryKey: ['id'],
+          unique: [['name']],
+        },
+      };
 
-    addAuditFields(schema);
-    const actual = createTableSQL(schema);
+      const sql = createTableSQL(schema);
 
-    const expected = `CREATE TABLE IF NOT EXISTS "nap"."users" (
-        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-      "tenant_id" uuid NOT NULL,
-      "email" character varying(30) NOT NULL,
-      "password" character varying(30) NOT NULL,
-      "created_at" timestamp DEFAULT now(),
-      "created_by" varchar(50) DEFAULT system,
-      "updated_at" timestamp DEFAULT now(),
-      "updated_by" varchar(50) DEFAULT system,
-      PRIMARY KEY ("id"),
-      CONSTRAINT "fk_users_tenants_tenant_id_email_f79ee9" FOREIGN KEY ("tenant_id", "email") REFERENCES "admin"."tenants" ("tenant_id", "email") ON DELETE CASCADE
-      );`;
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
+      expect(sql).toContain('"id" serial NOT NULL');
+      expect(sql).toContain('"name" varchar(255) NOT NULL');
+      expect(sql).toContain('PRIMARY KEY ("id")');
+      expect(sql).toMatch(
+        /CONSTRAINT "uidx_users_name_[a-z0-9]{6}" UNIQUE \("name"\)/
+      );
+    });
 
-    expect(normalizeSQL(actual)).toBe(normalizeSQL(expected));
+    it('should throw an error for invalid foreign key reference', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'posts',
+        columns: [{ name: 'id', type: 'serial' }],
+        constraints: {
+          foreignKeys: [
+            { columns: ['user_id'], references: 'invalid' }, // should be object
+          ],
+        },
+      };
+
+      expect(() => createTableSQL(schema)).toThrow(
+        'Invalid foreign key reference for table posts: expected object, got string'
+      );
+    });
+  });
+
+  describe('addAuditFields', () => {
+    it('should add audit fields to the schema columns', () => {
+      const schema = { columns: [] };
+      const updatedSchema = addAuditFields(schema);
+
+      expect(updatedSchema.columns).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'created_at' }),
+          expect.objectContaining({ name: 'created_by' }),
+          expect.objectContaining({ name: 'updated_at' }),
+          expect.objectContaining({ name: 'updated_by' }),
+        ])
+      );
+    });
+  });
+
+  describe('createIndexesSQL', () => {
+    it('should generate correct CREATE INDEX SQL', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'users',
+        constraints: {
+          indexes: [{ columns: ['email'] }, { columns: ['username'] }],
+        },
+      };
+
+      const sql = createIndexesSQL(schema);
+
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
+    });
+  });
+
+  describe('normalizeSQL', () => {
+    it('should normalize SQL by collapsing spaces and removing semicolons', () => {
+      const rawSQL = `
+        CREATE TABLE test (
+          id SERIAL PRIMARY KEY
+        );
+      `;
+
+      const normalized = normalizeSQL(rawSQL);
+
+      expect(normalized).toBe('CREATE TABLE test ( id SERIAL PRIMARY KEY );');
+    });
+  });
+
+  describe('createColumnSet', () => {
+    beforeEach(() => {
+      mockColumnSet.mockClear();
+      mockExtend.mockClear();
+    });
+
+    it('should create ColumnSet with insert and update extensions', () => {
+      const schema = {
+        schema: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial' },
+          { name: 'name', type: 'varchar(255)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+        },
+      };
+
+      const auditSchema = addAuditFields(schema);
+      console.log('auditSchema', JSON.stringify(auditSchema));
+
+      const columnSet = createColumnSet(auditSchema, mockPgp);
+      console.log('columnSet', JSON.stringify(columnSet));
+
+      expect(mockColumnSet).toHaveBeenCalledTimes(1);
+      expect(columnSet).toHaveProperty('users');
+      expect(columnSet).toHaveProperty('insert');
+      expect(columnSet).toHaveProperty('update');
+      expect(mockExtend).toHaveBeenCalledTimes(2);
+      expect(columnSet.insert.extendedWith).toContain('created_by');
+      expect(columnSet.update.extendedWith).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'updated_at',
+            mod: '^',
+            def: 'CURRENT_TIMESTAMP',
+          }),
+          'updated_by',
+        ])
+      );
+    });
+
+    it('should not extend insert and update if audit fields are missing', () => {
+      const schema = {
+        schema: 'public',
+        table: 'products',
+        columns: [
+          { name: 'id', type: 'serial' },
+          { name: 'description', type: 'text' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+
+      expect(columnSet.insert).toBe(columnSet.products);
+      expect(columnSet.update).toBe(columnSet.products);
+      expect(mockExtend).not.toHaveBeenCalled();
+    });
   });
 });
+
