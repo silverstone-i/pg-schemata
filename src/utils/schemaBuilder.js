@@ -59,15 +59,12 @@ function createTableSQL(schema) {
         throw new Error(
           `Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`
         );
-        continue;
       }
 
       const hash = createHash(
         table + fk.references.table + fk.columns.join('_')
       );
-      const constraintName = `fk_${table}_${
-        fk.references.table
-      }_${fk.columns.join('_')}_${hash}`;
+      const constraintName = `fk_${table}_${hash}`;
 
       tableConstraints.push(
         `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns
@@ -150,7 +147,7 @@ function createColumnSet(schema, pgp) {
   );
   const hasAuditFields = columnsetColumns.length !== schema.columns.length;
 
-  // Create column set for insert and update operations
+  // Create columnset for insert and update operations
   const columns = columnsetColumns
     .map(col => {
       const isPrimaryKey = schema.constraints?.primaryKey?.includes(col.name);
@@ -166,7 +163,7 @@ function createColumnSet(schema, pgp) {
       const columnObject = {
         name: col.name,
         prop: col.name,
-      };
+      };      
 
       if (isPrimaryKey) {
         columnObject.cnd = true; // Mark primary keys as conditions
