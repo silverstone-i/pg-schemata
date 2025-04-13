@@ -138,14 +138,64 @@ describe('Schema Utilities', () => {
         schemaName: 'public',
         table: 'products',
         columns: [
-          { name: 'id', type: 'serial', notNull: true, default: 'nextval(\'products_id_seq\')' }
+          {
+            name: 'id',
+            type: 'serial',
+            notNull: true,
+            default: "nextval('products_id_seq')",
+          },
         ],
         constraints: {},
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain(
+        '"id" serial NOT NULL DEFAULT nextval(\'products_id_seq\')'
+      );
+    });
+
+    it('should handle schema with no constraints', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'simple_table',
+        columns: [{ name: 'id', type: 'serial' }],
+        // ❌ No constraints field at all
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain('"id" serial'); // Basic check
+    });
+
+    it('should generate FOREIGN KEY with ON DELETE and ON UPDATE actions', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial' },
+          { name: 'user_id', type: 'integer' },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['user_id'],
+              references: {
+                schema: 'public',
+                table: 'users',
+                columns: ['id'],
+              },
+              onDelete: 'CASCADE',
+              onUpdate: 'SET NULL',
+            },
+          ],
+        },
       };
     
       const sql = createTableSQL(schema);
     
-      expect(sql).toContain('"id" serial NOT NULL DEFAULT nextval(\'products_id_seq\')');
+      expect(sql).toContain('ON DELETE CASCADE');
+      expect(sql).toContain('ON UPDATE SET NULL');
     });
   });
 
@@ -180,6 +230,59 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
     });
+
+    it('should handle schema without indexes gracefully', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'users',
+        constraints: {
+          // ❌ no indexes field
+        },
+      };
+    
+      expect(() => createIndexesSQL(schema)).toThrow(); 
+      // or handle it gracefully if you want (up to you!)
+    });
+
+    it('should generate correct unique CREATE INDEX SQL', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'users',
+        constraints: {
+          indexes: [{ columns: ['email'] }, { columns: ['username'] }],
+        },
+      };
+
+      const sql = createIndexesSQL(schema, true);
+
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "uidx_users_email"');
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "uidx_users_username"');
+    });
+
+    it('should handle schema without primary key in createColumnSet', () => {
+      const schema = {
+        schema: 'public',
+        table: 'products',
+        columns: [
+          { name: 'name', type: 'varchar(255)' },
+          { name: 'price', type: 'numeric' },
+        ],
+        // ❌ No constraints.primaryKey
+        constraints: {}, // <- empty constraints
+      };
+    
+      const columnSet = createColumnSet(schema, mockPgp);
+    
+      const columnNames = columnSet.products.columns.map(col => col.name);
+    
+      expect(columnNames).toContain('name');
+      expect(columnNames).toContain('price');
+    
+      // Make sure 'skip' was added (non-primary key columns have skip)
+      const nameCol = columnSet.products.columns.find(col => col.name === 'name');
+      expect(typeof nameCol.skip).toBe('function');
+    });
+
   });
 
   describe('normalizeSQL', () => {
@@ -290,13 +393,9 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      console.log('Column Set:', JSON.stringify(columnSet, null, 2));
-
       const statusCol = columnSet.orders.columns.find(
         col => col.name === 'status'
       );
-
-      console.log('Status Column:', JSON.stringify(statusCol, null, 2));
 
       expect(statusCol.skip({ exists: false })).toBe(true);
       expect(statusCol.skip({ exists: true })).toBe(false);
@@ -320,6 +419,30 @@ describe('Schema Utilities', () => {
       const idCol = columnSet.orders.columns.find(col => col.name === 'id');
 
       expect(idCol.cnd).toBe(true);
+    });
+
+    it('should skip columns with type uuid and is a primary key and has a default value in createColumnSet', () => {
+      const schema = {
+        schema: 'public',
+        table: 'test_table',
+        columns: [
+          { name: 'id', type: 'uuid', default: 'uuid_generate_v4()' }, // Should be skipped
+          { name: 'email', type: 'varchar(255)' }, // Should stay
+        ],
+        constraints: {
+          primaryKey: ['id'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+      console.log('Column Set:', JSON.stringify(columnSet, null, 2)); // Debugging line
+
+      // Check that 'id' column was skipped
+      const columnNames = columnSet.test_table.columns.map(col => col.name);
+      console.log('Column Names:', columnNames); // Debugging line
+
+      expect(columnNames).not.toContain('id'); // 'id' should NOT be there
+      expect(columnNames).toContain('email'); // 'email' should be there
     });
   });
 });

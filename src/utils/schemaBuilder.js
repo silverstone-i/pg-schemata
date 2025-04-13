@@ -51,11 +51,6 @@ function createTableSQL(schema) {
   if (constraints.foreignKeys) {
     for (const fk of constraints.foreignKeys) {
       if (typeof fk.references !== 'object') {
-        console.log(
-          'Invalid foreign key reference:',
-          fk.references,
-          `got ${typeof fk.references}`
-        );
         throw new Error(
           `Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`
         );
@@ -121,6 +116,10 @@ function addAuditFields(schema) {
 }
 
 function createIndexesSQL(schema, unique = false, where = null) {
+  if (!schema.constraints || !schema.constraints.indexes) {
+    throw new Error('No indexes defined in schema');
+  }
+
   const { indexes } = schema.constraints;
 
   const indexSQL = indexes.map(index => {
