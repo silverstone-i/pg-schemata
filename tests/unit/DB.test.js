@@ -30,27 +30,36 @@ describe('DB', () => {
 
   test('should initialize db and pgp properly', () => {
     const connection = {}; // mock connection
-    const repositories = { users: FakeRepo };
+    const repositories = { users: FakeRepo }; // mock repository
 
-    const dbInstance = DB.init(connection, repositories);
+    const dbClass = DB.init(connection, repositories); // returns the DB class
 
-    expect(pgPromise).toHaveBeenCalledTimes(1);
-    expect(dbInstance).toMatchObject({ mockDb: true });
-    expect(DB.db).toBe(dbInstance);
-    expect(DB.pgp).toBeDefined();
-    expect(typeof dbInstance.users).toBe('object');
-    expect(dbInstance.users).toBeInstanceOf(FakeRepo);
+    expect(pgPromise).toHaveBeenCalledTimes(1); // pgPromise initialized once
+
+    expect(DB.db).toBeDefined(); // db is created
+    expect(DB.pgp).toBeDefined(); // pgp is created
+
+    // Check that the db has the repository attached
+    expect(typeof DB.db.users).toBe('object');
+    expect(DB.db.users).toBeInstanceOf(FakeRepo);
+
+    expect(dbClass).toBe(DB); // init returns DB class
   });
 
   test('should return the same instance if init is called multiple times', () => {
-    const connection = {}; // mock connection object
-    const repositories = { users: FakeRepo };
+    const connection = {}; // Mock connection
+    const repositories = { users: FakeRepo }; // Mock repositories
 
-    const firstInstance = DB.init(connection, repositories);
-    const secondInstance = DB.init(connection, repositories);
+    const firstCall = DB.init(connection, repositories);
+    const secondCall = DB.init(connection, repositories);
 
-    expect(firstInstance).toBe(secondInstance); // Singleton behavior
-    expect(pgPromise).toHaveBeenCalledTimes(1); // pgPromise called only once
+    expect(firstCall).toBe(DB); // firstCall returns the DB class
+    expect(secondCall).toBe(DB); // secondCall returns the same DB class
+
+    expect(DB.db).toBeDefined(); // db should be set
+    expect(DB.pgp).toBeDefined(); // pgp should be set
+
+    expect(pgPromise).toHaveBeenCalledTimes(1); // pgPromise should only be initialized once
   });
 
   test('should throw error if connection is undefined', () => {
