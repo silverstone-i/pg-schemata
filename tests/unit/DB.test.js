@@ -1,5 +1,5 @@
 // DB.test.js
-import DB from '../src/DB'; // Adjust path
+import DB from '../../src/DB'; // Adjust path
 import pgPromise from 'pg-promise';
 
 jest.mock('pg-promise', () => {

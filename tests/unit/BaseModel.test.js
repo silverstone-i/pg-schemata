@@ -1,4 +1,4 @@
-import BaseModel from '../src/BaseModel'; // adjust path as needed
+import BaseModel from '../../src/BaseModel'; // adjust path as needed
 
 // ================================
 // Mocks
@@ -31,7 +31,7 @@ const mockSchema = {
 };
 
 // Utility mocks
-jest.mock('../src/utils/schemaBuilder', () => ({
+jest.mock('../../src/utils/schemaBuilder', () => ({
   addAuditFields: jest.fn(schema => schema),
   createColumnSet: jest.fn(() => ({
     insert: jest.fn(dto => `INSERT INTO users ... VALUES (...)`),

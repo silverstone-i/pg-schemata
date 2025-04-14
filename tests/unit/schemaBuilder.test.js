@@ -16,7 +16,7 @@ import {
   createIndexesSQL,
   normalizeSQL,
   createColumnSet,
-} from '../src/utils/schemaBuilder';
+} from '../../src/utils/schemaBuilder';
 
 // Mock pg-promise and its helpers
 const mockExtend = jest.fn(columns => ({ extendedWith: columns }));
@@ -191,9 +191,9 @@ describe('Schema Utilities', () => {
           ],
         },
       };
-    
+
       const sql = createTableSQL(schema);
-    
+
       expect(sql).toContain('ON DELETE CASCADE');
       expect(sql).toContain('ON UPDATE SET NULL');
     });
@@ -239,8 +239,8 @@ describe('Schema Utilities', () => {
           // ❌ no indexes field
         },
       };
-    
-      expect(() => createIndexesSQL(schema)).toThrow(); 
+
+      expect(() => createIndexesSQL(schema)).toThrow();
       // or handle it gracefully if you want (up to you!)
     });
 
@@ -270,19 +270,20 @@ describe('Schema Utilities', () => {
         // ❌ No constraints.primaryKey
         constraints: {}, // <- empty constraints
       };
-    
+
       const columnSet = createColumnSet(schema, mockPgp);
-    
+
       const columnNames = columnSet.products.columns.map(col => col.name);
-    
+
       expect(columnNames).toContain('name');
       expect(columnNames).toContain('price');
-    
+
       // Make sure 'skip' was added (non-primary key columns have skip)
-      const nameCol = columnSet.products.columns.find(col => col.name === 'name');
+      const nameCol = columnSet.products.columns.find(
+        col => col.name === 'name'
+      );
       expect(typeof nameCol.skip).toBe('function');
     });
-
   });
 
   describe('normalizeSQL', () => {
