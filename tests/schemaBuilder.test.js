@@ -435,12 +435,7 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      console.log('Column Set:', JSON.stringify(columnSet, null, 2)); // Debugging line
-
-      // Check that 'id' column was skipped
       const columnNames = columnSet.test_table.columns.map(col => col.name);
-      console.log('Column Names:', columnNames); // Debugging line
-
       expect(columnNames).not.toContain('id'); // 'id' should NOT be there
       expect(columnNames).toContain('email'); // 'email' should be there
     });

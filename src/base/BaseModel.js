@@ -13,7 +13,7 @@ import { createColumnSet, addAuditFields } from '../utils/schemaBuilder.js';
 
 class BaseModel {
   constructor(db, pgp, schema, logger = null) {
-    if (typeof schema !== 'object') {
+    if (!schema || typeof schema !== 'object') {
       throw new Error('Schema must be an object');
     }
 
@@ -33,7 +33,7 @@ class BaseModel {
     this.db = db;
     this.pgp = pgp;
     this.logger = logger;
-    this.dbSchema = JSON.parse(JSON.stringify(addAuditFields(schema)));
+    this.schema = JSON.parse(JSON.stringify(addAuditFields(schema)));
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
@@ -42,16 +42,17 @@ class BaseModel {
   }
 
   get schemaName() {
-    return this.escapeName(this.schema.dbSchema);
+    return this.escapeName(this.dbSchema);
   }
 
   get tableName() {
-    return this.escapeName(this.schema.table);
+    return this.escapeName(this.table);
   }
 
   isValidId(id) {
     return (
-      typeof id === 'number' || (typeof id === 'string' && id.trim().length > 0)
+      (typeof id === 'number' && Number.isFinite(id)) ||
+      (typeof id === 'string' && id.trim().length > 0)
     );
   }
 
@@ -62,7 +63,7 @@ class BaseModel {
   }
 
   sanitizeDto(dto) {
-    const validColumns = this.dbSchema.columns.map(c => c.name);
+    const validColumns = this.schema.columns.map(c => c.name);
     const sanitized = {};
     for (const key in dto) {
       if (validColumns.includes(key)) {
@@ -79,28 +80,50 @@ class BaseModel {
   }
 
   async insert(dto) {
-    if (typeof dto !== 'object' || Array.isArray(dto)) {
-      throw new Error('DTO must be a non-array object');
+    if (!this.isPlainObject(dto)) {
+      return Promise.reject(new Error('DTO must be a non-empty object'));
     }
+
     const safeDto = this.sanitizeDto(dto);
+
+    if (Object.keys(safeDto).length === 0) {
+      return Promise.reject(
+        new Error('DTO must contain at least one valid column')
+      );
+    }
+
     const query = this.cs.insert(safeDto) + ' RETURNING *';
     this.logQuery(query);
-    return this.db.one(query);
+
+    try {
+      return await this.db.one(query);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async findAll({ limit = 50, offset = 0 } = {}) {
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} ORDER BY id LIMIT $1 OFFSET $2`;
     this.logQuery(query);
-    return this.db.any(query, [limit, offset]);
+
+    try {
+      return await this.db.any(query, [limit, offset]);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async findById(id) {
     if (!this.isValidId(id)) {
-      throw new Error('Invalid ID format');
+      return Promise.reject(new Error('Invalid ID format'));
     }
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
     this.logQuery(query);
-    return this.db.oneOrNone(query, [id]);
+    try {
+      return await this.db.oneOrNone(query, [id]);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async reload(id) {
@@ -109,16 +132,21 @@ class BaseModel {
 
   async findAfterCursor(cursor, limit = 20) {
     if (!this.isValidId(cursor)) {
-      throw new Error('Invalid cursor format');
+      return Promise.reject(new Error('Invalid cursor format'));
     }
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE id > $1 ORDER BY id ASC LIMIT $2`;
     this.logQuery(query);
-    return this.db.any(query, [cursor, limit]);
+
+    try {
+      return await this.db.any(query, [cursor, limit]);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async findBy(conditions) {
-    if (typeof conditions !== 'object' || !Object.keys(conditions).length) {
-      throw new Error('Conditions must be a non-empty object');
+    if (!this.isPlainObject(conditions) || Object.keys(conditions).length === 0) {
+      return Promise.reject(new Error('Conditions must be a non-empty object'));
     }
 
     const keys = Object.keys(conditions).map(key => this.escapeName(key));
@@ -129,17 +157,26 @@ class BaseModel {
 
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE ${whereClause}`;
     this.logQuery(query);
-    return this.db.any(query, values);
+
+    try {
+      return await this.db.any(query, values);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async findOneBy(conditions) {
-    const results = await this.findBy(conditions);
-    return results[0] || null;
+    try {
+      const results = await this.findBy(conditions);
+      return results[0] || null;
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async exists(conditions) {
-    if (typeof conditions !== 'object' || !Object.keys(conditions).length) {
-      throw new Error('Conditions must be a non-empty object');
+    if (!this.isPlainObject(conditions) || Object.keys(conditions).length === 0) {
+      return Promise.reject(Error('Conditions must be a non-empty object'));
     }
 
     const keys = Object.keys(conditions).map(key => this.escapeName(key));
@@ -150,20 +187,26 @@ class BaseModel {
 
     const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${whereClause}) AS "exists"`;
     this.logQuery(query);
-    const result = await this.db.one(query, values);
-    return result.exists;
+
+    try {
+      const result = await this.db.one(query, values);
+      return result.exists;
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async update(id, dto) {
     if (!this.isValidId(id)) {
-      throw new Error('Invalid ID format');
+      return Promise.reject(new Error('Invalid ID format'));
     }
+
     if (
       typeof dto !== 'object' ||
       Array.isArray(dto) ||
       Object.keys(dto).length === 0
     ) {
-      throw new Error('DTO must be a non-empty object');
+      return Promise.reject(new Error('DTO must be a non-empty object'));
     }
 
     const safeDto = this.sanitizeDto(dto);
@@ -171,37 +214,57 @@ class BaseModel {
     const condition = this.pgp.as.format('WHERE id = $1', [id]);
     const query =
       this.pgp.helpers.update(safeDto, this.cs.update, {
-        table: this.schema.table,
-        schema: this.schema.dbSchema,
+        table: this.table,
+        schema: this.dbSchema,
       }) +
       ' ' +
       condition +
       ' RETURNING *';
 
     this.logQuery(query);
-    return this.db.one(query);
+
+    try {
+      return await this.db.one(query);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async delete(id) {
     if (!this.isValidId(id)) {
-      throw new Error('Invalid ID format');
+      return Promise.reject(new Error('Invalid ID format'));
     }
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
     this.logQuery(query);
-    return this.db.result(query, [id], r => r.rowCount);
+
+    try {
+      return await this.db.result(query, [id], r => r.rowCount);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async count() {
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
     this.logQuery(query);
-    const result = await this.db.one(query);
-    return parseInt(result.count, 10);
+
+    try {
+      const result = await this.db.one(query);
+      return parseInt(result.count, 10);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async truncate() {
     const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
     this.logQuery(query);
-    return this.db.none(query);
+
+    try {
+      return await this.db.none(query);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   setSchema(dbSchema) {
@@ -211,6 +274,17 @@ class BaseModel {
   withSchema(dbSchema) {
     this.schema.dbSchema = dbSchema;
     return this;
+  }
+
+  isPlainObject(obj) {
+    return obj !== null && typeof obj === 'object' && !Array.isArray(obj);
+  }
+
+  handleDbError(err) {
+    if (this.logger?.error) {
+      this.logger.error('Database error:', err);
+    }
+    throw err; // re-throw so it propagates
   }
 }
 
