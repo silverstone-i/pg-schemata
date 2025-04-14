@@ -10,7 +10,7 @@
  */
 
 import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
-
+import { isValidId, isPlainObject } from './utils/validation.js';
 class BaseModel {
   constructor(db, pgp, schema, logger = null) {
     if (!schema || typeof schema !== 'object') {
@@ -49,19 +49,6 @@ class BaseModel {
     return this.escapeName(this.table);
   }
 
-  isValidId(id) {
-    return (
-      (typeof id === 'number' && Number.isFinite(id)) ||
-      (typeof id === 'string' && id.trim().length > 0)
-    );
-  }
-
-  validateUUID(id) {
-    const UUID_REGEX =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return typeof id === 'string' && UUID_REGEX.test(id);
-  }
-
   sanitizeDto(dto) {
     const validColumns = this.schema.columns.map(c => c.name);
     const sanitized = {};
@@ -80,7 +67,7 @@ class BaseModel {
   }
 
   async insert(dto) {
-    if (!this.isPlainObject(dto)) {
+    if (!isPlainObject(dto)) {
       return Promise.reject(new Error('DTO must be a non-empty object'));
     }
 
@@ -114,7 +101,7 @@ class BaseModel {
   }
 
   async findById(id) {
-    if (!this.isValidId(id)) {
+    if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
     }
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
@@ -131,7 +118,7 @@ class BaseModel {
   }
 
   async findAfterCursor(cursor, limit = 20) {
-    if (!this.isValidId(cursor)) {
+    if (!isValidId(cursor)) {
       return Promise.reject(new Error('Invalid cursor format'));
     }
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE id > $1 ORDER BY id ASC LIMIT $2`;
@@ -146,7 +133,7 @@ class BaseModel {
 
   async findBy(conditions) {
     if (
-      !this.isPlainObject(conditions) ||
+      !isPlainObject(conditions) ||
       Object.keys(conditions).length === 0
     ) {
       return Promise.reject(new Error('Conditions must be a non-empty object'));
@@ -179,7 +166,7 @@ class BaseModel {
 
   async exists(conditions) {
     if (
-      !this.isPlainObject(conditions) ||
+      !isPlainObject(conditions) ||
       Object.keys(conditions).length === 0
     ) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
@@ -203,7 +190,7 @@ class BaseModel {
   }
 
   async update(id, dto) {
-    if (!this.isValidId(id)) {
+    if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
     }
 
@@ -237,7 +224,7 @@ class BaseModel {
   }
 
   async delete(id) {
-    if (!this.isValidId(id)) {
+    if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
     }
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
@@ -280,10 +267,6 @@ class BaseModel {
   withSchema(dbSchema) {
     this.schema.dbSchema = dbSchema;
     return this;
-  }
-
-  isPlainObject(obj) {
-    return obj !== null && typeof obj === 'object' && !Array.isArray(obj);
   }
 
   handleDbError(err) {

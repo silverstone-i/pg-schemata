@@ -83,18 +83,6 @@ describe('BaseModel', () => {
       expect(model.escapeName('test')).toBe('"test"');
     });
 
-    test('isValidId should validate id correctly', () => {
-      expect(model.isValidId(123)).toBe(true);
-      expect(model.isValidId('abc')).toBe(true);
-      expect(model.isValidId('')).toBe(false);
-    });
-
-    test('validateUUID should validate UUID format', () => {
-      expect(model.validateUUID('123e4567-e89b-12d3-a456-426614174000')).toBe(
-        true
-      );
-      expect(model.validateUUID('invalid-uuid')).toBe(false);
-    });
 
     test('sanitizeDto should strip invalid fields', () => {
       const sanitized = model.sanitizeDto({
