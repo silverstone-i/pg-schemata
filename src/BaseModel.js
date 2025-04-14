@@ -9,7 +9,7 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-import { createColumnSet, addAuditFields } from '../utils/schemaBuilder.js';
+import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
 
 class BaseModel {
   constructor(db, pgp, schema, logger = null) {
@@ -145,7 +145,10 @@ class BaseModel {
   }
 
   async findBy(conditions) {
-    if (!this.isPlainObject(conditions) || Object.keys(conditions).length === 0) {
+    if (
+      !this.isPlainObject(conditions) ||
+      Object.keys(conditions).length === 0
+    ) {
       return Promise.reject(new Error('Conditions must be a non-empty object'));
     }
 
@@ -175,7 +178,10 @@ class BaseModel {
   }
 
   async exists(conditions) {
-    if (!this.isPlainObject(conditions) || Object.keys(conditions).length === 0) {
+    if (
+      !this.isPlainObject(conditions) ||
+      Object.keys(conditions).length === 0
+    ) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
     }
 

@@ -1,96 +1,90 @@
-'use strict';
+// DB.test.js
+import DB from '../src/DB'; // Adjust path
+import pgPromise from 'pg-promise';
 
-require('dotenv').config();
-const {
-  ConnectionParameterError,
-  RepositoriesParameterError,
-  DBError,
-} = require('../db/errors'); // Import your custom error classes
-const DB = require('../db/DB'); // Import the DB class to be tested
-const Model = require('../db/Model'); // Import the Model class to be tested
+jest.mock('pg-promise', () => {
+  return jest.fn(initOptions => {
+    return connection => {
+      const db = { mockDb: true };
+      if (initOptions && typeof initOptions.extend === 'function') {
+        initOptions.extend(db, null); // 💥 simulate pg-promise calling extend()
+      }
+      return db;
+    };
+  });
+});
 
-const connection = {
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-};
-
-class Users extends Model {
+class FakeRepo {
   constructor(db, pgp) {
-    super(db, pgp, {
-      tableName: 'users',
-      dbSchema: 'public',
-      timeStamps: true, // Add time stamps to table - default is true
-      columns: {
-        email: { type: 'varchar(255)', primaryKey: true },
-        password: { type: 'varchar(255)', nullable: false },
-        employee_id: { type: 'int4', nullable: false },
-        full_name: { type: 'varchar(50)', nullable: false },
-        role: { type: 'varchar(25)', nullable: false, default: 'user' },
-        active: { type: 'bool', nullable: false, default: true },
-      },
-    });
+    this.db = db;
+    this.pgp = pgp;
   }
 }
 
 describe('DB', () => {
   beforeEach(() => {
-    // Reset static properties of DB class before each test
     DB.db = undefined;
     DB.pgp = undefined;
+    pgPromise.mockClear();
   });
 
-  test('should initialize database with valid connection and repositories', () => {
-    // Mock required dependencies
-    const repositories = {
-      users: Users,
-    };
-    // Call the init method
-    const db = DB.init(connection, repositories);
+  test('should initialize db and pgp properly', () => {
+    const connection = {}; // mock connection
+    const repositories = { users: FakeRepo };
 
-    // Assertions
-    expect(db).toBeDefined();
-    expect(DB.db).toBeDefined();
+    const dbInstance = DB.init(connection, repositories);
+
+    expect(pgPromise).toHaveBeenCalledTimes(1);
+    expect(dbInstance).toMatchObject({ mockDb: true });
+    expect(DB.db).toBe(dbInstance);
     expect(DB.pgp).toBeDefined();
-    expect(db.users).toBeDefined();
+    expect(typeof dbInstance.users).toBe('object');
+    expect(dbInstance.users).toBeInstanceOf(FakeRepo);
   });
 
-  test('should throw ConnectionParameterError if connection is undefined', () => {
-    // Call the init method with undefined connection
+  test('should return the same instance if init is called multiple times', () => {
+    const connection = {}; // mock connection object
+    const repositories = { users: FakeRepo };
+
+    const firstInstance = DB.init(connection, repositories);
+    const secondInstance = DB.init(connection, repositories);
+
+    expect(firstInstance).toBe(secondInstance); // Singleton behavior
+    expect(pgPromise).toHaveBeenCalledTimes(1); // pgPromise called only once
+  });
+
+  test('should throw error if connection is undefined', () => {
+    const repositories = { users: FakeRepo };
     expect(() => {
-      DB.init(undefined, {});
-    }).toThrow(ConnectionParameterError);
+      DB.init(undefined, repositories);
+    }).toThrow(Error);
   });
 
-  test('should throw RepositoriesParameterError if repositories is not a plain object', () => {
-    // Call the init method with invalid repositories
+  test('should throw error if repositories are undefined', () => {
+    const connection = {}; // mock connection
+    expect(() => {
+      DB.init(connection, undefined);
+    }).toThrow(Error);
+  });
+
+  test('should throw error if repositories is not an object', () => {
+    const connection = {}; // mock connection
+    expect(() => {
+      DB.init(connection, 'notAnObject');
+    }).toThrow(Error);
+  });
+
+  test('should throw error if repositories is an array', () => {
+    const connection = {}; // mock connection
     expect(() => {
       DB.init(connection, []);
-    }).toThrow(RepositoriesParameterError);
+    }).toThrow(Error);
   });
 
-  // Does not reinitialize database if already initialized
-  test('should not reinitialize database if already initialized', () => {
-    // Mock required dependencies
-    const repositories = {
-      users: jest.fn(),
-    };
-
-    // Mock the already initialized database
-    DB.db = 'initialized';
-    DB.pgp = 'initialized';
-
-    // Mock the connection variable
-    const connection = 'mock connection';
-
-    // Call the init method
-    const db = DB.init(connection, repositories);
-
-    // Assertions
-    expect(db).toBe('initialized');
-    expect(DB.db).toBe('initialized');
-    expect(DB.pgp).toBe('initialized');
+  test('should throw error if repositories is null', () => {
+    const connection = {}; // mock connection
+    expect(() => {
+      DB.init(connection, null);
+    }).toThrow(Error);
   });
 });

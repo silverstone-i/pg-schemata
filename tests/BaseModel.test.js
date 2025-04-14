@@ -1,4 +1,4 @@
-import BaseModel from '../src/base/BaseModel'; // adjust path as needed
+import BaseModel from '../src/BaseModel'; // adjust path as needed
 
 // ================================
 // Mocks
