@@ -30,7 +30,7 @@ const {db, pgp} = DB.init(process.env.DATABASE_URL, repositories);
 // db.connect()
 //   .then(obj => {
 //     console.log('Connected to Postgres database!');
-//     pgp.end(); // success, release connection;
+//     obj.done(); // success, release connection;
 //   })
 //   .catch(err => {
 //     console.error(err);
