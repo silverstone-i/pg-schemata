@@ -52,8 +52,10 @@ class DB {
       }
     }
 
-    return DB.db;
+    return DB;
   }
 }
 
+export const db = DB.db;
+export const pgp = DB.pgp;
 export default DB;
