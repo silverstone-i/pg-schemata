@@ -13,6 +13,7 @@
   "author": "Ian Silverstone",
   "license": "MIT",
   "dependencies": {
+    "dotenv": "^16.5.0",
     "pg-promise": "^11.13.0"
   },
   "devDependencies": {
@@ -21,7 +22,6 @@
     "clean-jsdoc-theme": "^4.3.0",
     "core-js": "^3.41.0",
     "docdash": "^2.0.2",
-    "dotenv": "^16.4.7",
     "eslint": "^9.24.0",
     "express": "^5.1.0",
     "jest": "^29.7.0",
