@@ -33,7 +33,7 @@ class BaseModel {
     this.db = db;
     this.pgp = pgp;
     this.logger = logger;
-    this.schema = JSON.parse(JSON.stringify(addAuditFields(schema)));
+    this._schema = JSON.parse(JSON.stringify(addAuditFields(schema)));
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
@@ -45,12 +45,16 @@ class BaseModel {
     return this.escapeName(this.dbSchema);
   }
 
+  get schema() {
+    return this._schema;
+  }
+
   get tableName() {
     return this.escapeName(this.table);
   }
 
   sanitizeDto(dto) {
-    const validColumns = this.schema.columns.map(c => c.name);
+    const validColumns = this._schema.columns.map(c => c.name);
     const sanitized = {};
     for (const key in dto) {
       if (validColumns.includes(key)) {
@@ -261,11 +265,11 @@ class BaseModel {
   }
 
   setSchema(dbSchema) {
-    this.schema.dbSchema = dbSchema;
+    this._schema.dbSchema = dbSchema;
   }
 
   withSchema(dbSchema) {
-    this.schema.dbSchema = dbSchema;
+    this._schema.dbSchema = dbSchema;
     return this;
   }
 
