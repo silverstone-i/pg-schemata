@@ -15,8 +15,9 @@ function createHash(input) {
   return crypto.createHash('md5').update(input).digest('hex').slice(0, 6);
 }
 
-function createTableSQL(schema) {
-  const { schemaName, table, columns, constraints = {} } = schema;
+function createTableSQL(schema) {  
+  const { dbSchema, table, columns, constraints = {} } = schema;
+  const schemaName = dbSchema || 'public';
 
   const columnDefs = columns.map(col => {
     let def = `"${col.name}" ${col.type}`;
@@ -105,11 +106,11 @@ function addAuditFields(schema) {
     {
       name: 'created_by',
       type: 'varchar(50)',
-      default: 'system',
+      default: `'system'`,
       immutable: true,
     },
     { name: 'updated_at', type: 'timestamp', default: 'now()' },
-    { name: 'updated_by', type: 'varchar(50)', default: 'system' }
+    { name: 'updated_by', type: 'varchar(50)', default: `'system'` }
   );
 
   return schema;
