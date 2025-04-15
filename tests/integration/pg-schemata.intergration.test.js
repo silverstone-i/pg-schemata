@@ -24,7 +24,7 @@ class Users extends BaseModel {
 // Initialize the database
 const repositories = { users: Users };
 
-const {db, pgp} = DB.init(process.env.DATABASE_URL, repositories);
+const { db, pgp } = DB.init(process.env.DATABASE_URL, repositories);
 
 // Test connection
 // db.connect()
@@ -48,13 +48,12 @@ describe('pg-schemata integration', () => {
     await pgp.end(); // close db connection
   });
 
-  it('should create a table successfully', async () => {    
+  it('should create a table successfully', async () => {
     const createSQL = createTableSQL(db.users.schema);
-    
+
     try {
       await db.none(createSQL);
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Error creating table:', error);
     }
 
@@ -63,8 +62,7 @@ describe('pg-schemata integration', () => {
         SELECT to_regclass('test_schema.test_users') as table_name;
       `);
       expect(tableExists.table_name).toBe('test_schema.test_users');
-      }
-    catch (error) {
+    } catch (error) {
       console.error('Error testing if table exists:', error);
     }
   });
