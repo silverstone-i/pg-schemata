@@ -13,10 +13,10 @@ describe('BaseModel Integration', () => {
   });
 
   afterAll(async () => {
-     await ctx.teardown();
+    //  await ctx.teardown();
   });
 
-  test('insert and retrieve user', async () => {
+  test('insert and retrieve user', async () => {    
     const inserted = await ctx.model.insert({ email: 'test@example.com', created_by: 'Jill Lazarus' });
     const found = await ctx.model.findById(inserted.id);
     expect(found.email).toBe('test@example.com');

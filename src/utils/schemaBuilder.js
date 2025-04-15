@@ -184,7 +184,7 @@ function createColumnSet(schema, pgp) {
   cs[schema.table] = new pgp.helpers.ColumnSet(columns, {
     table: {
       table: schema.table,
-      schema: schema.schema,
+      schema: schema.dbSchema || 'public',
     },
   });
 

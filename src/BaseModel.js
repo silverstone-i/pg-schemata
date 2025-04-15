@@ -41,8 +41,8 @@ class BaseModel {
     return this.pgp.as.name(name);
   }
 
-  get schemaName() {
-    return this.escapeName(this.dbSchema);
+  get schemaName() {    
+    return this.escapeName(this._schema.dbSchema);
   }
 
   get schema() {
@@ -50,7 +50,7 @@ class BaseModel {
   }
 
   get tableName() {
-    return this.escapeName(this.table);
+    return this.escapeName(this._schema.table);
   }
 
   sanitizeDto(dto) {
@@ -83,7 +83,10 @@ class BaseModel {
       );
     }
 
-    const query = this.cs.insert(safeDto) + ' RETURNING *';
+    const query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
+    console.log('Inserting a user...', this.cs);
+    console.log('Query:', query);
+    
     this.logQuery(query);
 
     try {
@@ -209,16 +212,14 @@ class BaseModel {
     const safeDto = this.sanitizeDto(dto);
 
     const condition = this.pgp.as.format('WHERE id = $1', [id]);
+        
     const query =
-      this.pgp.helpers.update(safeDto, this.cs.update, {
-        table: this.table,
-        schema: this.dbSchema,
-      }) +
+      this.pgp.helpers.update(safeDto, this.cs.update, { schema: this.schema.dbSchema, table: this.schema.table}) +
       ' ' +
       condition +
       ' RETURNING *';
 
-    this.logQuery(query);
+    this.logQuery(query);    
 
     try {
       return await this.db.one(query);
@@ -232,7 +233,6 @@ class BaseModel {
       return Promise.reject(new Error('Invalid ID format'));
     }
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
-    this.logQuery(query);
 
     try {
       return await this.db.result(query, [id], r => r.rowCount);
