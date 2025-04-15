@@ -17,6 +17,7 @@ const mockPgp = {
     format: jest.fn((query, values) => query.replace('$1', values[0])),
   },
   helpers: {
+    insert: jest.fn((dto, cs) => `INSERT INTO "public"."users" (...) VALUES (...)`),
     update: jest.fn(
       (dto, cs, { table, schema }) => `UPDATE "${schema}"."${table}" SET ...`
     ),

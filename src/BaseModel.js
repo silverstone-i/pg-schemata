@@ -84,9 +84,7 @@ class BaseModel {
     }
 
     const query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
-    console.log('Inserting a user...', this.cs);
-    console.log('Query:', query);
-    
+
     this.logQuery(query);
 
     try {

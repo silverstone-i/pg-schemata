@@ -13,7 +13,7 @@ describe('BaseModel Integration', () => {
   });
 
   afterAll(async () => {
-    //  await ctx.teardown();
+    await ctx.teardown();
   });
 
   test('insert and retrieve user', async () => {    
