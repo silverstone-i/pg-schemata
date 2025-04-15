@@ -7,7 +7,9 @@
   "scripts": {
     "docs": "jsdoc -c jsdoc.json README.md && cp LICENSE docs/",
     "lint": "eslint .",
-    "tests": "jest --coverage --verbose",
+    "test": "jest --detectOpenHandles --verbose",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
     "start": "nodemon --delay 5 ./server/app.js"
   },
   "author": "Ian Silverstone",
