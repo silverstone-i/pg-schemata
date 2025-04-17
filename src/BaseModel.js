@@ -216,17 +216,6 @@ class BaseModel {
     }
   }
 
-  /**
-   * Paginated fetch with advanced filtering (AND, OR, LIKE, ILIKE, ranges).
-   *
-   * @param {Object} cursor - Composite cursor (e.g. { created_at, id }).
-   * @param {number} limit - Max results per page.
-   * @param {Array<string>} orderBy - Columns to order by.
-   * @param {Object} options
-   * @param {boolean} options.descending
-   * @param {Array<string>} options.columnWhitelist
-   * @param {Object} options.filters - Nested filters: { and: [...], or: [...] }
-   */
   async findAfterCursor(
     cursor = {},
     limit = 50,
