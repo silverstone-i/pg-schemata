@@ -14,6 +14,9 @@
  * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
  */
 
+import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
+import { isValidId, isPlainObject } from './utils/validation.js';
+
 /**
  * Creates an instance of BaseModel.
  * @param {Object} db - The pg-promise database instance.

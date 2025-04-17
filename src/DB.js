@@ -1,13 +1,13 @@
 'use strict';
 
 /*
-* Copyright © 2024-present, Ian Silverstone
-*
-* See the LICENSE file at the top-level directory of this distribution
-* for licensing information.
-*
-* Removal or modification of this copyright notice is prohibited.
-*/
+ * Copyright © 2024-present, Ian Silverstone
+ *
+ * See the LICENSE file at the top-level directory of this distribution
+ * for licensing information.
+ *
+ * Removal or modification of this copyright notice is prohibited.
+ */
 
 /**
  * DB is a singleton that initializes and provides access to the pg-promise
@@ -30,39 +30,41 @@ class DB {
   static pgp;
 
   static init(connection, repositories) {
-    // Only initialize once to enforce singleton pattern
-    try {
-      // Validate that a connection configuration is provided
-      if (connection === undefined || connection === null) {
-        throw new Error();
-      }
+    if (!DB.db) {
+      // Only initialize once to enforce singleton pattern
+      try {
+        // Validate that a connection configuration is provided
+        if (connection === undefined || connection === null) {
+          throw new Error();
+        }
 
-      // Validate that a repositories object is provided
-      if (
-        !repositories ||
-        typeof repositories !== 'object' ||
-        Array.isArray(repositories) ||
-        repositories === null
-      ) {
-        throw new Error();
-      }
+        // Validate that a repositories object is provided
+        if (
+          !repositories ||
+          typeof repositories !== 'object' ||
+          Array.isArray(repositories) ||
+          repositories === null
+        ) {
+          throw new Error();
+        }
 
-      // Configure pg-promise: capitalize SQL and auto-extend DB with repositories
-      const initOptions = {
-        capSQL: true, // capitalize all generated SQL
-        extend(obj, dc) {
-          // Attach each repository to the database instance
-          for (const repository of Object.keys(repositories)) {
-            obj[repository] = new repositories[repository](obj, DB.pgp);
-          }
-        },
-      };
-      // Initialize the pg-promise library with the custom options
-      DB.pgp = pgPromise(initOptions);
-      // Create the database instance using the provided connection
-      DB.db = DB.pgp(connection);
-    } catch (error) {
-      throw error;
+        // Configure pg-promise: capitalize SQL and auto-extend DB with repositories
+        const initOptions = {
+          capSQL: true, // capitalize all generated SQL
+          extend(obj, dc) {
+            // Attach each repository to the database instance
+            for (const repository of Object.keys(repositories)) {
+              obj[repository] = new repositories[repository](obj, DB.pgp);
+            }
+          },
+        };
+        // Initialize the pg-promise library with the custom options
+        DB.pgp = pgPromise(initOptions);
+        // Create the database instance using the provided connection
+        DB.db = DB.pgp(connection);
+      } catch (error) {
+        throw error;
+      }
     }
 
     return DB;
