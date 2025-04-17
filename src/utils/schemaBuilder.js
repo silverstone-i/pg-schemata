@@ -181,6 +181,8 @@ function normalizeSQL(sql) {
   return sql.replace(/\s+/g, ' ').replace(/;$/, '').trim();
 }
 
+// TODO: Add hasAuditFields flag to the table schema to avoid recalculating
+
 /**
  * Creates pg-promise ColumnSet objects for insert and update operations.
  * Filters out audit fields and handles default values and primary key flags.
