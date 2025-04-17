@@ -46,7 +46,11 @@ class BaseModel {
     this.db = db;
     this.pgp = pgp;
     this.logger = logger;
-    this._schema = JSON.parse(JSON.stringify(addAuditFields(schema)));
+
+    // deep clone to prevent mutation
+    this._schema = schema.hasAuditFields
+      ? JSON.parse(JSON.stringify(addAuditFields(schema))) // Add audit fields
+      : JSON.parse(JSON.stringify(schema));
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
