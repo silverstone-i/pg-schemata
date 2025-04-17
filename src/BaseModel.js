@@ -10,15 +10,17 @@
  */
 
 /**
- * BaseModel provides generic CRUD operations for a PostgreSQL table
- * using pg-promise and a JSON schema definition.
+ * BaseModel provides generic CRUD operations for a PostgreSQL table using pg-promise
+ * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
  */
 
-import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
-import { isValidId, isPlainObject } from './utils/validation.js';
-
-// Initializes the BaseModel with db connection, pg-promise instance,
-// schema definition, and optional logger. Validates required schema fields.
+/**
+ * Creates an instance of BaseModel.
+ * @param {Object} db - The pg-promise database instance.
+ * @param {Object} pgp - The pg-promise helper instance.
+ * @param {Object} schema - The table schema definition.
+ * @param {Object} [logger=null] - Optional logger instance with `debug` and `error` methods.
+ */
 class BaseModel {
   constructor(db, pgp, schema, logger = null) {
     if (!schema || typeof schema !== 'object') {
@@ -65,7 +67,11 @@ class BaseModel {
     return this.escapeName(this._schema.table);
   }
 
-  // Filters the input DTO to include only valid column names defined in the schema.
+  /**
+   * Filters the input DTO to include only valid column names defined in the schema.
+   * @param {Object} dto - Data Transfer Object to sanitize.
+   * @returns {Object} Sanitized DTO with valid columns.
+   */
   sanitizeDto(dto) {
     const validColumns = this._schema.columns.map(c => c.name);
     const sanitized = {};
@@ -77,13 +83,21 @@ class BaseModel {
     return sanitized;
   }
 
-  // Logs the query if a logger is provided and has a debug method.
+  /**
+   * Logs the query if a logger is provided and has a debug method.
+   * @param {string} query - The query string to log.
+   */
   logQuery(query) {
     if (this.logger?.debug) {
       this.logger.debug(`Running query: ${query}`);
     }
   }
 
+  /**
+   * Inserts a new row into the table.
+   * @param {Object} dto - Data Transfer Object to insert.
+   * @returns {Promise<Object>} Inserted row.
+   */
   async insert(dto) {
     // Validate that the DTO is a non-empty object
     if (!isPlainObject(dto)) {
@@ -115,7 +129,13 @@ class BaseModel {
     }
   }
 
-  // Fetches all records with pagination support using limit and offset.
+  /**
+   * Fetches all records with pagination support using limit and offset.
+   * @param {Object} [options] - Pagination options.
+   * @param {number} [options.limit=50] - Maximum number of records to return.
+   * @param {number} [options.offset=0] - Number of records to skip.
+   * @returns {Promise<Object[]>} Array of records.
+   */
   async findAll({ limit = 50, offset = 0 } = {}) {
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} ORDER BY id LIMIT $1 OFFSET $2`;
     this.logQuery(query);
@@ -127,7 +147,11 @@ class BaseModel {
     }
   }
 
-  // Retrieves a single row by ID. Returns null if not found.
+  /**
+   * Retrieves a single row by ID. Returns null if not found.
+   * @param {number|string} id - The ID of the record to retrieve.
+   * @returns {Promise<Object|null>} The found record or null.
+   */
   async findById(id) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
@@ -142,10 +166,24 @@ class BaseModel {
   }
 
   // Alias for findById, used to refresh a record by its ID.
+  /**
+   * Alias for findById, used to refresh a record by its ID.
+   * @param {number|string} id - The ID of the record to reload.
+   * @returns {Promise<Object|null>} The reloaded record or null.
+   */
   async reload(id) {
     return this.findById(id);
   }
   
+  /**
+   * Finds records matching given conditions and optional filters.
+   * @param {Array<Object>} conditions - Array of equality conditions.
+   * @param {string} [joinType='AND'] - Logical operator to join conditions.
+   * @param {Object} [options] - Query options.
+   * @param {string[]} [options.columnWhitelist] - Columns to return.
+   * @param {Object} [options.filters] - Additional AND/OR filters.
+   * @returns {Promise<Object[]>} Array of matching rows.
+   */
   async findBy(conditions = [], joinType = 'AND', {
     columnWhitelist = null,
     filters = {}
@@ -204,6 +242,17 @@ class BaseModel {
     }
   }
 
+  /**
+   * Fetches records after a given cursor for pagination.
+   * @param {Object} cursor - Cursor object mapping column names to values.
+   * @param {number} limit - Number of rows to fetch.
+   * @param {string[]} orderBy - Ordered columns for pagination.
+   * @param {Object} options - Optional filters and flags.
+   * @param {boolean} [options.descending] - Sort in descending order.
+   * @param {string[]} [options.columnWhitelist] - Columns to return.
+   * @param {Object} [options.filters] - Additional filters.
+   * @returns {Promise<{ rows: Object[], nextCursor: Object|null }>}
+   */
   async findAfterCursor(
     cursor = {},
     limit = 50,
@@ -281,7 +330,12 @@ class BaseModel {
     return { rows, nextCursor };
   }
 
-  // Executes findBy with AND conditions and returns only the first result.
+  /**
+   * Executes findBy with AND conditions and returns only the first result.
+   * @param {Array<Object>} conditions - Array of equality conditions.
+   * @param {Object} [options] - Query options.
+   * @returns {Promise<Object|null>} The first matching row or null.
+   */
   async findOneBy(conditions, options = {}) {
     try {
       const results = await this.findBy(conditions, 'AND', options);
@@ -291,7 +345,11 @@ class BaseModel {
     }
   }
 
-  // Checks if a record exists matching the given condition object.
+  /**
+   * Checks if a record exists matching the given condition object.
+   * @param {Object} conditions - Conditions to check for existence.
+   * @returns {Promise<boolean>} True if the record exists, false otherwise.
+   */
   async exists(conditions) {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
@@ -314,6 +372,12 @@ class BaseModel {
     }
   }
 
+  /**
+   * Updates an existing row by ID.
+   * @param {number|string} id - The ID of the record to update.
+   * @param {Object} dto - Data Transfer Object containing updated values.
+   * @returns {Promise<Object>} The updated row.
+   */
   async update(id, dto) {
     // Validate that the ID is in a valid format
     if (!isValidId(id)) {
@@ -354,7 +418,11 @@ class BaseModel {
     }
   }
 
-  // Deletes a row by ID. Returns the number of rows affected.
+  /**
+   * Deletes a row by ID. Returns the number of rows affected.
+   * @param {number|string} id - The ID of the record to delete.
+   * @returns {Promise<number>} Number of rows affected.
+   */
   async delete(id) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
@@ -368,7 +436,10 @@ class BaseModel {
     }
   }
 
-  // Returns the total number of rows in the table.
+  /**
+   * Returns the total number of rows in the table.
+   * @returns {Promise<number>} Total number of rows.
+   */
   async count() {
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
     this.logQuery(query);
@@ -381,7 +452,10 @@ class BaseModel {
     }
   }
 
-  // Removes all rows and resets ID sequence using TRUNCATE CASCADE.
+  /**
+   * Removes all rows and resets ID sequence using TRUNCATE CASCADE.
+   * @returns {Promise<void>}
+   */
   async truncate() {
     const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
     this.logQuery(query);
@@ -393,17 +467,31 @@ class BaseModel {
     }
   }
 
-  // Sets the schema name for this instance of BaseModel.
+  /**
+   * Sets the schema name for this instance of BaseModel.
+   * @param {string} dbSchema - The new schema name.
+   */
   setSchema(dbSchema) {
     this._schema.dbSchema = dbSchema;
   }
 
-  // Sets the schema name and returns the instance for chaining.
+  /**
+   * Sets the schema name and returns the instance for chaining.
+   * @param {string} dbSchema - The new schema name.
+   * @returns {BaseModel} The instance of BaseModel for chaining.
+   */
   withSchema(dbSchema) {
     this._schema.dbSchema = dbSchema;
     return this;
   }
 
+  /**
+   * Builds a WHERE clause recursively for the conditions.
+   * @param {Array<Object>} group - Conditions to build the clause from.
+   * @param {string} [joiner='AND'] - The joiner for the conditions.
+   * @param {Array} values - Array to collect values for the query.
+   * @returns {string} The constructed WHERE clause.
+   */
   #buildCondition(group, joiner = 'AND', values = []) {
     const parts = [];
     for (const item of group) {
