@@ -1,4 +1,9 @@
 'use strict';
+/**
+ * @fileoverview
+ * Utility functions for generating SQL statements and pg-promise ColumnSets
+ * based on a structured schema definition.
+ */
 
 /*
  * Copyright © 2024-present, Ian Silverstone
@@ -10,15 +15,29 @@
  */
 
 import crypto from 'crypto';
-
+/**
+ * Creates a short MD5-based hash of the input string.
+ * @param {string} input - Value to hash.
+ * @returns {string} A 6-character hex hash.
+ */
 function createHash(input) {
   return crypto.createHash('md5').update(input).digest('hex').slice(0, 6);
 }
-
+/**
+ * Generates a CREATE TABLE SQL statement based on a schema definition.
+ * @param {Object} schema - Schema definition object.
+ * @param {string} schema.dbSchema - Schema name (defaults to 'public').
+ * @param {string} schema.table - Table name.
+ * @param {Array<Object>} schema.columns - Column definitions.
+ * @param {Object} [schema.constraints] - Table constraints (primaryKey, unique, foreignKeys, checks).
+ * @returns {string} SQL statement to create the table if it does not exist.
+ */
 function createTableSQL(schema) {  
+  // Extract schema components: schema name, table name, columns, and constraints
   const { dbSchema, table, columns, constraints = {} } = schema;
   const schemaName = dbSchema || 'public';
 
+  // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
     let def = `"${col.name}" ${col.type}`;
     if (col.notNull) def += ' NOT NULL';
@@ -26,8 +45,10 @@ function createTableSQL(schema) {
     return def;
   });
 
+  // Initialize list to hold table-level constraints
   const tableConstraints = [];
 
+  // Handle PRIMARY KEY constraint
   // Primary Key
   if (constraints.primaryKey) {
     tableConstraints.push(
@@ -35,6 +56,7 @@ function createTableSQL(schema) {
     );
   }
 
+  // Handle UNIQUE constraints with generated names
   // Unique Constraints
   if (constraints.unique) {
     for (const uniqueCols of constraints.unique) {
@@ -48,6 +70,7 @@ function createTableSQL(schema) {
     }
   }
 
+  // Handle FOREIGN KEY constraints with ON DELETE/UPDATE rules
   // Foreign Keys
   if (constraints.foreignKeys) {
     for (const fk of constraints.foreignKeys) {
@@ -75,6 +98,7 @@ function createTableSQL(schema) {
     }
   }
 
+  // Handle CHECK constraints
   // Check Constraints
   if (constraints.checks) {
     for (const check of constraints.checks) {
@@ -82,7 +106,7 @@ function createTableSQL(schema) {
     }
   }
 
-  // Combine all
+  // Combine column definitions and constraints into final CREATE TABLE statement
   const allDefs = columnDefs.concat(tableConstraints).join(',\n  ');
 
   const sql = `
@@ -94,6 +118,11 @@ function createTableSQL(schema) {
   return sql;
 }
 
+/**
+ * Appends standard audit fields to a schema's column list.
+ * @param {Object} schema - Schema definition to augment.
+ * @returns {Object} The modified schema including audit fields.
+ */
 function addAuditFields(schema) {
   const { columns } = schema;
   columns.push(
@@ -116,7 +145,15 @@ function addAuditFields(schema) {
   return schema;
 }
 
+/**
+ * Generates CREATE INDEX statements for the schema's defined indexes.
+ * @param {Object} schema - Schema with constraints.indexes defined.
+ * @param {boolean} [unique=false] - Whether to prefix indexes as unique.
+ * @param {string|null} [where=null] - Optional WHERE clause for partial indexes.
+ * @returns {string} SQL statements for creating indexes.
+ */
 function createIndexesSQL(schema, unique = false, where = null) {
+  // Ensure that index definitions are present in the schema
   if (!schema.constraints || !schema.constraints.indexes) {
     throw new Error('No indexes defined in schema');
   }
@@ -135,29 +172,43 @@ function createIndexesSQL(schema, unique = false, where = null) {
   return indexSQL.join('\n');
 }
 
+/**
+ * Normalizes whitespace and removes trailing semicolons from SQL.
+ * @param {string} sql - Raw SQL string.
+ * @returns {string} Normalized SQL.
+ */
 function normalizeSQL(sql) {
   return sql.replace(/\s+/g, ' ').replace(/;$/, '').trim();
 }
 
+/**
+ * Creates pg-promise ColumnSet objects for insert and update operations.
+ * Filters out audit fields and handles default values and primary key flags.
+ * @param {Object} schema - Schema definition including columns and constraints.
+ * @param {Object} pgp - pg-promise instance with helpers.
+ * @returns {Object} An object mapping table name to ColumnSet, and .insert/.update sets.
+ */
 function createColumnSet(schema, pgp) {
-  //Remove any audit fields from the column set
+  // Define standard audit field names to exclude from base ColumnSet
   const auditFields = ['created_at', 'created_by', 'updated_at', 'updated_by'];
+  // Remove audit fields from the list of columns
   const columnsetColumns = schema.columns.filter(
     col => !auditFields.includes(col.name)
   );
   const hasAuditFields = columnsetColumns.length !== schema.columns.length;
 
-  // Create columnset for insert and update operations
+  // Transform schema columns into ColumnSet configurations
   const columns = columnsetColumns
     .map(col => {
       const isPrimaryKey = schema.constraints?.primaryKey?.includes(col.name);
       const hasDefault = col.hasOwnProperty('default');
 
+      // Skip serial or UUID primary keys with defaults
       if (
         col.type === 'serial' ||
         (col.type === 'uuid' && isPrimaryKey && hasDefault)
       ) {
-        return null; // Skip serial or uuid with primary key and default
+        return null;
       }
 
       const columnObject = {
@@ -181,6 +232,7 @@ function createColumnSet(schema, pgp) {
 
   const cs = {};
 
+  // Instantiate ColumnSet for base table operations
   cs[schema.table] = new pgp.helpers.ColumnSet(columns, {
     table: {
       table: schema.table,
@@ -188,6 +240,7 @@ function createColumnSet(schema, pgp) {
     },
   });
 
+  // Create separate ColumnSet variants for insert and update to include audit fields
   if (hasAuditFields) {
     cs.insert = cs[schema.table].extend(['created_by']);
     cs.update = cs[schema.table].extend([
