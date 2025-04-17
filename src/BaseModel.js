@@ -11,6 +11,7 @@
 
 import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
+
 class BaseModel {
   constructor(db, pgp, schema, logger = null) {
     if (!schema || typeof schema !== 'object') {
@@ -41,7 +42,7 @@ class BaseModel {
     return this.pgp.as.name(name);
   }
 
-  get schemaName() {    
+  get schemaName() {
     return this.escapeName(this._schema.dbSchema);
   }
 
@@ -83,7 +84,8 @@ class BaseModel {
       );
     }
 
-    const query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
+    const query =
+      this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
 
     this.logQuery(query);
 
@@ -121,36 +123,90 @@ class BaseModel {
   async reload(id) {
     return this.findById(id);
   }
-
-  async findAfterCursor(cursor, limit = 20) {
-    if (!isValidId(cursor)) {
-      return Promise.reject(new Error('Invalid cursor format'));
-    }
-    const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE id > $1 ORDER BY id ASC LIMIT $2`;
-    this.logQuery(query);
-
-    try {
-      return await this.db.any(query, [cursor, limit]);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  async findBy(conditions) {
-    if (
-      !isPlainObject(conditions) ||
-      Object.keys(conditions).length === 0
-    ) {
-      return Promise.reject(new Error('Conditions must be a non-empty object'));
+  
+  async findBy(conditions = [], joinType = 'AND', {
+    columnWhitelist = null,
+    filters = {}
+  } = {}) {
+    if (!Array.isArray(conditions) || conditions.length === 0) {
+      return Promise.reject(new Error('Conditions must be a non-empty array'));
     }
 
-    const keys = Object.keys(conditions).map(key => this.escapeName(key));
-    const values = Object.values(conditions);
-    const whereClause = keys
-      .map((key, idx) => `${key} = $${idx + 1}`)
-      .join(' AND ');
+    const table = `${this.schemaName}.${this.tableName}`;
+    const selectCols = columnWhitelist?.length
+      ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
+      : '*';
 
-    const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE ${whereClause}`;
+    const queryParts = [`SELECT ${selectCols} FROM ${table}`];
+    const values = [];
+    const whereClauses = [];
+
+    // Base conditions
+    const baseConditions = conditions.map((condition, idx) => {
+      const key = Object.keys(condition)[0];
+      const val = Object.values(condition)[0];
+      values.push(val);
+      return `${this.escapeName(key)} = $${values.length}`;
+    });
+
+    if (baseConditions.length) {
+      whereClauses.push(`(${baseConditions.join(` ${joinType.toUpperCase()} `)})`);
+    }
+
+    // Recursive filter parser (same logic as in findAfterCursor)
+    const buildCondition = (group, joiner = 'AND') => {
+      const parts = [];
+      for (const item of group) {
+        if (item.and) {
+          parts.push(`(${buildCondition(item.and, 'AND')})`);
+        } else if (item.or) {
+          parts.push(`(${buildCondition(item.or, 'OR')})`);
+        } else {
+          for (const [key, val] of Object.entries(item)) {
+            const col = this.escapeName(key);
+            if (val && typeof val === 'object') {
+              if ('like' in val) {
+                values.push(val.like);
+                parts.push(`${col} LIKE $${values.length}`);
+              } else if ('ilike' in val) {
+                values.push(val.ilike);
+                parts.push(`${col} ILIKE $${values.length}`);
+              } else {
+                if (val.from) {
+                  values.push(val.from);
+                  parts.push(`${col} >= $${values.length}`);
+                }
+                if (val.to) {
+                  values.push(val.to);
+                  parts.push(`${col} <= $${values.length}`);
+                }
+              }
+            } else {
+              values.push(val);
+              parts.push(`${col} = $${values.length}`);
+            }
+          }
+        }
+      }
+      return parts.join(` ${joiner} `);
+    };
+
+    if (Object.keys(filters).length) {
+      if (filters.and || filters.or) {
+        const top = filters.and
+          ? buildCondition(filters.and, 'AND')
+          : buildCondition(filters.or, 'OR');
+        whereClauses.push(top);
+      } else {
+        whereClauses.push(buildCondition([filters]));
+      }
+    }
+
+    if (whereClauses.length) {
+      queryParts.push('WHERE', whereClauses.join(' AND '));
+    }
+
+    const query = queryParts.join(' ');
     this.logQuery(query);
 
     try {
@@ -160,9 +216,130 @@ class BaseModel {
     }
   }
 
-  async findOneBy(conditions) {
+  /**
+   * Paginated fetch with advanced filtering (AND, OR, LIKE, ILIKE, ranges).
+   *
+   * @param {Object} cursor - Composite cursor (e.g. { created_at, id }).
+   * @param {number} limit - Max results per page.
+   * @param {Array<string>} orderBy - Columns to order by.
+   * @param {Object} options
+   * @param {boolean} options.descending
+   * @param {Array<string>} options.columnWhitelist
+   * @param {Object} options.filters - Nested filters: { and: [...], or: [...] }
+   */
+  async findAfterCursor(
+    cursor = {},
+    limit = 50,
+    orderBy = ['id'],
+    options = {}
+  ) {
+    const {
+      descending = false,
+      columnWhitelist = null,
+      filters = {},
+    } = options;
+
+    const direction = descending ? 'DESC' : 'ASC';
+    const table = `${this.schemaName}.${this.tableName}`;
+    const selectCols = columnWhitelist?.length
+      ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
+      : '*';
+    const escapedOrderCols = orderBy
+      .map(col => this.escapeName(col))
+      .join(', ');
+    const queryParts = [`SELECT ${selectCols} FROM ${table}`];
+    const whereClauses = [];
+    const values = [];
+
+    // Cursor condition
+    if (Object.keys(cursor).length > 0) {
+      const cursorValues = orderBy.map(col => {
+        if (!(col in cursor)) throw new Error(`Missing cursor for ${col}`);
+        return cursor[col];
+      });
+      const placeholders = cursorValues.map((_, i) => `$${i + 1}`).join(', ');
+      whereClauses.push(
+        `(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`
+      );
+      values.push(...cursorValues);
+    }
+
+    // Recursive filter parser
+    const buildCondition = (group, joiner = 'AND') => {
+      const parts = [];
+      for (const item of group) {
+        if (item.and) {
+          parts.push(`(${buildCondition(item.and, 'AND')})`);
+        } else if (item.or) {
+          parts.push(`(${buildCondition(item.or, 'OR')})`);
+        } else {
+          for (const [key, val] of Object.entries(item)) {
+            const col = this.escapeName(key);
+            if (val && typeof val === 'object') {
+              if ('like' in val) {
+                values.push(val.like);
+                parts.push(`${col} LIKE $${values.length}`);
+              } else if ('ilike' in val) {
+                values.push(val.ilike);
+                parts.push(`${col} ILIKE $${values.length}`);
+              } else {
+                if (val.from) {
+                  values.push(val.from);
+                  parts.push(`${col} >= $${values.length}`);
+                }
+                if (val.to) {
+                  values.push(val.to);
+                  parts.push(`${col} <= $${values.length}`);
+                }
+              }
+            } else {
+              values.push(val);
+              parts.push(`${col} = $${values.length}`);
+            }
+          }
+        }
+      }
+      return parts.join(` ${joiner} `);
+    };
+
+    if (Object.keys(filters).length) {
+      if (filters.and || filters.or) {
+        const top = filters.and
+          ? buildCondition(filters.and, 'AND')
+          : buildCondition(filters.or, 'OR');
+        whereClauses.push(top);
+      } else {
+        whereClauses.push(buildCondition([filters]));
+      }
+    }
+
+    if (whereClauses.length) {
+      queryParts.push('WHERE', whereClauses.join(' AND '));
+    }
+
+    queryParts.push(`ORDER BY ${escapedOrderCols} ${direction}`);
+    queryParts.push(`LIMIT $${values.length + 1}`);
+    values.push(limit);
+
+    const query = queryParts.join(' ');
+    this.logQuery?.(query);
+
+    const rows = await this.db.any(query, values);
+
+    const nextCursor =
+      rows.length > 0
+        ? orderBy.reduce((acc, col) => {
+            acc[col] = rows[rows.length - 1][col];
+            return acc;
+          }, {})
+        : null;
+
+    return { rows, nextCursor };
+  }
+
+  async findOneBy(conditions, options = {}) {
     try {
-      const results = await this.findBy(conditions);
+      const results = await this.findBy(conditions, 'AND', options);
       return results[0] || null;
     } catch (err) {
       this.handleDbError(err);
@@ -170,10 +347,7 @@ class BaseModel {
   }
 
   async exists(conditions) {
-    if (
-      !isPlainObject(conditions) ||
-      Object.keys(conditions).length === 0
-    ) {
+    if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
     }
 
@@ -210,14 +384,17 @@ class BaseModel {
     const safeDto = this.sanitizeDto(dto);
 
     const condition = this.pgp.as.format('WHERE id = $1', [id]);
-        
+
     const query =
-      this.pgp.helpers.update(safeDto, this.cs.update, { schema: this.schema.dbSchema, table: this.schema.table}) +
+      this.pgp.helpers.update(safeDto, this.cs.update, {
+        schema: this.schema.dbSchema,
+        table: this.schema.table,
+      }) +
       ' ' +
       condition +
       ' RETURNING *';
 
-    this.logQuery(query);    
+    this.logQuery(query);
 
     try {
       return await this.db.one(query);

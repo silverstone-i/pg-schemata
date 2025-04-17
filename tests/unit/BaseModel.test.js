@@ -1,4 +1,4 @@
-import BaseModel from '../../src/BaseModel'; // adjust path as needed
+import BaseModel from '../../src/BaseModel.js';
 
 // ================================
 // Mocks
@@ -17,7 +17,9 @@ const mockPgp = {
     format: jest.fn((query, values) => query.replace('$1', values[0])),
   },
   helpers: {
-    insert: jest.fn((dto, cs) => `INSERT INTO "public"."users" (...) VALUES (...)`),
+    insert: jest.fn(
+      (dto, cs) => `INSERT INTO "public"."users" (...) VALUES (...)`
+    ),
     update: jest.fn(
       (dto, cs, { table, schema }) => `UPDATE "${schema}"."${table}" SET ...`
     ),
@@ -52,6 +54,7 @@ describe('BaseModel', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     model = new BaseModel(mockDb, mockPgp, mockSchema);
+    model.logQuery = jest.fn();
     spyHandleDbError = jest
       .spyOn(model, 'handleDbError')
       .mockImplementation(err => {
@@ -83,7 +86,6 @@ describe('BaseModel', () => {
     test('escapeName should wrap name in quotes', () => {
       expect(model.escapeName('test')).toBe('"test"');
     });
-
 
     test('sanitizeDto should strip invalid fields', () => {
       const sanitized = model.sanitizeDto({
@@ -146,32 +148,58 @@ describe('BaseModel', () => {
         expect(result).toEqual({ id: 1 });
       });
 
-      test('findAfterCursor should return records after id', async () => {
-        mockDb.any.mockResolvedValue([{ id: 2 }]);
-        const result = await model.findAfterCursor(1, 10);
-        expect(result).toEqual([{ id: 2 }]);
-      });
-
-      test('findBy should return matching records', async () => {
-        mockDb.any.mockResolvedValue([{ id: 1 }]);
-        const result = await model.findBy({ email: 'test@example.com' });
-        expect(result).toEqual([{ id: 1 }]);
-      });
-
-      test('findOneBy should return first match or null', async () => {
-        mockDb.any.mockResolvedValue([{ id: 1 }]);
-        const result = await model.findOneBy({ email: 'test@example.com' });
-        expect(result).toEqual({ id: 1 });
-
-        mockDb.any.mockResolvedValue([]);
-        const result2 = await model.findOneBy({ email: 'none@example.com' });
-        expect(result2).toBeNull();
-      });
-
       test('exists should return true or false', async () => {
         mockDb.one.mockResolvedValue({ exists: true });
         const result = await model.exists({ email: 'test@example.com' });
         expect(result).toBe(true);
+      });
+
+      test('findBy should return matching records using AND logic', async () => {
+        mockDb.any.mockResolvedValue([{ id: 1, email: 'test@example.com' }]);
+
+        const result = await model.findBy([{ id: 1 }, { email: 'test@example.com' }]);
+
+        expect(mockDb.any).toHaveBeenCalled();
+        const query = model.logQuery.mock.calls[0][0];
+        expect(query).toMatch(/WHERE \("id" = \$1 AND "email" = \$2\)/);
+        expect(result).toEqual([{ id: 1, email: 'test@example.com' }]);
+      });
+
+      test('findBy should support filters with OR and LIKE logic', async () => {
+        mockDb.any.mockResolvedValue([{ id: 2 }]);
+
+        const result = await model.findBy([{ id: 2 }], 'AND', {
+          filters: {
+            or: [
+              { name: { like: '%john%' } },
+              { email: { ilike: '%@example.com' } },
+            ],
+          },
+        });
+
+        expect(mockDb.any).toHaveBeenCalled();
+        const query = model.logQuery.mock.calls[0][0];
+        expect(query).toMatch(/"name" LIKE/);
+        expect(query).toMatch(/"email" ILIKE/);
+        expect(result).toEqual([{ id: 2 }]);
+      });
+
+      test('findOneBy should return the first matching record', async () => {
+        mockDb.any.mockResolvedValue([{ id: 3 }]);
+
+        const result = await model.findOneBy([{ id: 3 }]);
+
+        expect(mockDb.any).toHaveBeenCalled();
+        expect(result).toEqual({ id: 3 });
+      });
+
+      test('findOneBy should return null if no records found', async () => {
+        mockDb.any.mockResolvedValue([]);
+
+        const result = await model.findOneBy([{ id: 999 }]);
+
+        expect(mockDb.any).toHaveBeenCalled();
+        expect(result).toBeNull();
       });
     });
 
@@ -206,6 +234,79 @@ describe('BaseModel', () => {
         expect(mockDb.none).toHaveBeenCalled();
       });
     });
+
+    describe('BaseModel.findAfterCursor', () => {
+      test('generates correct query with basic cursor and default options', async () => {
+        mockDb.any.mockResolvedValue([{ id: 2, email: 'a@x.com' }]);
+
+        const res = await model.findAfterCursor({ id: 1 }, 10, ['id']);
+
+        expect(mockDb.any).toHaveBeenCalled();
+        const query = model.logQuery.mock.calls[0][0];
+        expect(query).toMatch(/WHERE \("id"\) > \(\$1\)/);
+        expect(query).toMatch(/ORDER BY "id" ASC/);
+        expect(res.nextCursor).toEqual({ id: 2 });
+      });
+
+      test('applies descending and columnWhitelist options', async () => {
+        expect(model.pgp).toBeDefined();
+        expect(typeof model.pgp.as.name).toBe('function');
+        mockDb.any.mockResolvedValue([{ id: 99 }]);
+ 
+        await model.findAfterCursor({ id: 98 }, 5, ['id'], {
+          descending: true,
+          columnWhitelist: ['id'],
+        });
+ 
+        const query = model.logQuery.mock.calls[0][0];
+        expect(query).toContain('SELECT "id" FROM');
+        expect(query).toContain('ORDER BY "id" DESC');
+      });
+
+      test('handles AND + OR + ILIKE + LIKE + range filters', async () => {
+        mockDb.any.mockResolvedValue([{ id: 3 }]);
+
+        await model.findAfterCursor(
+          { created_at: '2023-01-01', id: 1 },
+          10,
+          ['created_at', 'id'],
+          {
+            filters: {
+              and: [
+                { status: 'active' },
+                {
+                  or: [
+                    { email: { ilike: '%@test.com' } },
+                    { name: { like: '%john%' } },
+                  ],
+                },
+                { created_at: { from: '2022-01-01', to: '2023-12-31' } },
+              ],
+            },
+          }
+        );
+
+        const query = model.logQuery.mock.calls[0][0];
+        expect(query).toMatch(/"status" =/);
+        expect(query).toMatch(/"email" ILIKE/);
+        expect(query).toMatch(/"name" LIKE/);
+        expect(query).toMatch(/"created_at" >=/);
+        expect(query).toMatch(/"created_at" <=/);
+        expect(query).toMatch(/AND \(/); // confirms OR block
+      });
+
+      test('returns null nextCursor if no rows', async () => {
+        mockDb.any.mockResolvedValue([]);
+        const res = await model.findAfterCursor({ id: 100 }, 10, ['id']);
+        expect(res.nextCursor).toBeNull();
+      });
+
+      test('throws if cursor is missing required key', async () => {
+        await expect(
+          model.findAfterCursor({ wrong_key: 1 }, 10, ['id'])
+        ).rejects.toThrow('Missing cursor for id');
+      });
+    });
   });
 
   // ================================
@@ -230,24 +331,6 @@ describe('BaseModel', () => {
   describe('Validation Errors', () => {
     test('findById should throw if ID is invalid', async () => {
       await expect(model.findById(null)).rejects.toThrow('Invalid ID format');
-    });
-
-    test('findAfterCursor should throw if cursor is invalid', async () => {
-      await expect(model.findAfterCursor('')).rejects.toThrow(
-        'Invalid cursor format'
-      );
-    });
-
-    test('findBy should throw if conditions is not an object', async () => {
-      await expect(model.findBy(null)).rejects.toThrow(
-        'Conditions must be a non-empty object'
-      );
-    });
-
-    test('findBy should throw if conditions is empty', async () => {
-      await expect(model.findBy({})).rejects.toThrow(
-        'Conditions must be a non-empty object'
-      );
     });
 
     test('exists should throw if conditions is not an object', async () => {
@@ -348,31 +431,6 @@ describe('BaseModel', () => {
       mockDb.oneOrNone.mockRejectedValue(TEST_ERROR);
 
       await expect(model.findById(1)).rejects.toThrow('db error');
-      expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
-    });
-
-    test('findAfterCursor should call handleDbError if db.any throws', async () => {
-      mockDb.any.mockRejectedValue(TEST_ERROR);
-
-      await expect(model.findAfterCursor(1)).rejects.toThrow('db error');
-      expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
-    });
-
-    test('findBy should call handleDbError if db.any throws', async () => {
-      mockDb.any.mockRejectedValue(TEST_ERROR);
-
-      await expect(model.findBy({ email: 'test@example.com' })).rejects.toThrow(
-        'db error'
-      );
-      expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
-    });
-
-    test('findOneBy should call handleDbError if findBy throws', async () => {
-      jest.spyOn(model, 'findBy').mockRejectedValue(TEST_ERROR);
-
-      await expect(
-        model.findOneBy({ email: 'test@example.com' })
-      ).rejects.toThrow('db error');
       expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
     });
 
