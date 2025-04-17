@@ -153,52 +153,14 @@ class BaseModel {
       whereClauses.push(`(${baseConditions.join(` ${joinType.toUpperCase()} `)})`);
     }
 
-    // Recursive filter parser (same logic as in findAfterCursor)
-    const buildCondition = (group, joiner = 'AND') => {
-      const parts = [];
-      for (const item of group) {
-        if (item.and) {
-          parts.push(`(${buildCondition(item.and, 'AND')})`);
-        } else if (item.or) {
-          parts.push(`(${buildCondition(item.or, 'OR')})`);
-        } else {
-          for (const [key, val] of Object.entries(item)) {
-            const col = this.escapeName(key);
-            if (val && typeof val === 'object') {
-              if ('like' in val) {
-                values.push(val.like);
-                parts.push(`${col} LIKE $${values.length}`);
-              } else if ('ilike' in val) {
-                values.push(val.ilike);
-                parts.push(`${col} ILIKE $${values.length}`);
-              } else {
-                if (val.from) {
-                  values.push(val.from);
-                  parts.push(`${col} >= $${values.length}`);
-                }
-                if (val.to) {
-                  values.push(val.to);
-                  parts.push(`${col} <= $${values.length}`);
-                }
-              }
-            } else {
-              values.push(val);
-              parts.push(`${col} = $${values.length}`);
-            }
-          }
-        }
-      }
-      return parts.join(` ${joiner} `);
-    };
-
     if (Object.keys(filters).length) {
       if (filters.and || filters.or) {
         const top = filters.and
-          ? buildCondition(filters.and, 'AND')
-          : buildCondition(filters.or, 'OR');
+          ? this.#buildCondition(filters.and, 'AND', values)
+          : this.#buildCondition(filters.or, 'OR', values);
         whereClauses.push(top);
       } else {
-        whereClauses.push(buildCondition([filters]));
+        whereClauses.push(this.#buildCondition([filters], 'AND', values));
       }
     }
 
@@ -253,52 +215,14 @@ class BaseModel {
       values.push(...cursorValues);
     }
 
-    // Recursive filter parser
-    const buildCondition = (group, joiner = 'AND') => {
-      const parts = [];
-      for (const item of group) {
-        if (item.and) {
-          parts.push(`(${buildCondition(item.and, 'AND')})`);
-        } else if (item.or) {
-          parts.push(`(${buildCondition(item.or, 'OR')})`);
-        } else {
-          for (const [key, val] of Object.entries(item)) {
-            const col = this.escapeName(key);
-            if (val && typeof val === 'object') {
-              if ('like' in val) {
-                values.push(val.like);
-                parts.push(`${col} LIKE $${values.length}`);
-              } else if ('ilike' in val) {
-                values.push(val.ilike);
-                parts.push(`${col} ILIKE $${values.length}`);
-              } else {
-                if (val.from) {
-                  values.push(val.from);
-                  parts.push(`${col} >= $${values.length}`);
-                }
-                if (val.to) {
-                  values.push(val.to);
-                  parts.push(`${col} <= $${values.length}`);
-                }
-              }
-            } else {
-              values.push(val);
-              parts.push(`${col} = $${values.length}`);
-            }
-          }
-        }
-      }
-      return parts.join(` ${joiner} `);
-    };
-
     if (Object.keys(filters).length) {
       if (filters.and || filters.or) {
         const top = filters.and
-          ? buildCondition(filters.and, 'AND')
-          : buildCondition(filters.or, 'OR');
+          ? this.#buildCondition(filters.and, 'AND', values)
+          : this.#buildCondition(filters.or, 'OR', values);
         whereClauses.push(top);
       } else {
-        whereClauses.push(buildCondition([filters]));
+        whereClauses.push(this.#buildCondition([filters], 'AND', values));
       }
     }
 
@@ -435,6 +359,43 @@ class BaseModel {
   withSchema(dbSchema) {
     this._schema.dbSchema = dbSchema;
     return this;
+  }
+
+  #buildCondition(group, joiner = 'AND', values = []) {
+    const parts = [];
+    for (const item of group) {
+      if (item.and) {
+        parts.push(`(${this.#buildCondition(item.and, 'AND', values)})`);
+      } else if (item.or) {
+        parts.push(`(${this.#buildCondition(item.or, 'OR', values)})`);
+      } else {
+        for (const [key, val] of Object.entries(item)) {
+          const col = this.escapeName(key);
+          if (val && typeof val === 'object') {
+            if ('like' in val) {
+              values.push(val.like);
+              parts.push(`${col} LIKE $${values.length}`);
+            } else if ('ilike' in val) {
+              values.push(val.ilike);
+              parts.push(`${col} ILIKE $${values.length}`);
+            } else {
+              if (val.from) {
+                values.push(val.from);
+                parts.push(`${col} >= $${values.length}`);
+              }
+              if (val.to) {
+                values.push(val.to);
+                parts.push(`${col} <= $${values.length}`);
+              }
+            }
+          } else {
+            values.push(val);
+            parts.push(`${col} = $${values.length}`);
+          }
+        }
+      }
+    }
+    return parts.join(` ${joiner} `);
   }
 
   handleDbError(err) {
