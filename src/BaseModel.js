@@ -9,9 +9,16 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
+/**
+ * BaseModel provides generic CRUD operations for a PostgreSQL table
+ * using pg-promise and a JSON schema definition.
+ */
+
 import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 
+// Initializes the BaseModel with db connection, pg-promise instance,
+// schema definition, and optional logger. Validates required schema fields.
 class BaseModel {
   constructor(db, pgp, schema, logger = null) {
     if (!schema || typeof schema !== 'object') {
@@ -38,22 +45,27 @@ class BaseModel {
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
+  // Escapes a database identifier (e.g. column or table name) using pg-promise formatting.
   escapeName(name) {
     return this.pgp.as.name(name);
   }
 
+  // Returns the escaped schema name.
   get schemaName() {
     return this.escapeName(this._schema.dbSchema);
   }
 
+  // Returns the schema object.
   get schema() {
     return this._schema;
   }
 
+  // Returns the escaped table name.
   get tableName() {
     return this.escapeName(this._schema.table);
   }
 
+  // Filters the input DTO to include only valid column names defined in the schema.
   sanitizeDto(dto) {
     const validColumns = this._schema.columns.map(c => c.name);
     const sanitized = {};
@@ -65,6 +77,7 @@ class BaseModel {
     return sanitized;
   }
 
+  // Logs the query if a logger is provided and has a debug method.
   logQuery(query) {
     if (this.logger?.debug) {
       this.logger.debug(`Running query: ${query}`);
@@ -72,23 +85,29 @@ class BaseModel {
   }
 
   async insert(dto) {
+    // Validate that the DTO is a non-empty object
     if (!isPlainObject(dto)) {
       return Promise.reject(new Error('DTO must be a non-empty object'));
     }
 
+    // Sanitize the DTO to include only valid columns
     const safeDto = this.sanitizeDto(dto);
 
+    // Check that the sanitized DTO has at least one valid column
     if (Object.keys(safeDto).length === 0) {
       return Promise.reject(
         new Error('DTO must contain at least one valid column')
       );
     }
 
+    // Construct the insert query
     const query =
       this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
 
+    // Log the constructed query
     this.logQuery(query);
 
+    // Execute the query and handle any potential errors
     try {
       return await this.db.one(query);
     } catch (err) {
@@ -96,6 +115,7 @@ class BaseModel {
     }
   }
 
+  // Fetches all records with pagination support using limit and offset.
   async findAll({ limit = 50, offset = 0 } = {}) {
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} ORDER BY id LIMIT $1 OFFSET $2`;
     this.logQuery(query);
@@ -107,6 +127,7 @@ class BaseModel {
     }
   }
 
+  // Retrieves a single row by ID. Returns null if not found.
   async findById(id) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
@@ -120,6 +141,7 @@ class BaseModel {
     }
   }
 
+  // Alias for findById, used to refresh a record by its ID.
   async reload(id) {
     return this.findById(id);
   }
@@ -128,10 +150,12 @@ class BaseModel {
     columnWhitelist = null,
     filters = {}
   } = {}) {
+    // Validate that conditions is a non-empty array
     if (!Array.isArray(conditions) || conditions.length === 0) {
       return Promise.reject(new Error('Conditions must be a non-empty array'));
     }
 
+    // Prepare the table name and selected columns
     const table = `${this.schemaName}.${this.tableName}`;
     const selectCols = columnWhitelist?.length
       ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
@@ -153,6 +177,7 @@ class BaseModel {
       whereClauses.push(`(${baseConditions.join(` ${joinType.toUpperCase()} `)})`);
     }
 
+    // Handle additional filters
     if (Object.keys(filters).length) {
       if (filters.and || filters.or) {
         const top = filters.and
@@ -164,6 +189,7 @@ class BaseModel {
       }
     }
 
+    // Add WHERE clause if there are conditions
     if (whereClauses.length) {
       queryParts.push('WHERE', whereClauses.join(' AND '));
     }
@@ -190,6 +216,7 @@ class BaseModel {
       filters = {},
     } = options;
 
+    // Determine the order direction based on descending flag
     const direction = descending ? 'DESC' : 'ASC';
     const table = `${this.schemaName}.${this.tableName}`;
     const selectCols = columnWhitelist?.length
@@ -202,7 +229,7 @@ class BaseModel {
     const whereClauses = [];
     const values = [];
 
-    // Cursor condition
+    // Cursor condition for pagination
     if (Object.keys(cursor).length > 0) {
       const cursorValues = orderBy.map(col => {
         if (!(col in cursor)) throw new Error(`Missing cursor for ${col}`);
@@ -215,6 +242,7 @@ class BaseModel {
       values.push(...cursorValues);
     }
 
+    // Handle additional filters
     if (Object.keys(filters).length) {
       if (filters.and || filters.or) {
         const top = filters.and
@@ -226,10 +254,12 @@ class BaseModel {
       }
     }
 
+    // Add WHERE clause if there are conditions
     if (whereClauses.length) {
       queryParts.push('WHERE', whereClauses.join(' AND '));
     }
 
+    // Add ordering and limit to the query
     queryParts.push(`ORDER BY ${escapedOrderCols} ${direction}`);
     queryParts.push(`LIMIT $${values.length + 1}`);
     values.push(limit);
@@ -239,6 +269,7 @@ class BaseModel {
 
     const rows = await this.db.any(query, values);
 
+    // Determine the next cursor based on the last row
     const nextCursor =
       rows.length > 0
         ? orderBy.reduce((acc, col) => {
@@ -250,6 +281,7 @@ class BaseModel {
     return { rows, nextCursor };
   }
 
+  // Executes findBy with AND conditions and returns only the first result.
   async findOneBy(conditions, options = {}) {
     try {
       const results = await this.findBy(conditions, 'AND', options);
@@ -259,6 +291,7 @@ class BaseModel {
     }
   }
 
+  // Checks if a record exists matching the given condition object.
   async exists(conditions) {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
@@ -282,10 +315,12 @@ class BaseModel {
   }
 
   async update(id, dto) {
+    // Validate that the ID is in a valid format
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
     }
 
+    // Validate that the DTO is a non-empty object
     if (
       typeof dto !== 'object' ||
       Array.isArray(dto) ||
@@ -294,10 +329,13 @@ class BaseModel {
       return Promise.reject(new Error('DTO must be a non-empty object'));
     }
 
+    // Sanitize the DTO to include only valid columns
     const safeDto = this.sanitizeDto(dto);
 
+    // Prepare the condition for the SQL UPDATE
     const condition = this.pgp.as.format('WHERE id = $1', [id]);
 
+    // Construct the update query using pg-promise helpers
     const query =
       this.pgp.helpers.update(safeDto, this.cs.update, {
         schema: this.schema.dbSchema,
@@ -316,6 +354,7 @@ class BaseModel {
     }
   }
 
+  // Deletes a row by ID. Returns the number of rows affected.
   async delete(id) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
@@ -329,6 +368,7 @@ class BaseModel {
     }
   }
 
+  // Returns the total number of rows in the table.
   async count() {
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
     this.logQuery(query);
@@ -341,6 +381,7 @@ class BaseModel {
     }
   }
 
+  // Removes all rows and resets ID sequence using TRUNCATE CASCADE.
   async truncate() {
     const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
     this.logQuery(query);
@@ -352,10 +393,12 @@ class BaseModel {
     }
   }
 
+  // Sets the schema name for this instance of BaseModel.
   setSchema(dbSchema) {
     this._schema.dbSchema = dbSchema;
   }
 
+  // Sets the schema name and returns the instance for chaining.
   withSchema(dbSchema) {
     this._schema.dbSchema = dbSchema;
     return this;
@@ -365,20 +408,25 @@ class BaseModel {
     const parts = [];
     for (const item of group) {
       if (item.and) {
+        // Recursively handle AND conditions
         parts.push(`(${this.#buildCondition(item.and, 'AND', values)})`);
       } else if (item.or) {
+        // Recursively handle OR conditions
         parts.push(`(${this.#buildCondition(item.or, 'OR', values)})`);
       } else {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
           if (val && typeof val === 'object') {
             if ('like' in val) {
+              // Handle LIKE filter
               values.push(val.like);
               parts.push(`${col} LIKE $${values.length}`);
             } else if ('ilike' in val) {
+              // Handle ILIKE filter
               values.push(val.ilike);
               parts.push(`${col} ILIKE $${values.length}`);
             } else {
+              // Handle range filters
               if (val.from) {
                 values.push(val.from);
                 parts.push(`${col} >= $${values.length}`);
@@ -389,6 +437,7 @@ class BaseModel {
               }
             }
           } else {
+            // Handle equality condition
             values.push(val);
             parts.push(`${col} = $${values.length}`);
           }
@@ -398,6 +447,7 @@ class BaseModel {
     return parts.join(` ${joiner} `);
   }
 
+  // Logs the database error (if logger exists) and rethrows the error.
   handleDbError(err) {
     if (this.logger?.error) {
       this.logger.error('Database error:', err);
