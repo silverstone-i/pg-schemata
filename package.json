@@ -1,9 +1,17 @@
 {
   "name": "pg-schemata",
-  "version": "1.0.0",
+  "version": "0.1.0-beta.1",
   "description": "A lightweight Postgres-first ORM layer built on top of pg-promise",
   "main": "src/index.js",
   "type": "module",
+  "files": ["src", "README.md"],
+  "keywords": [
+    "postgres",
+    "pg-promise",
+    "orm",
+    "schema",
+    "nodejs"
+  ],
   "scripts": {
     "docs": "jsdoc -c jsdoc.json README.md && cp LICENSE docs/",
     "lint": "eslint .",
@@ -14,6 +22,10 @@
   },
   "author": "Ian Silverstone",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/silverstone-i/pg-schemata.git"
+  },
   "dependencies": {
     "dotenv": "^16.5.0",
     "pg-promise": "^11.13.0"
