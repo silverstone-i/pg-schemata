@@ -18,14 +18,14 @@ import pgPromise from 'pg-promise';
 
 class DB {
   /**
-   * @type {import('pg-promise').IDatabase<unknown>}
    * The pg-promise database instance, created on first init.
+   * This is set during the first call to DB.init and remains the same thereafter.
    */
   static db;
 
   /**
-   * @type {import('pg-promise').IMain}
    * The pg-promise root library instance, initialized with custom options.
+   * Used to configure database helpers and attach repositories.
    */
   static pgp;
 
@@ -73,10 +73,11 @@ class DB {
 
 /**
  * Initializes the DB singleton with the given connection and repository classes.
- * @param {string|Object} connection - Connection string or config object accepted by pg-promise.
- * @param {Object.<string, new(import('pg-promise').IDatabase<unknown>, import('pg-promise').IMain): any>} repositories
- *   - A mapping of repository names to their classes. Each will be instantiated and attached to the db.
- * @returns {typeof DB} The DB class with `db` and `pgp` initialized.
+ *
+ * @param {string|Object} connection - Connection string or configuration object for pg-promise.
+ * @param {Object} repositories - An object mapping repository names to constructor functions.
+ *                                Each constructor must accept a db instance and a pgp instance.
+ * @returns {DB} The DB class with `db` and `pgp` initialized.
  */
 
 export const db = DB.db;

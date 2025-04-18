@@ -4,11 +4,12 @@
  * @fileoverview Utility validation functions for IDs and object types.
  */
 
- /**
-  * Checks if the provided ID is a valid finite number or a non-empty string.
-  * @param {number|string} id - The ID to validate.
-  * @returns {boolean} True if the ID is a finite number or a non-empty string.
-  */
+/**
+ * Checks if the provided ID is a valid finite number or a non-empty string.
+ *
+ * @param {*} id - The ID to validate.
+ * @returns {boolean} True if the ID is a finite number or a non-empty string.
+ */
 export function isValidId(id) {
   // Allow numeric IDs (finite numbers) or string IDs (non-empty when trimmed)
   return (
@@ -19,7 +20,8 @@ export function isValidId(id) {
 
 /**
  * Validates whether a string matches the UUID v1–v5 format.
- * @param {string} id - The string to test as a UUID.
+ *
+ * @param {*} id - The string to test as a UUID.
  * @returns {boolean} True if the string is a valid UUID.
  */
 export function validateUUID(id) {
@@ -31,6 +33,7 @@ export function validateUUID(id) {
 
 /**
  * Determines if a value is a plain object (i.e., created by {} or Object.create(null)).
+ *
  * @param {*} obj - The value to check.
  * @returns {boolean} True if the value is a plain object.
  */

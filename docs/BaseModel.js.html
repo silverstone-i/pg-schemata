@@ -1,4 +1,53 @@
-'use strict';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>BaseModel.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/silverstone-i/pg-schemata" target="_blank" class="menu-item" id="github_link" >GitHub</a></h2><h3>Classes</h3><ul><li><a href="BaseModel.html">BaseModel</a><ul class='methods'><li data-type='method'><a href="BaseModel.html#count">count</a></li><li data-type='method'><a href="BaseModel.html#delete">delete</a></li><li data-type='method'><a href="BaseModel.html#exists">exists</a></li><li data-type='method'><a href="BaseModel.html#findAfterCursor">findAfterCursor</a></li><li data-type='method'><a href="BaseModel.html#findAll">findAll</a></li><li data-type='method'><a href="BaseModel.html#findBy">findBy</a></li><li data-type='method'><a href="BaseModel.html#findById">findById</a></li><li data-type='method'><a href="BaseModel.html#findOneBy">findOneBy</a></li><li data-type='method'><a href="BaseModel.html#insert">insert</a></li><li data-type='method'><a href="BaseModel.html#logQuery">logQuery</a></li><li data-type='method'><a href="BaseModel.html#reload">reload</a></li><li data-type='method'><a href="BaseModel.html#sanitizeDto">sanitizeDto</a></li><li data-type='method'><a href="BaseModel.html#setSchema">setSchema</a></li><li data-type='method'><a href="BaseModel.html#truncate">truncate</a></li><li data-type='method'><a href="BaseModel.html#update">update</a></li><li data-type='method'><a href="BaseModel.html#withSchema">withSchema</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#ColumnDefinition">ColumnDefinition</a></li><li><a href="global.html#ConstraintDefinition">ConstraintDefinition</a></li><li><a href="global.html#Constraints">Constraints</a></li><li><a href="global.html#TableSchema">TableSchema</a></li><li><a href="global.html#addAuditFields">addAuditFields</a></li><li><a href="global.html#createColumnSet">createColumnSet</a></li><li><a href="global.html#createHash">createHash</a></li><li><a href="global.html#createIndexesSQL">createIndexesSQL</a></li><li><a href="global.html#createTableSQL">createTableSQL</a></li><li><a href="global.html#db">db</a></li><li><a href="global.html#isPlainObject">isPlainObject</a></li><li><a href="global.html#isValidId">isValidId</a></li><li><a href="global.html#normalizeSQL">normalizeSQL</a></li><li><a href="global.html#tableSchema">tableSchema</a></li><li><a href="global.html#validateUUID">validateUUID</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">BaseModel.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>'use strict';
 
 /*
  * Copyright © 2024-present, Ian Silverstone
@@ -104,7 +153,7 @@ class BaseModel {
   /**
    * Inserts a new row into the table.
    * @param {Object} dto - Data Transfer Object to insert.
-   * @returns {Promise<Object>} Inserted row.
+   * @returns {Promise&lt;Object>} Inserted row.
    */
   async insert(dto) {
     // Validate that the DTO is a non-empty object
@@ -142,7 +191,7 @@ class BaseModel {
    * @param {Object} [options] - Pagination options.
    * @param {number} [options.limit=50] - Maximum number of records to return.
    * @param {number} [options.offset=0] - Number of records to skip.
-   * @returns {Promise<Object[]>} Array of records.
+   * @returns {Promise&lt;Object[]>} Array of records.
    */
   async findAll({ limit = 50, offset = 0 } = {}) {
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} ORDER BY id LIMIT $1 OFFSET $2`;
@@ -158,7 +207,7 @@ class BaseModel {
   /**
    * Retrieves a single row by ID. Returns null if not found.
    * @param {number|string} id - The ID of the record to retrieve.
-   * @returns {Promise<Object|null>} The found record or null.
+   * @returns {Promise&lt;Object|null>} The found record or null.
    */
   async findById(id) {
     if (!isValidId(id)) {
@@ -177,7 +226,7 @@ class BaseModel {
   /**
    * Alias for findById, used to refresh a record by its ID.
    * @param {number|string} id - The ID of the record to reload.
-   * @returns {Promise<Object|null>} The reloaded record or null.
+   * @returns {Promise&lt;Object|null>} The reloaded record or null.
    */
   async reload(id) {
     return this.findById(id);
@@ -191,7 +240,7 @@ class BaseModel {
    * @param {Object} [options] - Additional query options.
    * @param {Array} [options.columnWhitelist] - List of columns to return.
    * @param {Object} [options.filters] - Object specifying AND/OR filters.
-   * @returns {Promise<Array>} A promise that resolves to an array of matching records.
+   * @returns {Promise&lt;Array>} A promise that resolves to an array of matching records.
    */
   async findBy(conditions = [], joinType = 'AND', {
     columnWhitelist = null,
@@ -261,7 +310,7 @@ class BaseModel {
    * @param {boolean} [options.descending] - If true, fetches in descending order.
    * @param {Array} [options.columnWhitelist] - List of columns to return.
    * @param {Object} [options.filters] - Object specifying filter conditions.
-   * @returns {Promise<Object>} An object with `rows` and `nextCursor`.
+   * @returns {Promise&lt;Object>} An object with `rows` and `nextCursor`.
    */
   async findAfterCursor(
     cursor = {},
@@ -296,7 +345,7 @@ class BaseModel {
       });
       const placeholders = cursorValues.map((_, i) => `$${i + 1}`).join(', ');
       whereClauses.push(
-        `(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`
+        `(${escapedOrderCols}) ${descending ? '&lt;' : '>'} (${placeholders})`
       );
       values.push(...cursorValues);
     }
@@ -342,9 +391,9 @@ class BaseModel {
 
   /**
    * Executes findBy with AND conditions and returns only the first result.
-   * @param {Array<Object>} conditions - Array of equality conditions.
+   * @param {Array&lt;Object>} conditions - Array of equality conditions.
    * @param {Object} [options] - Query options.
-   * @returns {Promise<Object|null>} The first matching row or null.
+   * @returns {Promise&lt;Object|null>} The first matching row or null.
    */
   async findOneBy(conditions, options = {}) {
     try {
@@ -358,7 +407,7 @@ class BaseModel {
   /**
    * Checks if a record exists matching the given condition object.
    * @param {Object} conditions - Conditions to check for existence.
-   * @returns {Promise<boolean>} True if the record exists, false otherwise.
+   * @returns {Promise&lt;boolean>} True if the record exists, false otherwise.
    */
   async exists(conditions) {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
@@ -386,7 +435,7 @@ class BaseModel {
    * Updates an existing row by ID.
    * @param {number|string} id - The ID of the record to update.
    * @param {Object} dto - Data Transfer Object containing updated values.
-   * @returns {Promise<Object>} The updated row.
+   * @returns {Promise&lt;Object>} The updated row.
    */
   async update(id, dto) {
     // Validate that the ID is in a valid format
@@ -431,7 +480,7 @@ class BaseModel {
   /**
    * Deletes a row by ID. Returns the number of rows affected.
    * @param {number|string} id - The ID of the record to delete.
-   * @returns {Promise<number>} Number of rows affected.
+   * @returns {Promise&lt;number>} Number of rows affected.
    */
   async delete(id) {
     if (!isValidId(id)) {
@@ -448,7 +497,7 @@ class BaseModel {
 
   /**
    * Returns the total number of rows in the table.
-   * @returns {Promise<number>} Total number of rows.
+   * @returns {Promise&lt;number>} Total number of rows.
    */
   async count() {
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
@@ -464,7 +513,7 @@ class BaseModel {
 
   /**
    * Removes all rows and resets ID sequence using TRUNCATE CASCADE.
-   * @returns {Promise<void>}
+   * @returns {Promise&lt;void>}
    */
   async truncate() {
     const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
@@ -497,7 +546,7 @@ class BaseModel {
 
   /**
    * Builds a WHERE clause recursively for the conditions.
-   * @param {Array<Object>} group - Conditions to build the clause from.
+   * @param {Array&lt;Object>} group - Conditions to build the clause from.
    * @param {string} [joiner='AND'] - The joiner for the conditions.
    * @param {Array} values - Array to collect values for the query.
    * @returns {string} The constructed WHERE clause.
@@ -514,7 +563,7 @@ class BaseModel {
       } else {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
-          if (val && typeof val === 'object') {
+          if (val &amp;&amp; typeof val === 'object') {
             if ('like' in val) {
               // Handle LIKE filter
               values.push(val.like);
@@ -531,7 +580,7 @@ class BaseModel {
               }
               if (val.to) {
                 values.push(val.to);
-                parts.push(`${col} <= $${values.length}`);
+                parts.push(`${col} &lt;= $${values.length}`);
               }
             }
           } else {
@@ -555,3 +604,30 @@ class BaseModel {
 }
 
 export default BaseModel;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.4</a> on Thu Apr 17 2025 19:47:03 GMT-0500 (Central Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+
+</body>
+</html>

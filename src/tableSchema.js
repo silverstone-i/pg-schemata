@@ -11,41 +11,41 @@
 
 
 /**
- * @typedef {Object} ColumnDefinition
+ * @typedef ColumnDefinition
  * @property {string} name - The name of the column.
  * @property {string} type - PostgreSQL data type (e.g., 'text', 'uuid', 'integer').
  * @property {number} [length] - Optional length for types like `varchar`.
- * @property {boolean} [nullable=true] - Whether the column accepts null values.
+ * @property {boolean} [nullable] - Whether the column accepts null values. Defaults to true.
  * @property {*} [default] - Default value for the column. Can be a literal or SQL expression.
- * @property {boolean} [immutable=false] - If true, the column cannot be updated after initial creation.
+ * @property {boolean} [immutable] - If true, the column cannot be updated after initial creation. Defaults to false.
  */
 
 /**
- * @typedef {Object} ConstraintDefinition
+ * @typedef ConstraintDefinition
  * @property {string} type - Type of constraint (e.g., 'PrimaryKey', 'ForeignKey', 'Unique', 'Check', 'Index').
- * @property {string[]} columns - Array of column names the constraint applies to.
- * @property {string} [references] - For foreign keys: referenced table and column (e.g., 'public.users(id)').
- * @property {string} [onDelete] - For foreign keys: delete action (e.g., 'CASCADE', 'SET NULL').
- * @property {string} [expression] - For check constraints: SQL expression to evaluate.
+ * @property {Array<string>} columns - List of column names the constraint applies to.
+ * @property {string} [references] - Referenced table and column for foreign keys (e.g., 'public.users(id)').
+ * @property {string} [onDelete] - Delete action for foreign keys (e.g., 'CASCADE', 'SET NULL').
+ * @property {string} [expression] - SQL expression for check constraints.
  */
 
 /**
- * @typedef {Object} Constraints
- * @property {string[]} [primaryKey] - Columns that make up the primary key.
- * @property {string[][]} [unique] - Array of unique column sets. Each set may contain multiple column names.
- * @property {ConstraintDefinition[]} [foreignKeys] - List of foreign key definitions.
- * @property {ConstraintDefinition[]} [checks] - List of check constraint definitions.
- * @property {ConstraintDefinition[]} [indexes] - List of index definitions.
+ * @typedef Constraints
+ * @property {Array<string>} [primaryKey] - Columns that make up the primary key.
+ * @property {Array<Array<string>>} [unique] - Array of unique column sets.
+ * @property {Array<ConstraintDefinition>} [foreignKeys] - List of foreign key definitions.
+ * @property {Array<ConstraintDefinition>} [checks] - List of check constraint definitions.
+ * @property {Array<ConstraintDefinition>} [indexes] - List of index definitions.
  */
 
 /**
- * @typedef {Object} TableSchema
- * @property {string} dbSchema - PostgreSQL schema name (e.g., 'public').
+ * @typedef TableSchema
+ * @property {string} dbSchema - Name of the PostgreSQL schema (e.g., 'public').
  * @property {string} table - Table name.
- * @property {boolean} hasAuditFields - If true, BaseModel adds audit fields (`created_at`, `updated_at`, `created_by`, `updated_by`).
+ * @property {boolean} hasAuditFields - If true, audit fields will be added (`created_at`, `updated_at`, etc.).
  * @property {string} version - Semantic version of the schema definition.
- * @property {ColumnDefinition[]} columns - List of column definitions.
- * @property {Constraints} constraints - Constraints applied to the table (e.g., primary keys, foreign keys, indexes).
+ * @property {Array<ColumnDefinition>} columns - List of column definitions.
+ * @property {Constraints} constraints - Table-level constraints like keys and indexes.
  */
 
 /**

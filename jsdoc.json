@@ -1,0 +1,32 @@
+{
+  "tags": {
+    "allowUnknownTags": true
+  },
+  "source": {
+    "include": ["src"],
+    "includePattern": ".js$"
+  },
+  "plugins": [],
+  "opts": {
+    "destination": "docs",
+    "recurse": true,
+    "template": "node_modules/docdash"
+  },
+  "docdash": {
+    "static": true,
+    "sort": true,
+    "search": true,
+    "collapse": false,
+    "typedefs": true,
+    "removeQuotes": "none",
+    "scripts": [],
+    "menu": {
+      "GitHub": {
+        "href": "https://github.com/silverstone-i/pg-schemata",
+        "target": "_blank",
+        "class": "menu-item",
+        "id": "github_link"
+      }
+    }
+  }
+}

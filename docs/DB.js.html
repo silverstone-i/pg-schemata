@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>DB.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/silverstone-i/pg-schemata" target="_blank" class="menu-item" id="github_link" >GitHub</a></h2><h3>Classes</h3><ul><li><a href="BaseModel.html">BaseModel</a><ul class='methods'><li data-type='method'><a href="BaseModel.html#count">count</a></li><li data-type='method'><a href="BaseModel.html#delete">delete</a></li><li data-type='method'><a href="BaseModel.html#exists">exists</a></li><li data-type='method'><a href="BaseModel.html#findAfterCursor">findAfterCursor</a></li><li data-type='method'><a href="BaseModel.html#findAll">findAll</a></li><li data-type='method'><a href="BaseModel.html#findBy">findBy</a></li><li data-type='method'><a href="BaseModel.html#findById">findById</a></li><li data-type='method'><a href="BaseModel.html#findOneBy">findOneBy</a></li><li data-type='method'><a href="BaseModel.html#insert">insert</a></li><li data-type='method'><a href="BaseModel.html#logQuery">logQuery</a></li><li data-type='method'><a href="BaseModel.html#reload">reload</a></li><li data-type='method'><a href="BaseModel.html#sanitizeDto">sanitizeDto</a></li><li data-type='method'><a href="BaseModel.html#setSchema">setSchema</a></li><li data-type='method'><a href="BaseModel.html#truncate">truncate</a></li><li data-type='method'><a href="BaseModel.html#update">update</a></li><li data-type='method'><a href="BaseModel.html#withSchema">withSchema</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#ColumnDefinition">ColumnDefinition</a></li><li><a href="global.html#ConstraintDefinition">ConstraintDefinition</a></li><li><a href="global.html#Constraints">Constraints</a></li><li><a href="global.html#TableSchema">TableSchema</a></li><li><a href="global.html#addAuditFields">addAuditFields</a></li><li><a href="global.html#createColumnSet">createColumnSet</a></li><li><a href="global.html#createHash">createHash</a></li><li><a href="global.html#createIndexesSQL">createIndexesSQL</a></li><li><a href="global.html#createTableSQL">createTableSQL</a></li><li><a href="global.html#db">db</a></li><li><a href="global.html#isPlainObject">isPlainObject</a></li><li><a href="global.html#isValidId">isValidId</a></li><li><a href="global.html#normalizeSQL">normalizeSQL</a></li><li><a href="global.html#tableSchema">tableSchema</a></li><li><a href="global.html#validateUUID">validateUUID</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">DB.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>'use strict';
+
+/*
+ * Copyright © 2024-present, Ian Silverstone
+ *
+ * See the LICENSE file at the top-level directory of this distribution
+ * for licensing information.
+ *
+ * Removal or modification of this copyright notice is prohibited.
+ */
+
+/**
+ * DB is a singleton that initializes and provides access to the pg-promise
+ * database instance and attaches repository classes for your application.
+ */
+
+import pgPromise from 'pg-promise';
+
+class DB {
+  /**
+   * The pg-promise database instance, created on first init.
+   * This is set during the first call to DB.init and remains the same thereafter.
+   */
+  static db;
+
+  /**
+   * The pg-promise root library instance, initialized with custom options.
+   * Used to configure database helpers and attach repositories.
+   */
+  static pgp;
+
+  static init(connection, repositories) {
+    if (!DB.db) {
+      // Only initialize once to enforce singleton pattern
+      try {
+        // Validate that a connection configuration is provided
+        if (connection === undefined || connection === null) {
+          throw new Error();
+        }
+
+        // Validate that a repositories object is provided
+        if (
+          !repositories ||
+          typeof repositories !== 'object' ||
+          Array.isArray(repositories) ||
+          repositories === null
+        ) {
+          throw new Error();
+        }
+
+        // Configure pg-promise: capitalize SQL and auto-extend DB with repositories
+        const initOptions = {
+          capSQL: true, // capitalize all generated SQL
+          extend(obj, dc) {
+            // Attach each repository to the database instance
+            for (const repository of Object.keys(repositories)) {
+              obj[repository] = new repositories[repository](obj, DB.pgp);
+            }
+          },
+        };
+        // Initialize the pg-promise library with the custom options
+        DB.pgp = pgPromise(initOptions);
+        // Create the database instance using the provided connection
+        DB.db = DB.pgp(connection);
+      } catch (error) {
+        throw error;
+      }
+    }
+
+    return DB;
+  }
+}
+
+/**
+ * Initializes the DB singleton with the given connection and repository classes.
+ *
+ * @param {string|Object} connection - Connection string or configuration object for pg-promise.
+ * @param {Object} repositories - An object mapping repository names to constructor functions.
+ *                                Each constructor must accept a db instance and a pgp instance.
+ * @returns {DB} The DB class with `db` and `pgp` initialized.
+ */
+
+export const db = DB.db;
+export const pgp = DB.pgp;
+export default DB;
+
+// Export the singleton instances for use throughout the application
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.4</a> on Thu Apr 17 2025 19:47:03 GMT-0500 (Central Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+
+</body>
+</html>
