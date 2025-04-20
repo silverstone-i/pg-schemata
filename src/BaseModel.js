@@ -102,6 +102,21 @@ class BaseModel {
   }
 
   /**
+   * Creates the table in the database if it doesn't exist.
+   * @returns {Promise<void>}
+   * @throws {Error} If the table creation fails.
+   */
+  async createTable() {
+    // Create the table if it doesn't exist
+    try {
+      const query = createTableSQL(this.schema);
+      return await this.db.none(query);
+    } catch (err) {
+      this.handleDbError(err);
+    }
+  }
+
+  /**
    * Inserts a new row into the table.
    * @param {Object} dto - Data Transfer Object to insert.
    * @returns {Promise<Object>} Inserted row.
@@ -182,7 +197,7 @@ class BaseModel {
   async reload(id) {
     return this.findById(id);
   }
-  
+
   /**
    * Finds records matching given conditions and optional filters.
    *
@@ -193,10 +208,11 @@ class BaseModel {
    * @param {Object} [options.filters] - Object specifying AND/OR filters.
    * @returns {Promise<Array>} A promise that resolves to an array of matching records.
    */
-  async findBy(conditions = [], joinType = 'AND', {
-    columnWhitelist = null,
-    filters = {}
-  } = {}) {
+  async findBy(
+    conditions = [],
+    joinType = 'AND',
+    { columnWhitelist = null, filters = {} } = {}
+  ) {
     // Validate that conditions is a non-empty array
     if (!Array.isArray(conditions) || conditions.length === 0) {
       return Promise.reject(new Error('Conditions must be a non-empty array'));
@@ -221,7 +237,9 @@ class BaseModel {
     });
 
     if (baseConditions.length) {
-      whereClauses.push(`(${baseConditions.join(` ${joinType.toUpperCase()} `)})`);
+      whereClauses.push(
+        `(${baseConditions.join(` ${joinType.toUpperCase()} `)})`
+      );
     }
 
     // Handle additional filters
