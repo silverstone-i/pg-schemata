@@ -87,16 +87,27 @@ function createTableSQL(schema) {
       );
       const constraintName = `fk_${table}_${hash}`;
 
-      tableConstraints.push(
-        `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns
-          .map(c => `"${c}"`)
-          .join(', ')}) ` +
-          `REFERENCES "${fk.references.schema}"."${
-            fk.references.table
-          }" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` +
-          (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') +
-          (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '')
-      );
+      {
+        const hash = createHash(
+          table + fk.references.table + fk.columns.join('_')
+        );
+        const constraintName = `fk_${table}_${hash}`;
+
+        const [refSchema, refTable] = fk.references.table.includes('.')
+          ? fk.references.table.split('.')
+          : [schemaName, fk.references.table];
+
+        tableConstraints.push(
+          `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns
+            .map(c => `"${c}"`)
+            .join(', ')}) ` +
+            `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns
+              .map(c => `"${c}"`)
+              .join(', ')})` +
+            (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') +
+            (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '')
+        );
+      }
     }
   }
 
