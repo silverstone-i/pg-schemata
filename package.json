@@ -19,7 +19,7 @@
     "docs": "jsdoc -c jsdoc.json README.md && cp LICENSE docs/ && mkdir -p docs/images && cp docs-pages/images/nap-logo.png docs/images/",
     "lint": "eslint .",
     "test": "jest --detectOpenHandles --verbose",
-    "test:unit": "jest tests/unit",
+    "test:unit": "jest",
     "test:integration": "jest tests/integration",
     "start": "nodemon --delay 5 ./server/app.js"
   },
