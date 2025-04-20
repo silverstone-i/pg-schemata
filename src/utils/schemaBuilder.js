@@ -37,10 +37,7 @@ function createHash(input) {
 function createTableSQL(schema) {  
   // Extract schema components: schema name, table name, columns, and constraints
   const { dbSchema, table, columns, constraints = {} } = schema;
-  const schemaName = dbSchema || 'public';
-
-  console.log('Schema Name:', schemaName);
-  
+  const schemaName = dbSchema || 'public';  
 
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
@@ -48,10 +45,7 @@ function createTableSQL(schema) {
     if (col.notNull) def += ' NOT NULL';
     if (col.default !== undefined) def += ` DEFAULT ${col.default}`;
     return def;
-  });
-
-  console.log('Column Definitions:', columnDefs);
-  
+  });  
 
   // Initialize list to hold table-level constraints
   const tableConstraints = [];

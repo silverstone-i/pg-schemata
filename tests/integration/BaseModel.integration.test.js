@@ -95,9 +95,18 @@ describe('BaseModel Integration', () => {
   });
 
   test('should support findAfterCursor with descending and columnWhitelist options', async () => {
-    const a = await model.insert({ email: 'z@example.com', created_by: 'System' });
-    const b = await model.insert({ email: 'y@example.com', created_by: 'System' });
-    const c = await model.insert({ email: 'x@example.com', created_by: 'System' });
+    const a = await model.insert({
+      email: 'z@example.com',
+      created_by: 'System',
+    });
+    const b = await model.insert({
+      email: 'y@example.com',
+      created_by: 'System',
+    });
+    const c = await model.insert({
+      email: 'x@example.com',
+      created_by: 'System',
+    });
 
     const rows = await model.findAfterCursor(
       { created_at: b.created_at, id: b.id },
@@ -116,8 +125,14 @@ describe('BaseModel Integration', () => {
   });
 
   test('should support findBy with filters using AND and ILIKE', async () => {
-    await model.insert({ email: 'findbyuser1@example.com', created_by: 'Admin' });
-    await model.insert({ email: 'findbyuser2@example.com', created_by: 'Admin' });
+    await model.insert({
+      email: 'findbyuser1@example.com',
+      created_by: 'Admin',
+    });
+    await model.insert({
+      email: 'findbyuser2@example.com',
+      created_by: 'Admin',
+    });
 
     const result = await model.findBy([{ created_by: 'Admin' }], 'AND', {
       filters: {
@@ -132,7 +147,10 @@ describe('BaseModel Integration', () => {
   });
 
   test('should support findOneBy returning a single row', async () => {
-    const user = await model.insert({ email: 'findoneby@example.com', created_by: 'UnitTest' });
+    const user = await model.insert({
+      email: 'findoneby@example.com',
+      created_by: 'UnitTest',
+    });
     const found = await model.findOneBy([{ email: 'findoneby@example.com' }]);
 
     expect(found).toBeDefined();
@@ -142,5 +160,18 @@ describe('BaseModel Integration', () => {
   test('should return null in findOneBy if no match is found', async () => {
     const found = await model.findOneBy([{ email: 'missinguser@example.com' }]);
     expect(found).toBeNull();
+  });
+
+  test('should create table using createTable', async () => {
+    await expect(model.createTable()).resolves.not.toThrow();
+
+    inserted = await model.insert({
+      email: 'test@example.com',
+      created_by: 'Jill Lazarus',
+    });
+
+    const found = await model.findById(inserted.id);
+    expect(found).toBeDefined();
+    expect(found.email).toBe('test@example.com');
   });
 });

@@ -108,11 +108,8 @@ class BaseModel {
    */
   async createTable() {
     // Create the table if it doesn't exist
-    try {
-      console.log('Creating table:', this._schema);
-      
+    try {      
       const query = createTableSQL(this._schema);
-      console.log('Creating table with query:', query);
       
       // Log the query
       this.logQuery(query);
