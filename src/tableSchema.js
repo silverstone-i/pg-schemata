@@ -24,7 +24,7 @@
  * @typedef ConstraintDefinition
  * @property {string} type - Type of constraint (e.g., 'PrimaryKey', 'ForeignKey', 'Unique', 'Check', 'Index').
  * @property {Array<string>} columns - List of column names the constraint applies to.
- * @property {string} [references] - Referenced table and column for foreign keys (e.g., 'public.users(id)').
+ * @property {{ table: string, columns: Array<string> }} [references] - Referenced table and columns for foreign keys.
  * @property {string} [onDelete] - Delete action for foreign keys (e.g., 'CASCADE', 'SET NULL').
  * @property {string} [expression] - SQL expression for check constraints.
  */
@@ -116,7 +116,10 @@ const tableSchema = {
       {
         type: 'ForeignKey',
         columns: ['tenant_id'],
-        references: 'admin.tenants(id)',
+        references: {
+          table:'admin.tenants(id)',
+          column: ['id'],
+        },
         onDelete: 'CASCADE'
       }
     ],
