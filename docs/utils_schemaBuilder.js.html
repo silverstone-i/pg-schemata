@@ -34,7 +34,7 @@
           <img src="images/nap-logo.png" alt="NapLogo" style="height: 100px;" />
         </a>
       </li>
-      <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="BaseModel.html">BaseModel</a><ul class='methods'><li data-type='method'><a href="BaseModel.html#count">count</a></li><li data-type='method'><a href="BaseModel.html#delete">delete</a></li><li data-type='method'><a href="BaseModel.html#exists">exists</a></li><li data-type='method'><a href="BaseModel.html#findAfterCursor">findAfterCursor</a></li><li data-type='method'><a href="BaseModel.html#findAll">findAll</a></li><li data-type='method'><a href="BaseModel.html#findBy">findBy</a></li><li data-type='method'><a href="BaseModel.html#findById">findById</a></li><li data-type='method'><a href="BaseModel.html#findOneBy">findOneBy</a></li><li data-type='method'><a href="BaseModel.html#insert">insert</a></li><li data-type='method'><a href="BaseModel.html#logQuery">logQuery</a></li><li data-type='method'><a href="BaseModel.html#reload">reload</a></li><li data-type='method'><a href="BaseModel.html#sanitizeDto">sanitizeDto</a></li><li data-type='method'><a href="BaseModel.html#setSchema">setSchema</a></li><li data-type='method'><a href="BaseModel.html#truncate">truncate</a></li><li data-type='method'><a href="BaseModel.html#update">update</a></li><li data-type='method'><a href="BaseModel.html#withSchema">withSchema</a></li></ul></li><li><a href="DB.html">DB</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addAuditFields">addAuditFields</a></li><li><a href="global.html#createColumnSet">createColumnSet</a></li><li><a href="global.html#createHash">createHash</a></li><li><a href="global.html#createIndexesSQL">createIndexesSQL</a></li><li><a href="global.html#createTableSQL">createTableSQL</a></li><li><a href="global.html#isPlainObject">isPlainObject</a></li><li><a href="global.html#isValidId">isValidId</a></li><li><a href="global.html#normalizeSQL">normalizeSQL</a></li><li><a href="global.html#tableSchema">tableSchema</a></li><li><a href="global.html#validateUUID">validateUUID</a></li></ul>
+      <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="BaseModel.html">BaseModel</a><ul class='methods'><li data-type='method'><a href="BaseModel.html#count">count</a></li><li data-type='method'><a href="BaseModel.html#createTable">createTable</a></li><li data-type='method'><a href="BaseModel.html#delete">delete</a></li><li data-type='method'><a href="BaseModel.html#exists">exists</a></li><li data-type='method'><a href="BaseModel.html#findAfterCursor">findAfterCursor</a></li><li data-type='method'><a href="BaseModel.html#findAll">findAll</a></li><li data-type='method'><a href="BaseModel.html#findBy">findBy</a></li><li data-type='method'><a href="BaseModel.html#findById">findById</a></li><li data-type='method'><a href="BaseModel.html#findOneBy">findOneBy</a></li><li data-type='method'><a href="BaseModel.html#insert">insert</a></li><li data-type='method'><a href="BaseModel.html#logQuery">logQuery</a></li><li data-type='method'><a href="BaseModel.html#reload">reload</a></li><li data-type='method'><a href="BaseModel.html#sanitizeDto">sanitizeDto</a></li><li data-type='method'><a href="BaseModel.html#setSchema">setSchema</a></li><li data-type='method'><a href="BaseModel.html#truncate">truncate</a></li><li data-type='method'><a href="BaseModel.html#update">update</a></li><li data-type='method'><a href="BaseModel.html#withSchema">withSchema</a></li></ul></li><li><a href="DB.html">DB</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addAuditFields">addAuditFields</a></li><li><a href="global.html#createColumnSet">createColumnSet</a></li><li><a href="global.html#createHash">createHash</a></li><li><a href="global.html#createIndexesSQL">createIndexesSQL</a></li><li><a href="global.html#createTableSQL">createTableSQL</a></li><li><a href="global.html#isPlainObject">isPlainObject</a></li><li><a href="global.html#isValidId">isValidId</a></li><li><a href="global.html#normalizeSQL">normalizeSQL</a></li><li><a href="global.html#tableSchema">tableSchema</a></li><li><a href="global.html#validateUUID">validateUUID</a></li></ul>
     </ul>
     
 </nav>
@@ -90,7 +90,7 @@ function createHash(input) {
 function createTableSQL(schema) {  
   // Extract schema components: schema name, table name, columns, and constraints
   const { dbSchema, table, columns, constraints = {} } = schema;
-  const schemaName = dbSchema || 'public';
+  const schemaName = dbSchema || 'public';  
 
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
@@ -98,7 +98,7 @@ function createTableSQL(schema) {
     if (col.notNull) def += ' NOT NULL';
     if (col.default !== undefined) def += ` DEFAULT ${col.default}`;
     return def;
-  });
+  });  
 
   // Initialize list to hold table-level constraints
   const tableConstraints = [];
@@ -140,16 +140,27 @@ function createTableSQL(schema) {
       );
       const constraintName = `fk_${table}_${hash}`;
 
-      tableConstraints.push(
-        `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns
-          .map(c => `"${c}"`)
-          .join(', ')}) ` +
-          `REFERENCES "${fk.references.schema}"."${
-            fk.references.table
-          }" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` +
-          (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') +
-          (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '')
-      );
+      {
+        const hash = createHash(
+          table + fk.references.table + fk.columns.join('_')
+        );
+        const constraintName = `fk_${table}_${hash}`;
+
+        const [refSchema, refTable] = fk.references.table.includes('.')
+          ? fk.references.table.split('.')
+          : [schemaName, fk.references.table];
+
+        tableConstraints.push(
+          `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns
+            .map(c => `"${c}"`)
+            .join(', ')}) ` +
+            `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns
+              .map(c => `"${c}"`)
+              .join(', ')})` +
+            (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') +
+            (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '')
+        );
+      }
     }
   }
 
@@ -164,7 +175,7 @@ function createTableSQL(schema) {
   // Combine column definitions and constraints into final CREATE TABLE statement
   const allDefs = columnDefs.concat(tableConstraints).join(',\n  ');
 
-  const sql = `
+  const sql = `CREATE SCHEMA IF NOT EXISTS "${schemaName}";
   CREATE TABLE IF NOT EXISTS "${schemaName}"."${table}" (
     ${allDefs}
   );
@@ -338,7 +349,7 @@ export {
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.4</a> on Fri Apr 18 2025 16:17:02 GMT-0500 (Central Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.4</a> on Sun Apr 20 2025 10:40:03 GMT-0500 (Central Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
