@@ -40,6 +40,7 @@ jest.mock('../../src/utils/schemaBuilder', () => ({
     insert: jest.fn(dto => `INSERT INTO users ... VALUES (...)`),
     update: {},
   })),
+  createTableSQL: jest.fn(() => 'CREATE TABLE IF NOT EXISTS public.users (...);'),
 }));
 
 // ================================
@@ -322,6 +323,47 @@ describe('BaseModel', () => {
       const returnedModel = model.withSchema('another_schema');
       expect(model.schema.dbSchema).toBe('another_schema');
       expect(returnedModel).toBe(model);
+    });
+  });
+
+  // ================================
+  // Table Creation
+  // ================================
+  describe('Table Creation', () => {
+    test('createTable should call db.none with generated SQL', async () => {
+      const mockSql = 'CREATE TABLE IF NOT EXISTS public.users (...);';
+      const mockCreateTableSQL = jest.fn().mockReturnValue(mockSql);
+      jest.unstable_mockModule('../../src/utils/schemaBuilder', () => ({
+        ...jest.requireActual('../../src/utils/schemaBuilder'),
+        createTableSQL: mockCreateTableSQL,
+      }));
+
+      const BaseModelWithMock = (await import('../../src/BaseModel.js')).default;
+      const testModel = new BaseModelWithMock(mockDb, mockPgp, mockSchema);
+      await testModel.createTable();
+
+      expect(mockDb.none).toHaveBeenCalledWith(mockSql);
+    });
+
+    test('createTable should call handleDbError on failure', async () => {
+      const mockCreateTableSQL = jest.fn().mockReturnValue('CREATE SQL');
+      jest.unstable_mockModule('../../src/utils/schemaBuilder', () => ({
+        ...jest.requireActual('../../src/utils/schemaBuilder'),
+        createTableSQL: mockCreateTableSQL,
+      }));
+
+      const BaseModelWithMock = (await import('../../src/BaseModel.js')).default;
+      const testModel = new BaseModelWithMock(mockDb, mockPgp, mockSchema);
+      const error = new Error('Table creation failed');
+      const spy = jest
+        .spyOn(testModel, 'handleDbError')
+        .mockImplementation(err => {
+          throw err;
+        });
+
+      mockDb.none.mockRejectedValue(error);
+      await expect(testModel.createTable()).rejects.toThrow('Table creation failed');
+      expect(spy).toHaveBeenCalledWith(error);
     });
   });
 

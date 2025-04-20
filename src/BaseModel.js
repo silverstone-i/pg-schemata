@@ -14,7 +14,7 @@
  * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
  */
 
-import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
+import { createColumnSet, addAuditFields, createTableSQL } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 
 /**
@@ -109,7 +109,15 @@ class BaseModel {
   async createTable() {
     // Create the table if it doesn't exist
     try {
-      const query = createTableSQL(this.schema);
+      console.log('Creating table:', this._schema);
+      
+      const query = createTableSQL(this._schema);
+      console.log('Creating table with query:', query);
+      
+      // Log the query
+      this.logQuery(query);
+
+      // Execute the query
       return await this.db.none(query);
     } catch (err) {
       this.handleDbError(err);

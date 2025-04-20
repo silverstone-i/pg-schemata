@@ -39,6 +39,9 @@ function createTableSQL(schema) {
   const { dbSchema, table, columns, constraints = {} } = schema;
   const schemaName = dbSchema || 'public';
 
+  console.log('Schema Name:', schemaName);
+  
+
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
     let def = `"${col.name}" ${col.type}`;
@@ -46,6 +49,9 @@ function createTableSQL(schema) {
     if (col.default !== undefined) def += ` DEFAULT ${col.default}`;
     return def;
   });
+
+  console.log('Column Definitions:', columnDefs);
+  
 
   // Initialize list to hold table-level constraints
   const tableConstraints = [];
