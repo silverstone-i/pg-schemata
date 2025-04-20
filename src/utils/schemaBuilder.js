@@ -111,7 +111,7 @@ function createTableSQL(schema) {
   // Combine column definitions and constraints into final CREATE TABLE statement
   const allDefs = columnDefs.concat(tableConstraints).join(',\n  ');
 
-  const sql = `
+  const sql = `CREATE SCHEMA IF NOT EXISTS "${schemaName}";
   CREATE TABLE IF NOT EXISTS "${schemaName}"."${table}" (
     ${allDefs}
   );

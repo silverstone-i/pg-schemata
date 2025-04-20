@@ -51,6 +51,7 @@ describe('Schema Utilities', () => {
 
       const sql = createTableSQL(schema);
 
+      expect(sql).toContain('CREATE SCHEMA IF NOT EXISTS "public"');
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).toContain('"id" serial NOT NULL');
       expect(sql).toContain('"name" varchar(255) NOT NULL');
