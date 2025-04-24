@@ -34,10 +34,10 @@ function createHash(input) {
  * @param {Object} [schema.constraints] - Constraints like primary key, foreign keys, and indexes.
  * @returns {string} SQL statement to create the table.
  */
-function createTableSQL(schema) {  
+function createTableSQL(schema) {
   // Extract schema components: schema name, table name, columns, and constraints
   const { dbSchema, table, columns, constraints = {} } = schema;
-  const schemaName = dbSchema || 'public';  
+  const schemaName = dbSchema || 'public';
 
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
@@ -45,7 +45,7 @@ function createTableSQL(schema) {
     if (col.notNull) def += ' NOT NULL';
     if (col.default !== undefined) def += ` DEFAULT ${col.default}`;
     return def;
-  });  
+  });
 
   // Initialize list to hold table-level constraints
   const tableConstraints = [];
@@ -213,11 +213,23 @@ function createColumnSet(schema, pgp) {
   );
   const hasAuditFields = columnsetColumns.length !== schema.columns.length;
 
+  // Validate that audit fields hav been added correctly
+  if (
+    schema.hasOwnProperty('hasAuditFields') &&
+    hasAuditFields !== schema.hasAuditFields
+  ) {
+    const message = hasAuditFields
+      ? 'Cannot use create_at, created_by, updated_at, updated_by in your schema definition'
+      : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
+    throw new Error(message);
+  }
+
   // Transform schema columns into ColumnSet configurations
   const columns = columnsetColumns
     .map(col => {
       const isPrimaryKey = schema.constraints?.primaryKey?.includes(col.name);
       const hasDefault = col.hasOwnProperty('default');
+      const isNullable = col.hasOwnProperty('nullable');
 
       // Skip serial or UUID primary keys with defaults
       if (
@@ -229,13 +241,13 @@ function createColumnSet(schema, pgp) {
 
       const columnObject = {
         name: col.name,
-        prop: col.name,
-      };      
+        // prop: col.name,
+      };
 
       if (isPrimaryKey) {
         columnObject.cnd = true; // Mark primary keys as conditions
-      } else {
-        columnObject.skip = c => !c.exists; // Skip missing columns during updates
+      } else if (isNullable) {
+        columnObject.skip = c => !c.exists; // Skip missing columns
       }
 
       if (hasDefault) {
