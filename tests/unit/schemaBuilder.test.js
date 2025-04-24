@@ -265,7 +265,7 @@ describe('Schema Utilities', () => {
         schema: 'public',
         table: 'products',
         columns: [
-          { name: 'name', type: 'varchar(255)' },
+          { name: 'name', type: 'varchar(255)', nullable: true },
           { name: 'price', type: 'numeric' },
         ],
         // ❌ No constraints.primaryKey
@@ -387,7 +387,7 @@ describe('Schema Utilities', () => {
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial' },
-          { name: 'status', type: 'varchar(50)', default: 'pending' },
+          { name: 'status', type: 'varchar(50)', default: 'pending', nullable: true },
         ],
         constraints: {
           primaryKey: ['id'],
