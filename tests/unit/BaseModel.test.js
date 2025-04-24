@@ -96,6 +96,15 @@ describe('BaseModel', () => {
       });
       expect(sanitized).toEqual({ id: 1, email: 'test@example.com' });
     });
+
+    test('sanitizeDto should remove immutable fields when includeImmutable is false', () => {
+      model._schema.columns.push({ name: 'created_at', immutable: true });
+      const sanitized = model.sanitizeDto(
+        { id: 1, email: 'test@example.com', created_at: '2024-01-01' },
+        { includeImmutable: false }
+      );
+      expect(sanitized).toEqual({ id: 1, email: 'test@example.com' });
+    });
   });
 
   // ================================

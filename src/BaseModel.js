@@ -78,10 +78,14 @@ class BaseModel {
   /**
    * Filters the input DTO to include only valid column names defined in the schema.
    * @param {Object} dto - Data Transfer Object to sanitize.
+   * @param {Object} [options] - Options for sanitization.
+   * @param {boolean} [options.includeImmutable=true] - Whether to include immutable fields.
    * @returns {Object} Sanitized DTO with valid columns.
    */
-  sanitizeDto(dto) {
-    const validColumns = this._schema.columns.map(c => c.name);
+  sanitizeDto(dto, { includeImmutable = true } = {}) {
+    const validColumns = this._schema.columns
+      .filter(c => includeImmutable || !c.immutable)
+      .map(c => c.name);
     const sanitized = {};
     for (const key in dto) {
       if (validColumns.includes(key)) {
@@ -142,15 +146,10 @@ class BaseModel {
         new Error('DTO must contain at least one valid column')
       );
     }
-    // console.log('Sanitized DTO:', safeDto);
-    // console.log('Building query with column set:', JSON.stringify(this.cs, null, 2)); 
-    
     
     // Construct the insert query
     const query =
       this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
-
-      // console.log('Insert query:', query);
 
     // Log the constructed query
     this.logQuery(query);
@@ -433,8 +432,8 @@ class BaseModel {
       return Promise.reject(new Error('DTO must be a non-empty object'));
     }
 
-    // Sanitize the DTO to include only valid columns
-    const safeDto = this.sanitizeDto(dto);
+    // Sanitize the DTO to include only valid columns, and exclude immutable ones
+    const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
 
     // Prepare the condition for the SQL UPDATE
     const condition = this.pgp.as.format('WHERE id = $1', [id]);
