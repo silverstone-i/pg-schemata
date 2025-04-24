@@ -131,6 +131,7 @@ class BaseModel {
     if (!isPlainObject(dto)) {
       return Promise.reject(new Error('DTO must be a non-empty object'));
     }
+    
 
     // Sanitize the DTO to include only valid columns
     const safeDto = this.sanitizeDto(dto);
@@ -141,13 +142,19 @@ class BaseModel {
         new Error('DTO must contain at least one valid column')
       );
     }
-
+    // console.log('Sanitized DTO:', safeDto);
+    // console.log('Building query with column set:', JSON.stringify(this.cs, null, 2)); 
+    
+    
     // Construct the insert query
     const query =
       this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
 
+      // console.log('Insert query:', query);
+
     // Log the constructed query
     this.logQuery(query);
+    
 
     // Execute the query and handle any potential errors
     try {
