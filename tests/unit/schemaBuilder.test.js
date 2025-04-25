@@ -265,7 +265,12 @@ describe('Schema Utilities', () => {
         schema: 'public',
         table: 'products',
         columns: [
-          { name: 'name', type: 'varchar(255)', nullable: true },
+          {
+            name: 'name',
+            type: 'varchar(255)',
+            nullable: true,
+            colProps: { skip: c => !c.exists }
+          },
           { name: 'price', type: 'numeric' },
         ],
         // ❌ No constraints.primaryKey
@@ -387,7 +392,13 @@ describe('Schema Utilities', () => {
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial' },
-          { name: 'status', type: 'varchar(50)', default: 'pending', nullable: true },
+          { 
+            name: 'status', 
+            type: 'varchar(50)', 
+            default: 'pending', 
+            nullable: true,
+            colProps: { skip: c => !c.exists }
+          },
         ],
         constraints: {
           primaryKey: ['id'],
@@ -408,7 +419,7 @@ describe('Schema Utilities', () => {
         schema: 'public',
         table: 'orders',
         columns: [
-          { name: 'id', type: 'int' },
+          { name: 'id', type: 'int', colProps: { cnd: true } },
           { name: 'status', type: 'varchar(50)' },
         ],
         constraints: {
@@ -440,6 +451,31 @@ describe('Schema Utilities', () => {
       const columnNames = columnSet.test_table.columns.map(col => col.name);
       expect(columnNames).not.toContain('id'); // 'id' should NOT be there
       expect(columnNames).toContain('email'); // 'email' should be there
+    });
+
+    it('should apply colProps for pg-promise column configuration', () => {
+      const schema = {
+        schema: 'public',
+        table: 'users',
+        columns: [
+          {
+            name: 'address',
+            type: 'jsonb',
+            colProps: { mod: ':json', skip: c => !c.exists }
+          },
+          { name: 'email', type: 'varchar(255)' }
+        ],
+        constraints: {
+          primaryKey: ['email'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+      const addressCol = columnSet.users.columns.find(col => col.name === 'address');
+
+      expect(addressCol.mod).toBe(':json');
+      expect(typeof addressCol.skip).toBe('function');
+      expect(addressCol.skip({ exists: false })).toBe(true);
     });
   });
 });
