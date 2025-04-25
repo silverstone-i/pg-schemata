@@ -14,7 +14,12 @@
  * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
  */
 
-import { createColumnSet, addAuditFields, createTableSQL } from './utils/schemaBuilder.js';
+import cloneDeep from 'lodash/cloneDeep.js';
+import {
+  createColumnSet,
+  addAuditFields,
+  createTableSQL,
+} from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 
 /**
@@ -49,9 +54,10 @@ class BaseModel {
     this.logger = logger;
 
     // deep clone to prevent mutation
-    this._schema = schema.hasAuditFields
-      ? JSON.parse(JSON.stringify(addAuditFields(schema))) // Add audit fields
-      : JSON.parse(JSON.stringify(schema));
+    this._schema = cloneDeep(
+      schema.hasAuditFields ? addAuditFields(schema) : schema
+    );
+
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
@@ -112,9 +118,9 @@ class BaseModel {
    */
   async createTable() {
     // Create the table if it doesn't exist
-    try {      
+    try {
       const query = createTableSQL(this._schema);
-      
+
       // Log the query
       this.logQuery(query);
 
@@ -135,7 +141,6 @@ class BaseModel {
     if (!isPlainObject(dto)) {
       return Promise.reject(new Error('DTO must be a non-empty object'));
     }
-    
 
     // Sanitize the DTO to include only valid columns
     const safeDto = this.sanitizeDto(dto);
@@ -146,14 +151,17 @@ class BaseModel {
         new Error('DTO must contain at least one valid column')
       );
     }
-    
-    // Construct the insert query
-    const query =
-      this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
+
+    let query;
+    try {
+      // Construct the insert query
+      query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
+    } catch (err) {
+      return Promise.reject(new Error('Failed to construct insert query', err));
+    }
 
     // Log the constructed query
     this.logQuery(query);
-    
 
     // Execute the query and handle any potential errors
     try {
