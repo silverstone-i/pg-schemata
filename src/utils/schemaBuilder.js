@@ -211,6 +211,7 @@ function createColumnSet(schema, pgp) {
   const columnsetColumns = schema.columns.filter(
     col => !auditFields.includes(col.name)
   );
+
   const hasAuditFields = columnsetColumns.length !== schema.columns.length;
 
   // Validate that audit fields hav been added correctly
@@ -229,7 +230,6 @@ function createColumnSet(schema, pgp) {
     .map(col => {
       const isPrimaryKey = schema.constraints?.primaryKey?.includes(col.name);
       const hasDefault = col.hasOwnProperty('default');
-      const isNullable = col.hasOwnProperty('nullable');
 
       // Skip serial or UUID primary keys with defaults
       if (
@@ -241,18 +241,11 @@ function createColumnSet(schema, pgp) {
 
       const columnObject = {
         name: col.name,
-        // prop: col.name,
+        ...(col.colProps || {}),
+        def: col.hasOwnProperty('default')
+          ? col.default
+          : col.colProps?.def ?? undefined,
       };
-
-      if (isPrimaryKey) {
-        columnObject.cnd = true; // Mark primary keys as conditions
-      } else if (isNullable) {
-        columnObject.skip = c => !c.exists; // Skip missing columns
-      }
-
-      if (hasDefault) {
-        columnObject.def = col.default;
-      }
 
       return columnObject;
     })
