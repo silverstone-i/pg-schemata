@@ -13,8 +13,7 @@
 /**
  * @typedef ColumnDefinition
  * @property {string} name - The name of the column.
- * @property {string} type - PostgreSQL data type (e.g., 'text', 'uuid', 'integer', varchar, jsonb).
- * @property {number} [length] - Length of the column (for varchar types).
+ * @property {string} type - PostgreSQL data type (e.g., 'text', 'uuid', 'integer', varchar(12), jsonb).
  * @property {boolean} [nullable] - Whether the column accepts null values. Defaults to true.
  * @property {*} [default] - Default value for the column. Can be a literal or SQL expression. Overrides 'def' in colProps if both are present.
  * @property {boolean} [immutable] - If true, the column cannot be updated after initial creation. Defaults to false.
@@ -85,8 +84,7 @@ const tableSchema = {
     },
     {
       name: 'email',
-      type: 'varchar',
-      length: 255,
+      type: 'varchar(255)',
       nullable: false,
       colProps: {skip: c => !c.exists},
     },
