@@ -140,10 +140,20 @@ function createTableSQL(schema) {
 function addAuditFields(schema) {
   const { columns } = schema;
   const auditFields = [
-    { name: 'created_at', type: 'timestamp', default: 'now()', immutable: true },
-    { name: 'created_by', type: 'varchar(50)', default: `'system'`, immutable: true },
+    {
+      name: 'created_at',
+      type: 'timestamp',
+      default: 'now()',
+      immutable: true,
+    },
+    {
+      name: 'created_by',
+      type: 'varchar(50)',
+      default: `'system'`,
+      immutable: true,
+    },
     { name: 'updated_at', type: 'timestamp', default: 'now()' },
-    { name: 'updated_by', type: 'varchar(50)', default: `'system'` }
+    { name: 'updated_by', type: 'varchar(50)', default: `'system'` },
   ];
 
   for (const auditField of auditFields) {
