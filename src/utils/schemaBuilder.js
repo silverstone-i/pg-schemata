@@ -128,9 +128,9 @@ function createTableSQL(schema) {
   );
   `.trim();
 
-  if (table === 'costlines') {
-    console.log('costlines sql', sql);
-  }
+  // if (table === 'costlines') {
+  //   console.log('costlines sql', sql);
+  // }
 
   return sql;
 }
