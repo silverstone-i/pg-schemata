@@ -11,12 +11,14 @@
 
 import DB from './DB.js';
 import BaseModel from './BaseModel.js';
+import ReadOnlyModel from './ReadOnlyModel.js';
 import * as schemaBuilder  from './utils/schemaBuilder.js';
 import * as validation from './utils/validation.js';
 
 export {
   DB,
   BaseModel,
+  ReadOnlyModel,
   schemaBuilder,
   validation,
 };
@@ -24,6 +26,7 @@ export {
 export default {
   DB,
   BaseModel,
+  ReadOnlyModel,
   schemaBuilder,
   validation,
 };
