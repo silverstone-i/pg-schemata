@@ -62,7 +62,11 @@ class DB {
           extend(obj, dc) {
             // Attach each repository to the database instance
             for (const repository of Object.keys(repositories)) {
-              obj[repository] = new repositories[repository](obj, DB.pgp);
+              const RepoClass = repositories[repository];
+              if (typeof RepoClass !== 'function') {
+                throw new TypeError(`Repository "${repository}" is not a valid constructor`);
+              }
+              obj[repository] = new RepoClass(obj, DB.pgp);
             }
           },
         };
