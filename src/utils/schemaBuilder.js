@@ -128,6 +128,10 @@ function createTableSQL(schema) {
   );
   `.trim();
 
+  if (table === 'costlines') {
+    console.log('costlines sql', sql);
+  }
+
   return sql;
 }
 
@@ -282,6 +286,10 @@ function createColumnSet(schema, pgp) {
     cs.insert = cs[schema.table];
     cs.update = cs[schema.table];
   }
+
+  // if (schema.table === 'clients') {
+  //   console.log('cs', cs);
+  // }
 
   return cs;
 }
