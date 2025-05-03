@@ -157,7 +157,9 @@ class BaseModel {
       // Construct the insert query
       query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
     } catch (err) {
-      return Promise.reject(new Error('Failed to construct insert query', err));
+      const error = new Error('Failed to construct insert query');
+      error.cause = err;
+      return Promise.reject(error);
     }
 
     // Log the constructed query
