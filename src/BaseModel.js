@@ -425,7 +425,7 @@ class BaseModel {
    * Updates an existing row by ID.
    * @param {number|string} id - The ID of the record to update.
    * @param {Object} dto - Data Transfer Object containing updated values.
-   * @returns {Promise<Object>} The updated row.
+   * @returns {Promise<Object|null>} The updated row or null if not found.
    */
   async update(id, dto) {
     // Validate that the ID is in a valid format
@@ -461,7 +461,11 @@ class BaseModel {
     this.logQuery(query);
 
     try {
-      return await this.db.one(query);
+      const result = await this.db.result(query, undefined, r => ({
+        rowCount: r.rowCount,
+        row: r.rows?.[0] ?? null,
+      }));
+      return result.rowCount ? result.row : null;
     } catch (err) {
       this.handleDbError(err);
     }
@@ -594,3 +598,4 @@ class BaseModel {
 }
 
 export default BaseModel;
+export { BaseModel };
