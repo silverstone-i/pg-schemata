@@ -144,6 +144,7 @@ class BaseModel {
 
     // Sanitize the DTO to include only valid columns
     const safeDto = this.sanitizeDto(dto);
+    if (!safeDto.created_by) safeDto.created_by = 'system';
 
     // Check that the sanitized DTO has at least one valid column
     if (Object.keys(safeDto).length === 0) {
@@ -444,6 +445,7 @@ class BaseModel {
 
     // Sanitize the DTO to include only valid columns, and exclude immutable ones
     const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
+    if (!safeDto.updated_by) safeDto.updated_by = 'system';
 
     // Prepare the condition for the SQL UPDATE
     const condition = this.pgp.as.format('WHERE id = $1', [id]);
