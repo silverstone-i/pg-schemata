@@ -1,19 +1,3 @@
-  /**
-   * Builds a WHERE clause from an object of conditions.
-   * @param {Object} where - Object of column-value pairs.
-   * @param {boolean} [requireNonEmpty=true] - Whether to throw on empty object.
-   * @returns {{ clause: string, values: any[] }} SQL clause and values.
-   */
-  #buildWhereClause(where = {}, requireNonEmpty = true) {
-    if (!isPlainObject(where) || (requireNonEmpty && Object.keys(where).length === 0)) {
-      throw new Error('WHERE clause must be a non-empty object');
-    }
-
-    const keys = Object.keys(where).map(key => this.escapeName(key));
-    const values = Object.values(where);
-    const clause = keys.map((key, i) => `${key} = $${i + 1}`).join(' AND ');
-    return { clause, values };
-  }
 'use strict';
 
 /*
@@ -47,11 +31,13 @@ import { isValidId, isPlainObject } from './utils/validation.js';
  * @param {Object} [logger] - Optional logger with debug and error methods.
  */
 class BaseModel {
+  // ---------------------------------------------------------------------------
+  // 🟢 Core CRUD
+  // ---------------------------------------------------------------------------
   constructor(db, pgp, schema, logger = null) {
     if (!schema || typeof schema !== 'object') {
       throw new Error('Schema must be an object');
     }
-
     if (
       !db ||
       !pgp ||
@@ -64,143 +50,31 @@ class BaseModel {
         'Missing one or more required parameters: db, pgp, schema, table and/or primary key constraint'
       );
     }
-
     this.db = db;
     this.pgp = pgp;
     this.logger = logger;
-
     // deep clone to prevent mutation
     this._schema = cloneDeep(
       schema.hasAuditFields ? addAuditFields(schema) : schema
     );
-
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
-  // Escapes a database identifier (e.g. column or table name) using pg-promise formatting.
-  escapeName(name) {
-    return this.pgp.as.name(name);
-  }
-
-  // Returns the escaped schema name.
-  get schemaName() {
-    return this.escapeName(this._schema.dbSchema);
-  }
-
-  // Returns the schema object.
-  get schema() {
-    return this._schema;
-  }
-
-  // Returns the escaped table name.
-  get tableName() {
-    return this.escapeName(this._schema.table);
-  }
-
-  /**
-   * Filters the input DTO to include only valid column names defined in the schema.
-   * @param {Object} dto - Data Transfer Object to sanitize.
-   * @param {Object} [options] - Options for sanitization.
-   * @param {boolean} [options.includeImmutable=true] - Whether to include immutable fields.
-   * @returns {Object} Sanitized DTO with valid columns.
-   */
-  sanitizeDto(dto, { includeImmutable = true } = {}) {
-    const validColumns = this._schema.columns
-      .filter(c => includeImmutable || !c.immutable)
-      .map(c => c.name);
-    const sanitized = {};
-    for (const key in dto) {
-      if (validColumns.includes(key)) {
-        sanitized[key] = dto[key];
-      }
+  async delete(id) {
+    if (!isValidId(id)) {
+      return Promise.reject(new Error('Invalid ID format'));
     }
-    return sanitized;
-  }
-
-  /**
-   * Logs the query if a logger is provided and has a debug method.
-   * @param {string} query - The query string to log.
-   */
-  logQuery(query) {
-    if (this.logger?.debug) {
-      this.logger.debug(`Running query: ${query}`);
-    }
-  }
-
-  /**
-   * Creates the table in the database if it doesn't exist.
-   * @returns {Promise<void>}
-   * @throws {Error} If the table creation fails.
-   */
-  async createTable() {
-    // Create the table if it doesn't exist
+    const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
     try {
-      const query = createTableSQL(this._schema);
-
-      // Log the query
-      this.logQuery(query);
-
-      // Execute the query
-      return await this.db.none(query);
+      return await this.db.result(query, [id], r => r.rowCount);
     } catch (err) {
       this.handleDbError(err);
     }
   }
 
-  /**
-   * Inserts a new row into the table.
-   * @param {Object} dto - Data Transfer Object to insert.
-   * @returns {Promise<Object>} Inserted row.
-   */
-  async insert(dto) {
-    // Validate that the DTO is a non-empty object
-    if (!isPlainObject(dto)) {
-      return Promise.reject(new Error('DTO must be a non-empty object'));
-    }
-
-    // Sanitize the DTO to include only valid columns
-    const safeDto = this.sanitizeDto(dto);
-    if (!safeDto.created_by) safeDto.created_by = 'system';
-
-    // Check that the sanitized DTO has at least one valid column
-    if (Object.keys(safeDto).length === 0) {
-      return Promise.reject(
-        new Error('DTO must contain at least one valid column')
-      );
-    }
-
-    let query;
-    try {
-      // Construct the insert query
-      query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
-    } catch (err) {
-      const error = new Error('Failed to construct insert query');
-      error.cause = err;
-      return Promise.reject(error);
-    }
-
-    // Log the constructed query
-    this.logQuery(query);
-
-    // Execute the query and handle any potential errors
-    try {
-      return await this.db.one(query);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  /**
-   * Fetches all records with pagination support using limit and offset.
-   * @param {Object} [options] - Pagination options.
-   * @param {number} [options.limit=50] - Maximum number of records to return.
-   * @param {number} [options.offset=0] - Number of records to skip.
-   * @returns {Promise<Object[]>} Array of records.
-   */
   async findAll({ limit = 50, offset = 0 } = {}) {
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} ORDER BY id LIMIT $1 OFFSET $2`;
     this.logQuery(query);
-
     try {
       return await this.db.any(query, [limit, offset]);
     } catch (err) {
@@ -208,11 +82,6 @@ class BaseModel {
     }
   }
 
-  /**
-   * Retrieves a single row by ID. Returns null if not found.
-   * @param {number|string} id - The ID of the record to retrieve.
-   * @returns {Promise<Object|null>} The found record or null.
-   */
   async findById(id) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
@@ -226,215 +95,74 @@ class BaseModel {
     }
   }
 
-  // Alias for findById, used to refresh a record by its ID.
-  /**
-   * Alias for findById, used to refresh a record by its ID.
-   * @param {number|string} id - The ID of the record to reload.
-   * @returns {Promise<Object|null>} The reloaded record or null.
-   */
+  async insert(dto) {
+    if (!isPlainObject(dto)) {
+      return Promise.reject(new Error('DTO must be a non-empty object'));
+    }
+    const safeDto = this.sanitizeDto(dto);
+    if (!safeDto.created_by) safeDto.created_by = 'system';
+    if (Object.keys(safeDto).length === 0) {
+      return Promise.reject(
+        new Error('DTO must contain at least one valid column')
+      );
+    }
+    let query;
+    try {
+      query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
+    } catch (err) {
+      const error = new Error('Failed to construct insert query');
+      error.cause = err;
+      return Promise.reject(error);
+    }
+    this.logQuery(query);
+    try {
+      return await this.db.one(query);
+    } catch (err) {
+      this.handleDbError(err);
+    }
+  }
+
   async reload(id) {
     return this.findById(id);
   }
 
-  /**
-   * Finds records matching given conditions and optional filters.
-   *
-   * @param {Array} conditions - Array of equality condition objects.
-   * @param {string} [joinType] - Logical operator to join conditions (e.g., 'AND', 'OR').
-   * @param {Object} [options] - Additional query options.
-   * @param {Array} [options.columnWhitelist] - List of columns to return.
-   * @param {Object} [options.filters] - Object specifying AND/OR filters.
-   * @param {Array|string} [options.orderBy] - Column(s) to order by.
-   * @param {number} [options.limit] - Limit for pagination.
-   * @param {number} [options.offset] - Offset for pagination.
-   * @returns {Promise<Array>} A promise that resolves to an array of matching records.
-   */
-  async findWhere(
-    conditions = [],
-    joinType = 'AND',
-    { columnWhitelist = null, filters = {}, orderBy = null, limit = null, offset = null } = {}
-  ) {
-    // Validate that conditions is a non-empty array
-    if (!Array.isArray(conditions) || conditions.length === 0) {
-      return Promise.reject(new Error('Conditions must be a non-empty array'));
+  async update(id, dto) {
+    if (!isValidId(id)) {
+      return Promise.reject(new Error('Invalid ID format'));
     }
-
-    // Prepare the table name and selected columns
-    const table = `${this.schemaName}.${this.tableName}`;
-    const selectCols = columnWhitelist?.length
-      ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
-      : '*';
-
-    const queryParts = [`SELECT ${selectCols} FROM ${table}`];
-    const values = [];
-    const whereClauses = [];
-
-    // Base conditions
-    const baseConditions = conditions.map((condition, idx) => {
-      const key = Object.keys(condition)[0];
-      const val = Object.values(condition)[0];
-      values.push(val);
-      return `${this.escapeName(key)} = $${values.length}`;
-    });
-
-    if (baseConditions.length) {
-      whereClauses.push(
-        `(${baseConditions.join(` ${joinType.toUpperCase()} `)})`
-      );
+    if (
+      typeof dto !== 'object' ||
+      Array.isArray(dto) ||
+      Object.keys(dto).length === 0
+    ) {
+      return Promise.reject(new Error('DTO must be a non-empty object'));
     }
-
-    // Handle additional filters
-    if (Object.keys(filters).length) {
-      if (filters.and || filters.or) {
-        const top = filters.and
-          ? this.#buildCondition(filters.and, 'AND', values)
-          : this.#buildCondition(filters.or, 'OR', values);
-        whereClauses.push(top);
-      } else {
-        whereClauses.push(this.#buildCondition([filters], 'AND', values));
-      }
-    }
-
-    // Add WHERE clause if there are conditions
-    if (whereClauses.length) {
-      queryParts.push('WHERE', whereClauses.join(' AND '));
-    }
-
-    // Add ORDER BY, LIMIT, and OFFSET if provided
-    if (orderBy) {
-      const orderClause = Array.isArray(orderBy)
-        ? orderBy.map(col => this.escapeName(col)).join(', ')
-        : this.escapeName(orderBy);
-      queryParts.push(`ORDER BY ${orderClause}`);
-    }
-
-    if (limit) {
-      queryParts.push(`LIMIT ${parseInt(limit, 10)}`);
-    }
-
-    if (offset) {
-      queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
-    }
-
-    const query = queryParts.join(' ');
+    const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
+    if (!safeDto.updated_by) safeDto.updated_by = 'system';
+    const condition = this.pgp.as.format('WHERE id = $1', [id]);
+    const query =
+      this.pgp.helpers.update(safeDto, this.cs.update, {
+        schema: this.schema.dbSchema,
+        table: this.schema.table,
+      }) +
+      ' ' +
+      condition +
+      ' RETURNING *';
     this.logQuery(query);
-
     try {
-      return await this.db.any(query, values);
+      const result = await this.db.result(query, undefined, r => ({
+        rowCount: r.rowCount,
+        row: r.rows?.[0] ?? null,
+      }));
+      return result.rowCount ? result.row : null;
     } catch (err) {
       this.handleDbError(err);
     }
   }
 
-  /**
-   * Fetches records after a given cursor for pagination.
-   *
-   * @param {Object} cursor - Cursor values keyed by column names.
-   * @param {number} limit - Number of rows to fetch.
-   * @param {Array} orderBy - List of column names used for ordering.
-   * @param {Object} options - Optional flags and filters.
-   * @param {boolean} [options.descending] - If true, fetches in descending order.
-   * @param {Array} [options.columnWhitelist] - List of columns to return.
-   * @param {Object} [options.filters] - Object specifying filter conditions.
-   * @returns {Promise<Object>} An object with `rows` and `nextCursor`.
-   */
-  async findAfterCursor(
-    cursor = {},
-    limit = 50,
-    orderBy = ['id'],
-    options = {}
-  ) {
-    const {
-      descending = false,
-      columnWhitelist = null,
-      filters = {},
-    } = options;
-
-    // Determine the order direction based on descending flag
-    const direction = descending ? 'DESC' : 'ASC';
-    const table = `${this.schemaName}.${this.tableName}`;
-    const selectCols = columnWhitelist?.length
-      ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
-      : '*';
-    const escapedOrderCols = orderBy
-      .map(col => this.escapeName(col))
-      .join(', ');
-    const queryParts = [`SELECT ${selectCols} FROM ${table}`];
-    const whereClauses = [];
-    const values = [];
-
-    // Cursor condition for pagination
-    if (Object.keys(cursor).length > 0) {
-      const cursorValues = orderBy.map(col => {
-        if (!(col in cursor)) throw new Error(`Missing cursor for ${col}`);
-        return cursor[col];
-      });
-      const placeholders = cursorValues.map((_, i) => `$${i + 1}`).join(', ');
-      whereClauses.push(
-        `(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`
-      );
-      values.push(...cursorValues);
-    }
-
-    // Handle additional filters
-    if (Object.keys(filters).length) {
-      if (filters.and || filters.or) {
-        const top = filters.and
-          ? this.#buildCondition(filters.and, 'AND', values)
-          : this.#buildCondition(filters.or, 'OR', values);
-        whereClauses.push(top);
-      } else {
-        whereClauses.push(this.#buildCondition([filters], 'AND', values));
-      }
-    }
-
-    // Add WHERE clause if there are conditions
-    if (whereClauses.length) {
-      queryParts.push('WHERE', whereClauses.join(' AND '));
-    }
-
-    // Add ordering and limit to the query
-    queryParts.push(`ORDER BY ${escapedOrderCols} ${direction}`);
-    queryParts.push(`LIMIT $${values.length + 1}`);
-    values.push(limit);
-
-    const query = queryParts.join(' ');
-    this.logQuery?.(query);
-
-    const rows = await this.db.any(query, values);
-
-    // Determine the next cursor based on the last row
-    const nextCursor =
-      rows.length > 0
-        ? orderBy.reduce((acc, col) => {
-            acc[col] = rows[rows.length - 1][col];
-            return acc;
-          }, {})
-        : null;
-
-    return { rows, nextCursor };
-  }
-
-  /**
-   * Executes findBy with AND conditions and returns only the first result.
-   * @param {Array<Object>} conditions - Array of equality conditions.
-   * @param {Object} [options] - Query options.
-   * @returns {Promise<Object|null>} The first matching row or null.
-   */
-  async findOneBy(conditions, options = {}) {
-    try {
-      const results = await this.findWhere(conditions, 'AND', options);
-      return results[0] || null;
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  /**
-   * Checks if a record exists matching the given condition object.
-   * @param {Object} conditions - Conditions to check for existence.
-   * @returns {Promise<boolean>} True if the record exists, false otherwise.
-   */
+  // ---------------------------------------------------------------------------
+  // 🟠 Query & Filtering
+  // ---------------------------------------------------------------------------
   async exists(conditions) {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
@@ -450,96 +178,140 @@ class BaseModel {
     }
   }
 
-  /**
-   * Updates an existing row by ID.
-   * @param {number|string} id - The ID of the record to update.
-   * @param {Object} dto - Data Transfer Object containing updated values.
-   * @returns {Promise<Object|null>} The updated row or null if not found.
-   */
-  async update(id, dto) {
-    // Validate that the ID is in a valid format
-    if (!isValidId(id)) {
-      return Promise.reject(new Error('Invalid ID format'));
+  async findAfterCursor(
+    cursor = {},
+    limit = 50,
+    orderBy = ['id'],
+    options = {}
+  ) {
+    const {
+      descending = false,
+      columnWhitelist = null,
+      filters = {},
+    } = options;
+    const direction = descending ? 'DESC' : 'ASC';
+    const table = `${this.schemaName}.${this.tableName}`;
+    const selectCols = columnWhitelist?.length
+      ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
+      : '*';
+    const escapedOrderCols = orderBy
+      .map(col => this.escapeName(col))
+      .join(', ');
+    const queryParts = [`SELECT ${selectCols} FROM ${table}`];
+    const whereClauses = [];
+    const values = [];
+    if (Object.keys(cursor).length > 0) {
+      const cursorValues = orderBy.map(col => {
+        if (!(col in cursor)) throw new Error(`Missing cursor for ${col}`);
+        return cursor[col];
+      });
+      const placeholders = cursorValues.map((_, i) => `$${i + 1}`).join(', ');
+      whereClauses.push(
+        `(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`
+      );
+      values.push(...cursorValues);
     }
-
-    // Validate that the DTO is a non-empty object
-    if (
-      typeof dto !== 'object' ||
-      Array.isArray(dto) ||
-      Object.keys(dto).length === 0
-    ) {
-      return Promise.reject(new Error('DTO must be a non-empty object'));
+    if (Object.keys(filters).length) {
+      if (filters.and || filters.or) {
+        const top = filters.and
+          ? this.#buildCondition(filters.and, 'AND', values)
+          : this.#buildCondition(filters.or, 'OR', values);
+        whereClauses.push(top);
+      } else {
+        whereClauses.push(this.#buildCondition([filters], 'AND', values));
+      }
     }
+    if (whereClauses.length) {
+      queryParts.push('WHERE', whereClauses.join(' AND '));
+    }
+    queryParts.push(`ORDER BY ${escapedOrderCols} ${direction}`);
+    queryParts.push(`LIMIT $${values.length + 1}`);
+    values.push(limit);
+    const query = queryParts.join(' ');
+    this.logQuery?.(query);
+    const rows = await this.db.any(query, values);
+    const nextCursor =
+      rows.length > 0
+        ? orderBy.reduce((acc, col) => {
+            acc[col] = rows[rows.length - 1][col];
+            return acc;
+          }, {})
+        : null;
+    return { rows, nextCursor };
+  }
 
-    // Sanitize the DTO to include only valid columns, and exclude immutable ones
-    const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
-    if (!safeDto.updated_by) safeDto.updated_by = 'system';
+  async findOneBy(conditions, options = {}) {
+    try {
+      const results = await this.findWhere(conditions, 'AND', options);
+      return results[0] || null;
+    } catch (err) {
+      this.handleDbError(err);
+    }
+  }
 
-    // Prepare the condition for the SQL UPDATE
-    const condition = this.pgp.as.format('WHERE id = $1', [id]);
-
-    // Construct the update query using pg-promise helpers
-    const query =
-      this.pgp.helpers.update(safeDto, this.cs.update, {
-        schema: this.schema.dbSchema,
-        table: this.schema.table,
-      }) +
-      ' ' +
-      condition +
-      ' RETURNING *';
-
+  async findWhere(
+    conditions = [],
+    joinType = 'AND',
+    { columnWhitelist = null, filters = {}, orderBy = null, limit = null, offset = null } = {}
+  ) {
+    if (!Array.isArray(conditions) || conditions.length === 0) {
+      return Promise.reject(new Error('Conditions must be a non-empty array'));
+    }
+    const table = `${this.schemaName}.${this.tableName}`;
+    const selectCols = columnWhitelist?.length
+      ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
+      : '*';
+    const queryParts = [`SELECT ${selectCols} FROM ${table}`];
+    const values = [];
+    const whereClauses = [];
+    const baseConditions = conditions.map((condition, idx) => {
+      const key = Object.keys(condition)[0];
+      const val = Object.values(condition)[0];
+      values.push(val);
+      return `${this.escapeName(key)} = $${values.length}`;
+    });
+    if (baseConditions.length) {
+      whereClauses.push(
+        `(${baseConditions.join(` ${joinType.toUpperCase()} `)})`
+      );
+    }
+    if (Object.keys(filters).length) {
+      if (filters.and || filters.or) {
+        const top = filters.and
+          ? this.#buildCondition(filters.and, 'AND', values)
+          : this.#buildCondition(filters.or, 'OR', values);
+        whereClauses.push(top);
+      } else {
+        whereClauses.push(this.#buildCondition([filters], 'AND', values));
+      }
+    }
+    if (whereClauses.length) {
+      queryParts.push('WHERE', whereClauses.join(' AND '));
+    }
+    if (orderBy) {
+      const orderClause = Array.isArray(orderBy)
+        ? orderBy.map(col => this.escapeName(col)).join(', ')
+        : this.escapeName(orderBy);
+      queryParts.push(`ORDER BY ${orderClause}`);
+    }
+    if (limit) {
+      queryParts.push(`LIMIT ${parseInt(limit, 10)}`);
+    }
+    if (offset) {
+      queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
+    }
+    const query = queryParts.join(' ');
     this.logQuery(query);
-
     try {
-      const result = await this.db.result(query, undefined, r => ({
-        rowCount: r.rowCount,
-        row: r.rows?.[0] ?? null,
-      }));
-      return result.rowCount ? result.row : null;
+      return await this.db.any(query, values);
     } catch (err) {
       this.handleDbError(err);
     }
   }
 
-  /**
-   * Deletes a row by ID. Returns the number of rows affected.
-   * @param {number|string} id - The ID of the record to delete.
-   * @returns {Promise<number>} Number of rows affected.
-   */
-  async delete(id) {
-    if (!isValidId(id)) {
-      return Promise.reject(new Error('Invalid ID format'));
-    }
-    const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
-
-    try {
-      return await this.db.result(query, [id], r => r.rowCount);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  /**
-   * Returns the total number of rows in the table.
-   * @returns {Promise<number>} Total number of rows.
-   */
-  async countAll() {
-    const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
-    this.logQuery(query);
-
-    try {
-      const result = await this.db.one(query);
-      return parseInt(result.count, 10);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  /**
-   * Returns the number of rows matching the given conditions.
-   * @param {Object} where - Key-value pairs for WHERE clause.
-   * @returns {Promise<number>}
-   */
+  // ---------------------------------------------------------------------------
+  // 🟡 Counting
+  // ---------------------------------------------------------------------------
   async count(where) {
     const { clause, values } = this.#buildWhereClause(where);
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
@@ -552,88 +324,20 @@ class BaseModel {
     }
   }
 
-  /**
-   * Updates only the updated_by field for a given record ID.
-   * @param {number|string} id - The ID of the record to touch.
-   * @param {string} updatedBy - The user identifier performing the touch.
-   * @returns {Promise<Object|null>} The updated row or null.
-   */
-  async touch(id, updatedBy = 'system') {
-    return this.update(id, { updated_by: updatedBy });
-  }
-
-  /**
-   * Removes all rows and resets ID sequence using TRUNCATE CASCADE.
-   * @returns {Promise<void>}
-   */
-  async truncate() {
-    const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
+  async countAll() {
+    const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
     this.logQuery(query);
-
     try {
-      return await this.db.none(query);
+      const result = await this.db.one(query);
+      return parseInt(result.count, 10);
     } catch (err) {
       this.handleDbError(err);
     }
   }
 
-  /**
-   * Sets the schema name for this instance of BaseModel.
-   * @param {string} dbSchema - The new schema name.
-   */
-  setSchema(dbSchema) {
-    this._schema.dbSchema = dbSchema;
-  }
-
-  /**
-   * Sets the schema name and returns the instance for chaining.
-   * @param {string} dbSchema - The new schema name.
-   * @returns {BaseModel} The instance of BaseModel for chaining.
-   */
-  withSchema(dbSchema) {
-    this._schema.dbSchema = dbSchema;
-    return this;
-  }
-
-  /**
-   * Updates rows that match the specified conditions.
-   * @param {Object} where - Key-value pairs for WHERE clause.
-   * @param {Object} updates - Key-value pairs for columns to update.
-   * @returns {Promise<number>} Number of rows updated.
-   */
-  async updateWhere(where, updates) {
-    if (!isPlainObject(where) || Object.keys(where).length === 0) {
-      throw new Error('WHERE clause must be a non-empty object');
-    }
-    if (!isPlainObject(updates) || Object.keys(updates).length === 0) {
-      throw new Error('UPDATE payload must be a non-empty object');
-    }
-
-    const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
-    if (!safeUpdates.updated_by) safeUpdates.updated_by = 'system';
-
-    const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
-      table: { table: this._schema.table, schema: this._schema.dbSchema },
-    });
-    const setClause = this.pgp.helpers.update(safeUpdates, updateCs);
-
-    const { clause, values } = this.#buildWhereClause(where);
-    const query = `${setClause} WHERE ${clause}`;
-    this.logQuery(query);
-
-    try {
-      const result = await this.db.result(query, values, r => r.rowCount);
-      return result;
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  /**
-   * Deletes rows that match the specified conditions.
-   * @param {Object} where - Key-value pairs for WHERE clause.
-   * @returns {Promise<number>} Number of rows deleted.
-   */
+  // ---------------------------------------------------------------------------
+  // 🟤 Conditional Mutations
+  // ---------------------------------------------------------------------------
   async deleteWhere(where) {
     const { clause, values } = this.#buildWhereClause(where);
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
@@ -645,29 +349,51 @@ class BaseModel {
     }
   }
 
-  /**
-   * Inserts multiple rows into the table in a single transaction.
-   * @param {Array<Object>} records - Array of DTOs to insert.
-   * @returns {Promise<void>}
-   */
+  async touch(id, updatedBy = 'system') {
+    return this.update(id, { updated_by: updatedBy });
+  }
+
+  async updateWhere(where, updates) {
+    if (!isPlainObject(where) || Object.keys(where).length === 0) {
+      throw new Error('WHERE clause must be a non-empty object');
+    }
+    if (!isPlainObject(updates) || Object.keys(updates).length === 0) {
+      throw new Error('UPDATE payload must be a non-empty object');
+    }
+    const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
+    if (!safeUpdates.updated_by) safeUpdates.updated_by = 'system';
+    const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
+      table: { table: this._schema.table, schema: this._schema.dbSchema },
+    });
+    const setClause = this.pgp.helpers.update(safeUpdates, updateCs);
+    const { clause, values } = this.#buildWhereClause(where);
+    const query = `${setClause} WHERE ${clause}`;
+    this.logQuery(query);
+    try {
+      const result = await this.db.result(query, values, r => r.rowCount);
+      return result;
+    } catch (err) {
+      this.handleDbError(err);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 🔵 Bulk Operations
+  // ---------------------------------------------------------------------------
   async bulkInsert(records) {
     if (!Array.isArray(records) || records.length === 0) {
       throw new Error('Records must be a non-empty array');
     }
-
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
       if (!sanitized.created_by) sanitized.created_by = 'system';
       return sanitized;
     });
-
     const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
-
     const query = this.pgp.helpers.insert(safeRecords, cs);
     this.logQuery(query);
-
     try {
       await this.db.tx(t => t.none(query));
     } catch (err) {
@@ -675,21 +401,14 @@ class BaseModel {
     }
   }
 
-  /**
-   * Updates multiple rows based on matching primary key values.
-   * @param {Array<Object>} records - Array of DTOs with ID and updated fields.
-   * @returns {Promise<void>}
-   */
   async bulkUpdate(records) {
     if (!Array.isArray(records) || records.length === 0) {
       throw new Error('Records must be a non-empty array');
     }
-
     const pk = this.schema.constraints.primaryKey;
     if (!pk || typeof pk !== 'string') {
       throw new Error('Primary key must be defined in the schema');
     }
-
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto, { includeImmutable: false });
       if (!sanitized.updated_by) sanitized.updated_by = 'system';
@@ -698,24 +417,104 @@ class BaseModel {
       }
       return sanitized;
     });
-
     const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
-
-    // Build the update query using pg-promise helpers
-    // The query produced by helpers.update is of the form: UPDATE ... SET ... FROM (VALUES ...) AS v(...) WHERE ...
-    // But we want to ensure the WHERE clause matches on the PK
     const query = this.pgp.helpers.update(safeRecords, cs) +
       ' WHERE v.' + this.escapeName(pk) + ' = t.' + this.escapeName(pk);
     const wrapped = `UPDATE ${this.schemaName}.${this.tableName} AS t SET ${query}`;
     this.logQuery(wrapped);
-
     try {
       await this.db.tx(t => t.none(wrapped));
     } catch (err) {
       this.handleDbError(err);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 🟣 Utilities
+  // ---------------------------------------------------------------------------
+  escapeName(name) {
+    return this.pgp.as.name(name);
+  }
+
+  get schema() {
+    return this._schema;
+  }
+
+  get schemaName() {
+    return this.escapeName(this._schema.dbSchema);
+  }
+
+  get tableName() {
+    return this.escapeName(this._schema.table);
+  }
+
+  logQuery(query) {
+    if (this.logger?.debug) {
+      this.logger.debug(`Running query: ${query}`);
+    }
+  }
+
+  sanitizeDto(dto, { includeImmutable = true } = {}) {
+    const validColumns = this._schema.columns
+      .filter(c => includeImmutable || !c.immutable)
+      .map(c => c.name);
+    const sanitized = {};
+    for (const key in dto) {
+      if (validColumns.includes(key)) {
+        sanitized[key] = dto[key];
+      }
+    }
+    return sanitized;
+  }
+
+  setSchema(dbSchema) {
+    this._schema.dbSchema = dbSchema;
+  }
+
+  async truncate() {
+    const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
+    this.logQuery(query);
+    try {
+      return await this.db.none(query);
+    } catch (err) {
+      this.handleDbError(err);
+    }
+  }
+
+  withSchema(dbSchema) {
+    this._schema.dbSchema = dbSchema;
+    return this;
+  }
+
+  async createTable() {
+    try {
+      const query = createTableSQL(this._schema);
+      this.logQuery(query);
+      return await this.db.none(query);
+    } catch (err) {
+      this.handleDbError(err);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ⚫ Internal Helpers (Private)
+  // ---------------------------------------------------------------------------
+  /**
+   * Builds a WHERE clause from an object of conditions.
+   * @param {Object} where - Object of column-value pairs.
+   * @param {boolean} [requireNonEmpty=true] - Whether to throw on empty object.
+   * @returns {{ clause: string, values: any[] }} SQL clause and values.
+   */
+  #buildWhereClause(where = {}, requireNonEmpty = true) {
+    if (!isPlainObject(where) || (requireNonEmpty && Object.keys(where).length === 0)) {
+      throw new Error('WHERE clause must be a non-empty object');
+    }
+    const keys = Object.keys(where).map(key => this.escapeName(key));
+    const values = Object.values(where);
+    const clause = keys.map((key, i) => `${key} = $${i + 1}`).join(' AND ');
+    return { clause, values };
   }
 
   /**
@@ -729,25 +528,20 @@ class BaseModel {
     const parts = [];
     for (const item of group) {
       if (item.and) {
-        // Recursively handle AND conditions
         parts.push(`(${this.#buildCondition(item.and, 'AND', values)})`);
       } else if (item.or) {
-        // Recursively handle OR conditions
         parts.push(`(${this.#buildCondition(item.or, 'OR', values)})`);
       } else {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
           if (val && typeof val === 'object') {
             if ('like' in val) {
-              // Handle LIKE filter
               values.push(val.like);
               parts.push(`${col} LIKE $${values.length}`);
             } else if ('ilike' in val) {
-              // Handle ILIKE filter
               values.push(val.ilike);
               parts.push(`${col} ILIKE $${values.length}`);
             } else {
-              // Handle range filters
               if (val.from) {
                 values.push(val.from);
                 parts.push(`${col} >= $${values.length}`);
@@ -758,7 +552,6 @@ class BaseModel {
               }
             }
           } else {
-            // Handle equality condition
             values.push(val);
             parts.push(`${col} = $${values.length}`);
           }
@@ -768,12 +561,11 @@ class BaseModel {
     return parts.join(` ${joiner} `);
   }
 
-  // Logs the database error (if logger exists) and rethrows the error.
   handleDbError(err) {
     if (this.logger?.error) {
       this.logger.error('Database error:', err);
     }
-    throw err; // re-throw so it propagates
+    throw err;
   }
 }
 
