@@ -11,16 +11,16 @@
 
 import DB from './DB.js';
 import TableModel from './TableModel.js';
-import ReadOnlyModel from './ReadOnlyModel.js';
+import QueryModel from './QueryModel.js';
 import * as schemaBuilder from './utils/schemaBuilder.js';
 import * as validation from './utils/validation.js';
 
-export { DB, TableModel, ReadOnlyModel, schemaBuilder, validation };
+export { DB, TableModel, QueryModel, schemaBuilder, validation };
 
 export default {
   DB,
   TableModel,
-  ReadOnlyModel,
+  QueryModel,
   schemaBuilder,
   validation,
 };
