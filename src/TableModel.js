@@ -261,60 +261,40 @@ class TableModel extends QueryModel {
   }
 
   async bulkUpdate(records) {
+    const pk = this._schema.constraints?.primaryKey;
+    if (!pk) {
+      throw new Error('Primary key must be defined in the schema');
+    }
     if (!Array.isArray(records) || records.length === 0) {
       throw new Error('Records must be a non-empty array');
     }
 
-    const pk = this.schema.constraints.primaryKey;
-    if (!pk) {
-      throw new Error('Primary key must be defined in the schema');
+    const first = records[0];
+    if (!first.id) {
+      throw new Error('Each record must include an "id" field');
     }
 
-    const pkName = Array.isArray(pk) ? pk[0] : pk;
-    if (typeof pkName !== 'string') {
-      throw new Error('Primary key must be a string');
-    }
-
-    const safeRecords = records.map(dto => {
-      const sanitized = this.sanitizeDto(dto, { includeImmutable: false });
-      if (!sanitized.updated_by) sanitized.updated_by = 'system';
-      if (!sanitized[pkName]) {
-        throw new Error(`Missing primary key "${pkName}" in one or more records`);
+    const queries = records.map(dto => {
+      const id = dto.id;
+      if (!isValidId(id)) {
+        throw new Error(`Invalid ID in record: ${JSON.stringify(dto)}`);
       }
-      return sanitized;
+      const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
+      if (!safeDto.updated_by) safeDto.updated_by = 'system';
+      delete safeDto.id;
+      const condition = this.pgp.as.format('WHERE id = $1', [id]);
+      const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeDto), {
+        table: { table: this._schema.table, schema: this._schema.dbSchema },
+      });
+      return this.pgp.helpers.update(safeDto, updateCs) + ' ' + condition;
     });
 
-    const table = new TableName({
-      table: this._schema.table,
-      schema: this._schema.dbSchema,
-    });
-
-    const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), { table });
-    if (!cs.columns) {
-      throw new Error('ColumnSet is missing the columns property');
-    }
-
-    // cs.columns is guaranteed to exist here
-    const valueTuples = safeRecords.map(row => {
-      const values = cs.columns.map(col => this.pgp.as.value(row[col.name]));
-      return `(${values.join(', ')})`;
-    }).join(', ');
-
-    const setClause = cs.columns
-      .filter(c => c.name !== pkName)
-      .map(c => `${this.escapeName(c.name)} = v.${this.escapeName(c.name)}`)
-      .join(', ');
-
-    const query = `
-      UPDATE ${table} AS t
-      SET ${setClause}
-      FROM (VALUES ${valueTuples}) AS v(${cs.columns.map(c => this.escapeName(c.name)).join(', ')})
-      WHERE t.${this.escapeName(pkName)} = v.${this.escapeName(pkName)}::uuid
-    `;
-
+    const query = queries.join('; ');
     this.logQuery(query);
     try {
-      await this.db.tx(t => t.none(query));
+      return await this.db.tx(t => {
+        return t.batch(queries.map(q => t.result(q, [], r => r.rowCount)));
+      });
     } catch (err) {
       this.handleDbError(err);
     }

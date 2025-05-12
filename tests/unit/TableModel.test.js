@@ -202,7 +202,7 @@ describe('TableModel (Unit)', () => {
     describe('bulkUpdate', () => {
       test('should update multiple records in a transaction', async () => {
         const records = [{ id: 1, email: 'x@test.com' }];
-        mockDb.tx = jest.fn(fn => fn({ none: mockDb.none }));
+        mockDb.tx = jest.fn(fn => fn({ result: mockDb.result, batch: jest.fn(promises => Promise.all(promises)) }));
         await model.bulkUpdate(records);
         expect(mockDb.tx).toHaveBeenCalled();
       });
@@ -212,6 +212,7 @@ describe('TableModel (Unit)', () => {
         const badModel = Object.create(TableModel.prototype);
         badModel._schema = badSchema;
         badModel.pgp = mockPgp;
+        badModel.db = mockDb;
 
         await expect(badModel.bulkUpdate([{ id: 1 }])).rejects.toThrow(
           'Primary key must be defined in the schema'
@@ -224,7 +225,7 @@ describe('TableModel (Unit)', () => {
           constraints: { primaryKey: 'id' },
         });
         await expect(testModel.bulkUpdate([{ email: 'missing@pk.com' }])).rejects.toThrow(
-          'Missing primary key "id" in one or more records'
+          'Each record must include an "id" field'
         );
       });
 
