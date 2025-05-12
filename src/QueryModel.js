@@ -63,7 +63,7 @@ class QueryModel {
     whereClauses.push(`(${baseConditions.join(` ${joinType.toUpperCase()} `)})`);
 
     if (Object.keys(filters).length) {
-      whereClauses.push(this.#buildCondition([filters], 'AND', values));
+      whereClauses.push(this.buildCondition([filters], 'AND', values));
     }
 
     if (whereClauses.length) queryParts.push('WHERE', whereClauses.join(' AND '));
@@ -81,8 +81,23 @@ class QueryModel {
     return this.db.any(query, values);
   }
 
+    async exists(conditions) {
+    if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
+      return Promise.reject(Error('Conditions must be a non-empty object'));
+    }
+    const { clause, values } = this.buildWhereClause(conditions);
+    const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${clause}) AS "exists"`;
+    this.logQuery(query);
+    try {
+      const result = await this.db.one(query, values);
+      return result.exists;
+    } catch (err) {
+      this.handleDbError(err);
+    }
+  }
+
   async count(where) {
-    const { clause, values } = this.#buildWhereClause(where);
+    const { clause, values } = this.buildWhereClause(where);
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     this.logQuery(query);
     const result = await this.db.one(query, values);
@@ -114,7 +129,7 @@ class QueryModel {
     return this.escapeName(this._schema.table);
   }
 
-  #buildWhereClause(where = {}, requireNonEmpty = true) {
+  buildWhereClause(where = {}, requireNonEmpty = true) {
     if (!isPlainObject(where) || (requireNonEmpty && Object.keys(where).length === 0)) {
       throw new Error('WHERE clause must be a non-empty object');
     }
@@ -124,13 +139,13 @@ class QueryModel {
     return { clause, values };
   }
 
-  #buildCondition(group, joiner = 'AND', values = []) {
+  buildCondition(group, joiner = 'AND', values = []) {
     const parts = [];
     for (const item of group) {
       if (item.and) {
-        parts.push(`(${this.#buildCondition(item.and, 'AND', values)})`);
+        parts.push(`(${this.buildCondition(item.and, 'AND', values)})`);
       } else if (item.or) {
-        parts.push(`(${this.#buildCondition(item.or, 'OR', values)})`);
+        parts.push(`(${this.buildCondition(item.or, 'OR', values)})`);
       } else {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);

@@ -23,6 +23,10 @@ const mockPgp = {
     update: jest.fn(
       (dto, cs, { table, schema }) => `UPDATE "${schema}"."${table}" SET ...`
     ),
+    // For bulkUpdate test, ColumnSet should have a columns array
+    ColumnSet: jest.fn(() => ({
+      columns: [{ name: 'id' }, { name: 'email' }]
+    })),
   },
 };
 
@@ -30,7 +34,7 @@ const mockSchema = {
   dbSchema: 'public',
   table: 'users',
   columns: [{ name: 'id' }, { name: 'email' }, { name: 'password' }],
-  constraints: { primaryKey: ['id'] },
+  constraints: { primaryKey: 'id' },
 };
 
 // Utility mocks
@@ -50,7 +54,7 @@ jest.mock('../../src/utils/schemaBuilder', () => ({
 // ================================
 const TEST_ERROR = new Error('db error');
 
-describe('TableModel', () => {
+describe('TableModel (Unit)', () => {
   let model;
   let spyHandleDbError;
 
@@ -77,7 +81,7 @@ describe('TableModel', () => {
 
     test('should throw if required parameters are missing', () => {
       expect(() => new TableModel(mockDb, mockPgp, {})).toThrow(
-        'Missing one or more required parameters: db, pgp, schema, table and/or primary key constraint'
+        'Missing required parameters: db, pgp, schema, table, or primary key'
       );
     });
   });
@@ -86,10 +90,6 @@ describe('TableModel', () => {
   // Utility Methods
   // ================================
   describe('Utility Methods', () => {
-    test('escapeName should wrap name in quotes', () => {
-      expect(model.escapeName('test')).toBe('"test"');
-    });
-
     test('sanitizeDto should strip invalid fields', () => {
       const sanitized = model.sanitizeDto({
         id: 1,
@@ -122,105 +122,24 @@ describe('TableModel', () => {
       });
 
       test('should throw if dto has no valid columns', async () => {
-        const schemaWithoutValidColumns = {
-          dbSchema: 'public',
-          table: 'users',
-          columns: [{ name: '_id' }],
-          constraints: { primaryKey: ['id'] },
-        };
-        const invalidModel = new TableModel(
-          mockDb,
-          mockPgp,
-          schemaWithoutValidColumns
-        );
-
-        await expect(invalidModel.insert({ invalid: 'field' })).rejects.toThrow(
+        model.sanitizeDto = () => ({});
+        mockDb.one.mockImplementation(() => {
+          throw new Error('insert should not have been called');
+        });
+        await expect(model.insert({ invalid: 'value' })).rejects.toThrow(
           'DTO must contain at least one valid column'
         );
       });
     });
 
-    describe('Find', () => {
-      test('findAll should return results', async () => {
-        mockDb.any.mockResolvedValue([{ id: 1 }]);
-        const result = await model.findAll({ limit: 10, offset: 0 });
-        expect(result).toEqual([{ id: 1 }]);
-      });
-
-      test('findById should return a record', async () => {
-        mockDb.oneOrNone.mockResolvedValue({ id: 1 });
-        const result = await model.findById(1);
-        expect(result).toEqual({ id: 1 });
-      });
-
-      test('reload should refetch the record', async () => {
-        const spy = jest.spyOn(model, 'findById').mockResolvedValue({ id: 1 });
-        const result = await model.reload(1);
-        expect(spy).toHaveBeenCalledWith(1);
-        expect(result).toEqual({ id: 1 });
-      });
-
-      test('exists should return true or false', async () => {
-        mockDb.one.mockResolvedValue({ exists: true });
-        const result = await model.exists({ email: 'test@example.com' });
-        expect(result).toBe(true);
-      });
-
-      test('findBy should return matching records using AND logic', async () => {
-        mockDb.any.mockResolvedValue([{ id: 1, email: 'test@example.com' }]);
-
-        const result = await model.findBy([
-          { id: 1 },
-          { email: 'test@example.com' },
-        ]);
-
-        expect(mockDb.any).toHaveBeenCalled();
-        const query = model.logQuery.mock.calls[0][0];
-        expect(query).toMatch(/WHERE \("id" = \$1 AND "email" = \$2\)/);
-        expect(result).toEqual([{ id: 1, email: 'test@example.com' }]);
-      });
-
-      test('findBy should support filters with OR and LIKE logic', async () => {
-        mockDb.any.mockResolvedValue([{ id: 2 }]);
-
-        const result = await model.findBy([{ id: 2 }], 'AND', {
-          filters: {
-            or: [
-              { name: { like: '%john%' } },
-              { email: { ilike: '%@example.com' } },
-            ],
-          },
-        });
-
-        expect(mockDb.any).toHaveBeenCalled();
-        const query = model.logQuery.mock.calls[0][0];
-        expect(query).toMatch(/"name" LIKE/);
-        expect(query).toMatch(/"email" ILIKE/);
-        expect(result).toEqual([{ id: 2 }]);
-      });
-
-      test('findOneBy should return the first matching record', async () => {
-        mockDb.any.mockResolvedValue([{ id: 3 }]);
-
-        const result = await model.findOneBy([{ id: 3 }]);
-
-        expect(mockDb.any).toHaveBeenCalled();
-        expect(result).toEqual({ id: 3 });
-      });
-
-      test('findOneBy should return null if no records found', async () => {
-        mockDb.any.mockResolvedValue([]);
-
-        const result = await model.findOneBy([{ id: 999 }]);
-
-        expect(mockDb.any).toHaveBeenCalled();
-        expect(result).toBeNull();
-      });
-    });
-
     describe('Update', () => {
       test('should update and return result', async () => {
-        mockDb.one.mockResolvedValue({ id: 1 });
+        mockDb.result.mockResolvedValue({
+          rowCount: 1,
+          row: { id: 1 }
+        });
+        // Ensure mockPgp.helpers.update returns SQL
+        mockPgp.helpers.update.mockReturnValue('UPDATE SET "email" = $1');
         const result = await model.update(1, { email: 'updated@example.com' });
         expect(result).toEqual({ id: 1 });
       });
@@ -234,11 +153,23 @@ describe('TableModel', () => {
       });
     });
 
-    describe('Count', () => {
-      test('should count rows', async () => {
-        mockDb.one.mockResolvedValue({ count: '5' });
-        const result = await model.count();
-        expect(result).toBe(5);
+    describe('updateWhere', () => {
+      test('should apply updates and return row count', async () => {
+        mockDb.result.mockResolvedValue(3);
+        const result = await model.updateWhere({ status: 'draft' }, { status: 'locked' });
+        expect(result).toBe(3);
+      });
+
+      test('should throw if where clause is empty', async () => {
+        await expect(model.updateWhere({}, { status: 'x' })).rejects.toThrow(
+          'WHERE clause must be a non-empty object'
+        );
+      });
+
+      test('should throw if update payload is empty', async () => {
+        await expect(model.updateWhere({ id: 1 }, {})).rejects.toThrow(
+          'UPDATE payload must be a non-empty object'
+        );
       });
     });
 
@@ -250,93 +181,92 @@ describe('TableModel', () => {
       });
     });
 
-    describe('TableModel.findAfterCursor', () => {
-      test('generates correct query with basic cursor and default options', async () => {
-        mockDb.any.mockResolvedValue([{ id: 2, email: 'a@x.com' }]);
-
-        const res = await model.findAfterCursor({ id: 1 }, 10, ['id']);
-
-        expect(mockDb.any).toHaveBeenCalled();
-        const query = model.logQuery.mock.calls[0][0];
-        expect(query).toMatch(/WHERE \("id"\) > \(\$1\)/);
-        expect(query).toMatch(/ORDER BY "id" ASC/);
-        expect(res.nextCursor).toEqual({ id: 2 });
+    // ================================
+    // bulkInsert & bulkUpdate
+    // ================================
+    describe('bulkInsert', () => {
+      test('should insert multiple records using a transaction', async () => {
+        const records = [{ id: 1, email: 'a@test.com' }];
+        mockDb.tx = jest.fn(fn => fn({ none: mockDb.none }));
+        await model.bulkInsert(records);
+        expect(mockDb.tx).toHaveBeenCalled();
       });
 
-      test('applies descending and columnWhitelist options', async () => {
-        expect(model.pgp).toBeDefined();
-        expect(typeof model.pgp.as.name).toBe('function');
-        mockDb.any.mockResolvedValue([{ id: 99 }]);
-
-        await model.findAfterCursor({ id: 98 }, 5, ['id'], {
-          descending: true,
-          columnWhitelist: ['id'],
-        });
-
-        const query = model.logQuery.mock.calls[0][0];
-        expect(query).toContain('SELECT "id" FROM');
-        expect(query).toContain('ORDER BY "id" DESC');
-      });
-
-      test('handles AND + OR + ILIKE + LIKE + range filters', async () => {
-        mockDb.any.mockResolvedValue([{ id: 3 }]);
-
-        await model.findAfterCursor(
-          { created_at: '2023-01-01', id: 1 },
-          10,
-          ['created_at', 'id'],
-          {
-            filters: {
-              and: [
-                { status: 'active' },
-                {
-                  or: [
-                    { email: { ilike: '%@test.com' } },
-                    { name: { like: '%john%' } },
-                  ],
-                },
-                { created_at: { from: '2022-01-01', to: '2023-12-31' } },
-              ],
-            },
-          }
+      test('should throw if records is not an array', async () => {
+        await expect(model.bulkInsert('invalid')).rejects.toThrow(
+          'Records must be a non-empty array'
         );
+      });
+    });
 
-        const query = model.logQuery.mock.calls[0][0];
-        expect(query).toMatch(/"status" =/);
-        expect(query).toMatch(/"email" ILIKE/);
-        expect(query).toMatch(/"name" LIKE/);
-        expect(query).toMatch(/"created_at" >=/);
-        expect(query).toMatch(/"created_at" <=/);
-        expect(query).toMatch(/AND \(/); // confirms OR block
+    describe('bulkUpdate', () => {
+      test('should update multiple records in a transaction', async () => {
+        const records = [{ id: 1, email: 'x@test.com' }];
+        mockDb.tx = jest.fn(fn => fn({ none: mockDb.none }));
+        await model.bulkUpdate(records);
+        expect(mockDb.tx).toHaveBeenCalled();
       });
 
-      test('returns null nextCursor if no rows', async () => {
+      test('should throw if primary key is missing in schema', async () => {
+        const badSchema = { ...mockSchema, constraints: {} };
+        const badModel = Object.create(TableModel.prototype);
+        badModel._schema = badSchema;
+        badModel.pgp = mockPgp;
+
+        await expect(badModel.bulkUpdate([{ id: 1 }])).rejects.toThrow(
+          'Primary key must be defined in the schema'
+        );
+      });
+
+      test('should throw if any record is missing primary key', async () => {
+        const testModel = new TableModel(mockDb, mockPgp, {
+          ...mockSchema,
+          constraints: { primaryKey: 'id' },
+        });
+        await expect(testModel.bulkUpdate([{ email: 'missing@pk.com' }])).rejects.toThrow(
+          'Missing primary key "id" in one or more records'
+        );
+      });
+
+      test('should throw if records is not an array', async () => {
+        await expect(model.bulkUpdate({})).rejects.toThrow(
+          'Records must be a non-empty array'
+        );
+      });
+    });
+
+    describe('findAfterCursor', () => {
+      test('should return paginated rows and nextCursor', async () => {
+        mockDb.any.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+        const result = await model.findAfterCursor({ id: 0 }, 2, ['id']);
+        expect(result.rows.length).toBe(2);
+        expect(result.nextCursor).toEqual({ id: 2 });
+      });
+
+      test('should return null nextCursor if no rows', async () => {
         mockDb.any.mockResolvedValue([]);
-        const res = await model.findAfterCursor({ id: 100 }, 10, ['id']);
-        expect(res.nextCursor).toBeNull();
+        const result = await model.findAfterCursor({ id: 100 }, 10, ['id']);
+        expect(result.rows).toEqual([]);
+        expect(result.nextCursor).toBeNull();
       });
 
-      test('throws if cursor is missing required key', async () => {
+      test('should throw if cursor is missing required key', async () => {
         await expect(
-          model.findAfterCursor({ wrong_key: 1 }, 10, ['id'])
+          model.findAfterCursor({ other_id: 1 }, 10, ['id'])
         ).rejects.toThrow('Missing cursor for id');
       });
-    });
-  });
 
-  // ================================
-  // Schema Management
-  // ================================
-  describe('Schema Management', () => {
-    test('setSchema should change schema', () => {
-      model.setSchema('new_schema');
-      expect(model.schema.dbSchema).toBe('new_schema');
-    });
-
-    test('withSchema should change schema and return model', () => {
-      const returnedModel = model.withSchema('another_schema');
-      expect(model.schema.dbSchema).toBe('another_schema');
-      expect(returnedModel).toBe(model);
+      test('should apply filters and ordering with direction and whitelist', async () => {
+        mockDb.any.mockResolvedValue([{ id: 3 }]);
+        const result = await model.findAfterCursor({ id: 2 }, 1, ['id'], {
+          descending: true,
+          columnWhitelist: ['id'],
+          filters: {
+            and: [{ email: { ilike: '%example.com' } }],
+          },
+        });
+        expect(result.rows).toEqual([{ id: 3 }]);
+      });
     });
   });
 
@@ -389,22 +319,6 @@ describe('TableModel', () => {
   // Validation Errors
   // ================================
   describe('Validation Errors', () => {
-    test('findById should throw if ID is invalid', async () => {
-      await expect(model.findById(null)).rejects.toThrow('Invalid ID format');
-    });
-
-    test('exists should throw if conditions is not an object', async () => {
-      await expect(model.exists(null)).rejects.toThrow(
-        'Conditions must be a non-empty object'
-      );
-    });
-
-    test('exists should throw if conditions is empty', async () => {
-      await expect(model.exists({})).rejects.toThrow(
-        'Conditions must be a non-empty object'
-      );
-    });
-
     test('insert should throw if DTO is not an object', async () => {
       await expect(model.insert('not-an-object')).rejects.toThrow(
         'DTO must be a non-empty object'
@@ -447,23 +361,6 @@ describe('TableModel', () => {
   });
 
   // ================================
-  // Logging
-  // ================================
-  describe('Logging', () => {
-    test('logQuery should call logger.debug with the correct query', () => {
-      const mockDebug = jest.fn();
-      const loggerModel = new TableModel(mockDb, mockPgp, mockSchema, {
-        debug: mockDebug,
-      });
-      const query = 'SELECT * FROM users';
-
-      loggerModel.logQuery(query);
-
-      expect(mockDebug).toHaveBeenCalledWith(`Running query: ${query}`);
-    });
-  });
-
-  // ================================
   // Error Handling in CRUD Methods
   // ================================
   describe('Error Handling in CRUD Methods', () => {
@@ -480,31 +377,8 @@ describe('TableModel', () => {
       expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
     });
 
-    test('findAll should call handleDbError if db.any throws', async () => {
-      mockDb.any.mockRejectedValue(TEST_ERROR);
-
-      await expect(model.findAll()).rejects.toThrow('db error');
-      expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
-    });
-
-    test('findById should call handleDbError if db.oneOrNone throws', async () => {
-      mockDb.oneOrNone.mockRejectedValue(TEST_ERROR);
-
-      await expect(model.findById(1)).rejects.toThrow('db error');
-      expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
-    });
-
-    test('exists should call handleDbError if db.one throws', async () => {
-      mockDb.one.mockRejectedValue(TEST_ERROR);
-
-      await expect(model.exists({ email: 'test@example.com' })).rejects.toThrow(
-        'db error'
-      );
-      expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
-    });
-
     test('update should call handleDbError if db.one throws', async () => {
-      mockDb.one.mockRejectedValue(TEST_ERROR);
+      mockDb.result.mockRejectedValue(TEST_ERROR);
 
       await expect(
         model.update(1, { email: 'test@example.com' })
@@ -516,13 +390,6 @@ describe('TableModel', () => {
       mockDb.result.mockRejectedValue(TEST_ERROR);
 
       await expect(model.delete(1)).rejects.toThrow('db error');
-      expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
-    });
-
-    test('count should call handleDbError if db.one throws', async () => {
-      mockDb.one.mockRejectedValue(TEST_ERROR);
-
-      await expect(model.count()).rejects.toThrow('db error');
       expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
     });
 

@@ -1,5 +1,8 @@
 'use strict';
 
+import pgPromise from 'pg-promise';
+const TableName = pgPromise({}).helpers.TableName;
+
 import QueryModel from './QueryModel.js';
 
 /*
@@ -49,12 +52,12 @@ class TableModel extends QueryModel {
       return Promise.reject(new Error('DTO must be a non-empty object'));
     }
     const safeDto = this.sanitizeDto(dto);
-    if (!safeDto.created_by) safeDto.created_by = 'system';
     if (Object.keys(safeDto).length === 0) {
       return Promise.reject(
         new Error('DTO must contain at least one valid column')
       );
     }
+    if (!safeDto.created_by) safeDto.created_by = 'system';
     let query;
     try {
       query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
@@ -112,20 +115,6 @@ class TableModel extends QueryModel {
   // ---------------------------------------------------------------------------
   // 🟠 Query & Filtering
   // ---------------------------------------------------------------------------
-  async exists(conditions) {
-    if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
-      return Promise.reject(Error('Conditions must be a non-empty object'));
-    }
-    const { clause, values } = this.#buildWhereClause(conditions);
-    const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${clause}) AS "exists"`;
-    this.logQuery(query);
-    try {
-      const result = await this.db.one(query, values);
-      return result.exists;
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
 
   async findAfterCursor(
     cursor = {},
@@ -163,11 +152,11 @@ class TableModel extends QueryModel {
     if (Object.keys(filters).length) {
       if (filters.and || filters.or) {
         const top = filters.and
-          ? this.#buildCondition(filters.and, 'AND', values)
-          : this.#buildCondition(filters.or, 'OR', values);
+          ? this.buildCondition(filters.and, 'AND', values)
+          : this.buildCondition(filters.or, 'OR', values);
         whereClauses.push(top);
       } else {
-        whereClauses.push(this.#buildCondition([filters], 'AND', values));
+        whereClauses.push(this.buildCondition([filters], 'AND', values));
       }
     }
     if (whereClauses.length) {
@@ -209,7 +198,7 @@ class TableModel extends QueryModel {
   // 🟤 Conditional Mutations
   // ---------------------------------------------------------------------------
   async deleteWhere(where) {
-    const { clause, values } = this.#buildWhereClause(where);
+    const { clause, values } = this.buildWhereClause(where);
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     this.logQuery(query);
     try {
@@ -236,7 +225,7 @@ class TableModel extends QueryModel {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
     const setClause = this.pgp.helpers.update(safeUpdates, updateCs);
-    const { clause, values } = this.#buildWhereClause(where);
+    const { clause, values } = this.buildWhereClause(where);
     const query = `${setClause} WHERE ${clause}`;
     this.logQuery(query);
     try {
@@ -275,27 +264,57 @@ class TableModel extends QueryModel {
     if (!Array.isArray(records) || records.length === 0) {
       throw new Error('Records must be a non-empty array');
     }
+
     const pk = this.schema.constraints.primaryKey;
-    if (!pk || typeof pk !== 'string') {
+    if (!pk) {
       throw new Error('Primary key must be defined in the schema');
     }
+
+    const pkName = Array.isArray(pk) ? pk[0] : pk;
+    if (typeof pkName !== 'string') {
+      throw new Error('Primary key must be a string');
+    }
+
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto, { includeImmutable: false });
       if (!sanitized.updated_by) sanitized.updated_by = 'system';
-      if (!sanitized[pk]) {
-        throw new Error(`Missing primary key "${pk}" in one or more records`);
+      if (!sanitized[pkName]) {
+        throw new Error(`Missing primary key "${pkName}" in one or more records`);
       }
       return sanitized;
     });
-    const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), {
-      table: { table: this._schema.table, schema: this._schema.dbSchema },
+
+    const table = new TableName({
+      table: this._schema.table,
+      schema: this._schema.dbSchema,
     });
-    const query = this.pgp.helpers.update(safeRecords, cs) +
-      ' WHERE v.' + this.escapeName(pk) + ' = t.' + this.escapeName(pk);
-    const wrapped = `UPDATE ${this.schemaName}.${this.tableName} AS t SET ${query}`;
-    this.logQuery(wrapped);
+
+    const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), { table });
+    if (!cs.columns) {
+      throw new Error('ColumnSet is missing the columns property');
+    }
+
+    // cs.columns is guaranteed to exist here
+    const valueTuples = safeRecords.map(row => {
+      const values = cs.columns.map(col => this.pgp.as.value(row[col.name]));
+      return `(${values.join(', ')})`;
+    }).join(', ');
+
+    const setClause = cs.columns
+      .filter(c => c.name !== pkName)
+      .map(c => `${this.escapeName(c.name)} = v.${this.escapeName(c.name)}`)
+      .join(', ');
+
+    const query = `
+      UPDATE ${table} AS t
+      SET ${setClause}
+      FROM (VALUES ${valueTuples}) AS v(${cs.columns.map(c => this.escapeName(c.name)).join(', ')})
+      WHERE t.${this.escapeName(pkName)} = v.${this.escapeName(pkName)}::uuid
+    `;
+
+    this.logQuery(query);
     try {
-      await this.db.tx(t => t.none(wrapped));
+      await this.db.tx(t => t.none(query));
     } catch (err) {
       this.handleDbError(err);
     }
