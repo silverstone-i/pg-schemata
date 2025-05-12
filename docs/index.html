@@ -1,98 +1,182 @@
 <!DOCTYPE html>
 <html lang="en">
-<head
-    
-    <meta charset="utf-8">
+  <head <meta charset="utf-8">
     <title>Home - Documentation</title>
-    
-    
+
     <script src="scripts/prettify/prettify.js"></script>
     <script src="scripts/prettify/lang-css.js"></script>
     <!--[if lt IE 9]>
       <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
-    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
-    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css" />
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css" />
     <script src="scripts/nav.js" defer></script>
-    
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-<input type="checkbox" id="nav-trigger" class="nav-trigger" />
-<label for="nav-trigger" class="navicon-button x">
-  <div class="navicon"></div>
-</label>
 
-<label for="nav-trigger" class="overlay"></label>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+    <label for="nav-trigger" class="navicon-button x">
+      <div class="navicon"></div>
+    </label>
 
-<nav >
-    
-    
-    <ul>
-      <li>
-        <a href="index.html">
-          <img src="images/nap-logo.png" alt="NapLogo" style="height: 100px;" />
-        </a>
-      </li>
-      <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="BaseModel.html">BaseModel</a><ul class='methods'><li data-type='method'><a href="BaseModel.html#count">count</a></li><li data-type='method'><a href="BaseModel.html#createTable">createTable</a></li><li data-type='method'><a href="BaseModel.html#delete">delete</a></li><li data-type='method'><a href="BaseModel.html#exists">exists</a></li><li data-type='method'><a href="BaseModel.html#findAfterCursor">findAfterCursor</a></li><li data-type='method'><a href="BaseModel.html#findAll">findAll</a></li><li data-type='method'><a href="BaseModel.html#findBy">findBy</a></li><li data-type='method'><a href="BaseModel.html#findById">findById</a></li><li data-type='method'><a href="BaseModel.html#findOneBy">findOneBy</a></li><li data-type='method'><a href="BaseModel.html#insert">insert</a></li><li data-type='method'><a href="BaseModel.html#logQuery">logQuery</a></li><li data-type='method'><a href="BaseModel.html#reload">reload</a></li><li data-type='method'><a href="BaseModel.html#sanitizeDto">sanitizeDto</a></li><li data-type='method'><a href="BaseModel.html#setSchema">setSchema</a></li><li data-type='method'><a href="BaseModel.html#truncate">truncate</a></li><li data-type='method'><a href="BaseModel.html#update">update</a></li><li data-type='method'><a href="BaseModel.html#withSchema">withSchema</a></li></ul></li><li><a href="DB.html">DB</a></li></ul><h3>Global</h3><ul><li><a href="global.html#addAuditFields">addAuditFields</a></li><li><a href="global.html#createColumnSet">createColumnSet</a></li><li><a href="global.html#createHash">createHash</a></li><li><a href="global.html#createIndexesSQL">createIndexesSQL</a></li><li><a href="global.html#createTableSQL">createTableSQL</a></li><li><a href="global.html#isPlainObject">isPlainObject</a></li><li><a href="global.html#isValidId">isValidId</a></li><li><a href="global.html#normalizeSQL">normalizeSQL</a></li><li><a href="global.html#tableSchema">tableSchema</a></li><li><a href="global.html#validateUUID">validateUUID</a></li></ul>
-    </ul>
-    
-</nav>
+    <label for="nav-trigger" class="overlay"></label>
 
-<div id="main">
-    
+    <nav>
+      <ul>
+        <li>
+          <a href="index.html">
+            <img
+              src="images/nap-logo.png"
+              alt="NapLogo"
+              style="height: 100px"
+            />
+          </a>
+        </li>
+        <h2><a href="index.html">Home</a></h2>
+        <h3>Classes</h3>
+        <ul>
+          <li>
+            <a href="TableModel.html">TableModel</a>
+            <ul class="methods">
+              <li data-type="method">
+                <a href="TableModel.html#count">count</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#createTable">createTable</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#delete">delete</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#exists">exists</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#findAfterCursor">findAfterCursor</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#findAll">findAll</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#findBy">findBy</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#findById">findById</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#findOneBy">findOneBy</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#insert">insert</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#logQuery">logQuery</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#reload">reload</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#sanitizeDto">sanitizeDto</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#setSchema">setSchema</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#truncate">truncate</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#update">update</a>
+              </li>
+              <li data-type="method">
+                <a href="TableModel.html#withSchema">withSchema</a>
+              </li>
+            </ul>
+          </li>
+          <li><a href="DB.html">DB</a></li>
+        </ul>
+        <h3>Global</h3>
+        <ul>
+          <li><a href="global.html#addAuditFields">addAuditFields</a></li>
+          <li><a href="global.html#createColumnSet">createColumnSet</a></li>
+          <li><a href="global.html#createHash">createHash</a></li>
+          <li><a href="global.html#createIndexesSQL">createIndexesSQL</a></li>
+          <li><a href="global.html#createTableSQL">createTableSQL</a></li>
+          <li><a href="global.html#isPlainObject">isPlainObject</a></li>
+          <li><a href="global.html#isValidId">isValidId</a></li>
+          <li><a href="global.html#normalizeSQL">normalizeSQL</a></li>
+          <li><a href="global.html#tableSchema">tableSchema</a></li>
+          <li><a href="global.html#validateUUID">validateUUID</a></li>
+        </ul>
+      </ul>
+    </nav>
 
-    
+    <div id="main">
+      <section class="package">
+        <h3></h3>
+      </section>
 
-
-
-    
-
-
-    <section class="package">
-        <h3> </h3>		
-    </section>
-
-
-
-
-
-
-
-
-
-    
-
-
-
-    <section class="readme usertext">
-        <article><h1>pg-schemata</h1>
-<p><a href="https://www.npmjs.com/package/pg-schemata"><img src="https://img.shields.io/npm/v/pg-schemata.svg" alt="npm version"></a>
-<a href="https://github.com/your-username/pg-schemata/actions"><img src="https://img.shields.io/github/actions/workflow/status/your-username/pg-schemata/ci.yml?branch=main" alt="build status"></a>
-<a href="LICENSE"><img src="https://img.shields.io/npm/l/pg-schemata.svg" alt="license"></a>
-<a href="https://www.postgresql.org/"><img src="https://img.shields.io/badge/PostgreSQL-%E2%9C%94%EF%B8%8F-blue" alt="postgresql"></a>
-<a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D14.0.0-brightgreen" alt="node"></a></p>
-<hr>
-<p>A lightweight Postgres-first ORM layer built on top of <a href="https://github.com/vitaly-t/pg-promise"><code>pg-promise</code></a>.<br>
-Define your table schemas in code, generate <code>ColumnSets</code>, and get full CRUD functionality, cursor-based pagination, and multi-schema support — all without the heavy ORM overhead.</p>
-<hr>
-<h2>✨ Features</h2>
-<ul>
-<li>Schema-driven table configuration</li>
-<li>Smart <code>ColumnSet</code> management for inserts/updates</li>
-<li>Base CRUD operations out of the box</li>
-<li>Cursor-based pagination (keyset pagination)</li>
-<li>Multi-schema (PostgreSQL schemas) support</li>
-<li>Extensible via simple class inheritance</li>
-</ul>
-<hr>
-<h2>📦 Installation</h2>
-<pre class="prettyprint source lang-bash"><code>npm install pg-promise pg-schemata
+      <section class="readme usertext">
+        <article>
+          <h1>pg-schemata</h1>
+          <p>
+            <a href="https://www.npmjs.com/package/pg-schemata"
+              ><img
+                src="https://img.shields.io/npm/v/pg-schemata.svg"
+                alt="npm version"
+            /></a>
+            <a href="https://github.com/your-username/pg-schemata/actions"
+              ><img
+                src="https://img.shields.io/github/actions/workflow/status/your-username/pg-schemata/ci.yml?branch=main"
+                alt="build status"
+            /></a>
+            <a href="LICENSE"
+              ><img
+                src="https://img.shields.io/npm/l/pg-schemata.svg"
+                alt="license"
+            /></a>
+            <a href="https://www.postgresql.org/"
+              ><img
+                src="https://img.shields.io/badge/PostgreSQL-%E2%9C%94%EF%B8%8F-blue"
+                alt="postgresql"
+            /></a>
+            <a href="https://nodejs.org/"
+              ><img
+                src="https://img.shields.io/badge/node-%3E%3D14.0.0-brightgreen"
+                alt="node"
+            /></a>
+          </p>
+          <hr />
+          <p>
+            A lightweight Postgres-first ORM layer built on top of
+            <a href="https://github.com/vitaly-t/pg-promise"
+              ><code>pg-promise</code></a
+            >.<br />
+            Define your table schemas in code, generate <code>ColumnSets</code>,
+            and get full CRUD functionality, cursor-based pagination, and
+            multi-schema support — all without the heavy ORM overhead.
+          </p>
+          <hr />
+          <h2>✨ Features</h2>
+          <ul>
+            <li>Schema-driven table configuration</li>
+            <li>Smart <code>ColumnSet</code> management for inserts/updates</li>
+            <li>Base CRUD operations out of the box</li>
+            <li>Cursor-based pagination (keyset pagination)</li>
+            <li>Multi-schema (PostgreSQL schemas) support</li>
+            <li>Extensible via simple class inheritance</li>
+          </ul>
+          <hr />
+          <h2>📦 Installation</h2>
+          <pre
+            class="prettyprint source lang-bash"
+          ><code>npm install pg-promise pg-schemata
 </code></pre>
-<hr>
-<h2>📄 Basic Usage</h2>
-<h3>1. Define a Table Schema</h3>
-<pre class="prettyprint source lang-javascript"><code>// schemas/userSchema.js
+          <hr />
+          <h2>📄 Basic Usage</h2>
+          <h3>1. Define a Table Schema</h3>
+          <pre
+            class="prettyprint source lang-javascript"
+          ><code>// schemas/userSchema.js
 const userSchema = {
   schema: 'public',
   table: 'users',
@@ -106,13 +190,15 @@ const userSchema = {
 
 module.exports = userSchema;
 </code></pre>
-<hr>
-<h3>2. Create a Model</h3>
-<pre class="prettyprint source lang-javascript"><code>// models/User.js
-const BaseModel = require('pg-schemata').BaseModel;
+          <hr />
+          <h3>2. Create a Model</h3>
+          <pre
+            class="prettyprint source lang-javascript"
+          ><code>// models/User.js
+const TableModel = require('pg-schemata').TableModel;
 const userSchema = require('../schemas/userSchema');
 
-class User extends BaseModel {
+class User extends TableModel {
   constructor(db) {
     super(db, userSchema);
   }
@@ -127,9 +213,11 @@ class User extends BaseModel {
 
 module.exports = User;
 </code></pre>
-<hr>
-<h3>3. Perform Operations</h3>
-<pre class="prettyprint source lang-javascript"><code>const { db } = require('./db');  // your pg-promise database instance
+          <hr />
+          <h3>3. Perform Operations</h3>
+          <pre
+            class="prettyprint source lang-javascript"
+          ><code>const { db } = require('./db');  // your pg-promise database instance
 const User = require('./models/User');
 
 const userModel = new User(db);
@@ -142,269 +230,145 @@ async function example() {
   const deleted = await userModel.delete(newUser.id);
 }
 </code></pre>
-<hr>
-<h2>🛠️ Planned Enhancements</h2>
-<ul>
-<li>Soft deletes (optional)</li>
-<li>Auto table creation from schema definition</li>
-<li>Data validation before inserts/updates</li>
-<li>Relationship handling (joins)</li>
-<li>Dynamic query filters</li>
-<li>Schema migration helper (diff schemas and generate DDL)</li>
-</ul>
-<hr>
-<h2>📚 Why <code>pg-schemata</code>?</h2>
-<ul>
-<li><strong>Fast</strong>: Minimal overhead on top of <code>pg-promise</code>.</li>
-<li><strong>Postgres-First</strong>: Native Postgres features like schemas, serial IDs, and cursors.</li>
-<li><strong>Flexible</strong>: Extend and customize models freely.</li>
-<li><strong>Simple</strong>: Focus on the database structure you already know.</li>
-</ul>
-<hr>
-<h2>🧠 Requirements</h2>
-<ul>
-<li>Node.js &gt;= 14</li>
-<li>PostgreSQL &gt;= 12</li>
-<li><a href="https://github.com/vitaly-t/pg-promise"><code>pg-promise</code></a></li>
-</ul>
-<hr>
-<h2>📝 License</h2>
-<p>MIT</p>
-<hr>
-<h1>🚀 Contributions Welcome</h1>
-<p>Feel free to open issues, suggest features, or submit pull requests!</p></article>
-    </section>
-
-
-
-
-
-
-
-
-
-<section>
-
-<header>
-    
-        <h2>
-        
-            utils/schemaBuilder.js
-        
-        </h2>
-        
-    
-</header>
-
-<article>
-    
-        <div class="container-overview">
-        
-            
-
-<dl class="details">
-    
-    <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li>Utility functions for generating SQL statements and pg-promise ColumnSets
-based on a structured schema definition.</li></ul></dd>
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="utils_schemaBuilder.js.html">utils/schemaBuilder.js</a>, <a href="utils_schemaBuilder.js.html#line2">line 2</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-            
-                <div class="description usertext">Utility functions for generating SQL statements and pg-promise ColumnSets
-based on a structured schema definition.</div>
-            
-
-            
-        
-        </div>
-    
-
-    
-
-    
-
-    
-    
-    
-
-     
-
-    
-
-    
-
-    
-
-    
-
-    
-</article>
-
-</section>
-
-
-
-
-
-
-
-<section>
-
-<header>
-    
-        <h2>
-        
-            utils/validation.js
-        
-        </h2>
-        
-    
-</header>
-
-<article>
-    
-        <div class="container-overview">
-        
-            
-
-<dl class="details">
-    
-    <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li>Utility validation functions for IDs and object types.</li></ul></dd>
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="utils_validation.js.html">utils/validation.js</a>, <a href="utils_validation.js.html#line3">line 3</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-            
-                <div class="description usertext">Utility validation functions for IDs and object types.</div>
-            
-
-            
-        
-        </div>
-    
-
-    
-
-    
-
-    
-    
-    
-
-     
-
-    
-
-    
-
-    
-
-    
-
-    
-</article>
-
-</section>
-
-
-
-
-    
-    
-</div>
-
-<br class="clear">
-
-<footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.4</a> on Sun Apr 20 2025 10:40:03 GMT-0500 (Central Daylight Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
-</footer>
-
-<script>prettyPrint();</script>
-<script src="scripts/polyfill.js"></script>
-<script src="scripts/linenumber.js"></script>
-
-
-
-</body>
+          <hr />
+          <h2>🛠️ Planned Enhancements</h2>
+          <ul>
+            <li>Soft deletes (optional)</li>
+            <li>Auto table creation from schema definition</li>
+            <li>Data validation before inserts/updates</li>
+            <li>Relationship handling (joins)</li>
+            <li>Dynamic query filters</li>
+            <li>Schema migration helper (diff schemas and generate DDL)</li>
+          </ul>
+          <hr />
+          <h2>📚 Why <code>pg-schemata</code>?</h2>
+          <ul>
+            <li>
+              <strong>Fast</strong>: Minimal overhead on top of
+              <code>pg-promise</code>.
+            </li>
+            <li>
+              <strong>Postgres-First</strong>: Native Postgres features like
+              schemas, serial IDs, and cursors.
+            </li>
+            <li>
+              <strong>Flexible</strong>: Extend and customize models freely.
+            </li>
+            <li>
+              <strong>Simple</strong>: Focus on the database structure you
+              already know.
+            </li>
+          </ul>
+          <hr />
+          <h2>🧠 Requirements</h2>
+          <ul>
+            <li>Node.js &gt;= 14</li>
+            <li>PostgreSQL &gt;= 12</li>
+            <li>
+              <a href="https://github.com/vitaly-t/pg-promise"
+                ><code>pg-promise</code></a
+              >
+            </li>
+          </ul>
+          <hr />
+          <h2>📝 License</h2>
+          <p>MIT</p>
+          <hr />
+          <h1>🚀 Contributions Welcome</h1>
+          <p>
+            Feel free to open issues, suggest features, or submit pull requests!
+          </p>
+        </article>
+      </section>
+
+      <section>
+        <header>
+          <h2>utils/schemaBuilder.js</h2>
+        </header>
+
+        <article>
+          <div class="container-overview">
+            <dl class="details">
+              <dt class="tag-description">Description:</dt>
+              <dd class="tag-description">
+                <ul class="dummy">
+                  <li>
+                    Utility functions for generating SQL statements and
+                    pg-promise ColumnSets based on a structured schema
+                    definition.
+                  </li>
+                </ul>
+              </dd>
+
+              <dt class="tag-source">Source:</dt>
+              <dd class="tag-source">
+                <ul class="dummy">
+                  <li>
+                    <a href="utils_schemaBuilder.js.html"
+                      >utils/schemaBuilder.js</a
+                    >, <a href="utils_schemaBuilder.js.html#line2">line 2</a>
+                  </li>
+                </ul>
+              </dd>
+            </dl>
+
+            <div class="description usertext">
+              Utility functions for generating SQL statements and pg-promise
+              ColumnSets based on a structured schema definition.
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section>
+        <header>
+          <h2>utils/validation.js</h2>
+        </header>
+
+        <article>
+          <div class="container-overview">
+            <dl class="details">
+              <dt class="tag-description">Description:</dt>
+              <dd class="tag-description">
+                <ul class="dummy">
+                  <li>
+                    Utility validation functions for IDs and object types.
+                  </li>
+                </ul>
+              </dd>
+
+              <dt class="tag-source">Source:</dt>
+              <dd class="tag-source">
+                <ul class="dummy">
+                  <li>
+                    <a href="utils_validation.js.html">utils/validation.js</a>,
+                    <a href="utils_validation.js.html#line3">line 3</a>
+                  </li>
+                </ul>
+              </dd>
+            </dl>
+
+            <div class="description usertext">
+              Utility validation functions for IDs and object types.
+            </div>
+          </div>
+        </article>
+      </section>
+    </div>
+
+    <br class="clear" />
+
+    <footer>
+      Documentation generated by
+      <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.4</a> on Sun Apr 20
+      2025 10:40:03 GMT-0500 (Central Daylight Time) using the
+      <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    </footer>
+
+    <script>
+      prettyPrint();
+    </script>
+    <script src="scripts/polyfill.js"></script>
+    <script src="scripts/linenumber.js"></script>
+  </body>
 </html>

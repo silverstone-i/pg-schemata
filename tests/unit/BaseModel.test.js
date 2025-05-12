@@ -1,4 +1,4 @@
-import BaseModel from '../../src/BaseModel.js';
+import TableModel from '../../src/TableModel.js';
 
 // ================================
 // Mocks
@@ -40,7 +40,9 @@ jest.mock('../../src/utils/schemaBuilder', () => ({
     insert: jest.fn(dto => `INSERT INTO users ... VALUES (...)`),
     update: {},
   })),
-  createTableSQL: jest.fn(() => 'CREATE TABLE IF NOT EXISTS public.users (...);'),
+  createTableSQL: jest.fn(
+    () => 'CREATE TABLE IF NOT EXISTS public.users (...);'
+  ),
 }));
 
 // ================================
@@ -48,13 +50,13 @@ jest.mock('../../src/utils/schemaBuilder', () => ({
 // ================================
 const TEST_ERROR = new Error('db error');
 
-describe('BaseModel', () => {
+describe('TableModel', () => {
   let model;
   let spyHandleDbError;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    model = new BaseModel(mockDb, mockPgp, mockSchema);
+    model = new TableModel(mockDb, mockPgp, mockSchema);
     model.logQuery = jest.fn();
     spyHandleDbError = jest
       .spyOn(model, 'handleDbError')
@@ -68,13 +70,13 @@ describe('BaseModel', () => {
   // ================================
   describe('Constructor Validation', () => {
     test('should throw if schema is not an object', () => {
-      expect(() => new BaseModel(mockDb, mockPgp, 'invalid')).toThrow(
+      expect(() => new TableModel(mockDb, mockPgp, 'invalid')).toThrow(
         'Schema must be an object'
       );
     });
 
     test('should throw if required parameters are missing', () => {
-      expect(() => new BaseModel(mockDb, mockPgp, {})).toThrow(
+      expect(() => new TableModel(mockDb, mockPgp, {})).toThrow(
         'Missing one or more required parameters: db, pgp, schema, table and/or primary key constraint'
       );
     });
@@ -126,7 +128,7 @@ describe('BaseModel', () => {
           columns: [{ name: '_id' }],
           constraints: { primaryKey: ['id'] },
         };
-        const invalidModel = new BaseModel(
+        const invalidModel = new TableModel(
           mockDb,
           mockPgp,
           schemaWithoutValidColumns
@@ -167,7 +169,10 @@ describe('BaseModel', () => {
       test('findBy should return matching records using AND logic', async () => {
         mockDb.any.mockResolvedValue([{ id: 1, email: 'test@example.com' }]);
 
-        const result = await model.findBy([{ id: 1 }, { email: 'test@example.com' }]);
+        const result = await model.findBy([
+          { id: 1 },
+          { email: 'test@example.com' },
+        ]);
 
         expect(mockDb.any).toHaveBeenCalled();
         const query = model.logQuery.mock.calls[0][0];
@@ -245,7 +250,7 @@ describe('BaseModel', () => {
       });
     });
 
-    describe('BaseModel.findAfterCursor', () => {
+    describe('TableModel.findAfterCursor', () => {
       test('generates correct query with basic cursor and default options', async () => {
         mockDb.any.mockResolvedValue([{ id: 2, email: 'a@x.com' }]);
 
@@ -262,12 +267,12 @@ describe('BaseModel', () => {
         expect(model.pgp).toBeDefined();
         expect(typeof model.pgp.as.name).toBe('function');
         mockDb.any.mockResolvedValue([{ id: 99 }]);
- 
+
         await model.findAfterCursor({ id: 98 }, 5, ['id'], {
           descending: true,
           columnWhitelist: ['id'],
         });
- 
+
         const query = model.logQuery.mock.calls[0][0];
         expect(query).toContain('SELECT "id" FROM');
         expect(query).toContain('ORDER BY "id" DESC');
@@ -347,8 +352,9 @@ describe('BaseModel', () => {
         createTableSQL: mockCreateTableSQL,
       }));
 
-      const BaseModelWithMock = (await import('../../src/BaseModel.js')).default;
-      const testModel = new BaseModelWithMock(mockDb, mockPgp, mockSchema);
+      const TableModelWithMock = (await import('../../src/TableModel.js'))
+        .default;
+      const testModel = new TableModelWithMock(mockDb, mockPgp, mockSchema);
       await testModel.createTable();
 
       expect(mockDb.none).toHaveBeenCalledWith(mockSql);
@@ -361,8 +367,9 @@ describe('BaseModel', () => {
         createTableSQL: mockCreateTableSQL,
       }));
 
-      const BaseModelWithMock = (await import('../../src/BaseModel.js')).default;
-      const testModel = new BaseModelWithMock(mockDb, mockPgp, mockSchema);
+      const TableModelWithMock = (await import('../../src/TableModel.js'))
+        .default;
+      const testModel = new TableModelWithMock(mockDb, mockPgp, mockSchema);
       const error = new Error('Table creation failed');
       const spy = jest
         .spyOn(testModel, 'handleDbError')
@@ -371,7 +378,9 @@ describe('BaseModel', () => {
         });
 
       mockDb.none.mockRejectedValue(error);
-      await expect(testModel.createTable()).rejects.toThrow('Table creation failed');
+      await expect(testModel.createTable()).rejects.toThrow(
+        'Table creation failed'
+      );
       expect(spy).toHaveBeenCalledWith(error);
     });
   });
@@ -443,7 +452,7 @@ describe('BaseModel', () => {
   describe('Logging', () => {
     test('logQuery should call logger.debug with the correct query', () => {
       const mockDebug = jest.fn();
-      const loggerModel = new BaseModel(mockDb, mockPgp, mockSchema, {
+      const loggerModel = new TableModel(mockDb, mockPgp, mockSchema, {
         debug: mockDebug,
       });
       const query = 'SELECT * FROM users';
@@ -531,7 +540,7 @@ describe('BaseModel', () => {
   describe('handleDbError Method', () => {
     test('should log error and rethrow if logger exists', () => {
       const mockErrorLogger = jest.fn();
-      const loggerModel = new BaseModel(mockDb, mockPgp, mockSchema, {
+      const loggerModel = new TableModel(mockDb, mockPgp, mockSchema, {
         error: mockErrorLogger,
       });
 
@@ -544,7 +553,7 @@ describe('BaseModel', () => {
     });
 
     test('should rethrow without logging if logger is absent', () => {
-      const modelWithoutLogger = new BaseModel(mockDb, mockPgp, mockSchema); // no logger
+      const modelWithoutLogger = new TableModel(mockDb, mockPgp, mockSchema); // no logger
       const error = new Error('Something went wrong');
 
       expect(() => modelWithoutLogger.handleDbError(error)).toThrow(

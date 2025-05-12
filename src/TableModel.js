@@ -1,5 +1,7 @@
 'use strict';
 
+import QueryModel from './QueryModel.js';
+
 /*
  * Copyright © 2024-present, Ian Silverstone
  *
@@ -14,10 +16,7 @@
  * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
  */
 
-import cloneDeep from 'lodash/cloneDeep.js';
 import {
-  createColumnSet,
-  addAuditFields,
   createTableSQL,
 } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
@@ -30,35 +29,7 @@ import { isValidId, isPlainObject } from './utils/validation.js';
  * @param {Object} schema - JSON schema definition for the table.
  * @param {Object} [logger] - Optional logger with debug and error methods.
  */
-class TableModel {
-  // ---------------------------------------------------------------------------
-  // 🟢 Core CRUD
-  // ---------------------------------------------------------------------------
-  constructor(db, pgp, schema, logger = null) {
-    if (!schema || typeof schema !== 'object') {
-      throw new Error('Schema must be an object');
-    }
-    if (
-      !db ||
-      !pgp ||
-      !schema ||
-      !schema.table ||
-      !schema.columns ||
-      !schema.constraints.primaryKey
-    ) {
-      throw new Error(
-        'Missing one or more required parameters: db, pgp, schema, table and/or primary key constraint'
-      );
-    }
-    this.db = db;
-    this.pgp = pgp;
-    this.logger = logger;
-    // deep clone to prevent mutation
-    this._schema = cloneDeep(
-      schema.hasAuditFields ? addAuditFields(schema) : schema
-    );
-    this.cs = createColumnSet(this.schema, this.pgp);
-  }
+class TableModel extends QueryModel {
 
   async delete(id) {
     if (!isValidId(id)) {
@@ -72,28 +43,6 @@ class TableModel {
     }
   }
 
-  async findAll({ limit = 50, offset = 0 } = {}) {
-    const query = `SELECT * FROM ${this.schemaName}.${this.tableName} ORDER BY id LIMIT $1 OFFSET $2`;
-    this.logQuery(query);
-    try {
-      return await this.db.any(query, [limit, offset]);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  async findById(id) {
-    if (!isValidId(id)) {
-      return Promise.reject(new Error('Invalid ID format'));
-    }
-    const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
-    this.logQuery(query);
-    try {
-      return await this.db.oneOrNone(query, [id]);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
 
   async insert(dto) {
     if (!isPlainObject(dto)) {
@@ -240,95 +189,10 @@ class TableModel {
     return { rows, nextCursor };
   }
 
-  async findOneBy(conditions, options = {}) {
-    try {
-      const results = await this.findWhere(conditions, 'AND', options);
-      return results[0] || null;
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  async findWhere(
-    conditions = [],
-    joinType = 'AND',
-    {
-      columnWhitelist = null,
-      filters = {},
-      orderBy = null,
-      limit = null,
-      offset = null,
-    } = {}
-  ) {
-    if (!Array.isArray(conditions) || conditions.length === 0) {
-      return Promise.reject(new Error('Conditions must be a non-empty array'));
-    }
-    const table = `${this.schemaName}.${this.tableName}`;
-    const selectCols = columnWhitelist?.length
-      ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
-      : '*';
-    const queryParts = [`SELECT ${selectCols} FROM ${table}`];
-    const values = [];
-    const whereClauses = [];
-    const baseConditions = conditions.map((condition, idx) => {
-      const key = Object.keys(condition)[0];
-      const val = Object.values(condition)[0];
-      values.push(val);
-      return `${this.escapeName(key)} = $${values.length}`;
-    });
-    if (baseConditions.length) {
-      whereClauses.push(
-        `(${baseConditions.join(` ${joinType.toUpperCase()} `)})`
-      );
-    }
-    if (Object.keys(filters).length) {
-      if (filters.and || filters.or) {
-        const top = filters.and
-          ? this.#buildCondition(filters.and, 'AND', values)
-          : this.#buildCondition(filters.or, 'OR', values);
-        whereClauses.push(top);
-      } else {
-        whereClauses.push(this.#buildCondition([filters], 'AND', values));
-      }
-    }
-    if (whereClauses.length) {
-      queryParts.push('WHERE', whereClauses.join(' AND '));
-    }
-    if (orderBy) {
-      const orderClause = Array.isArray(orderBy)
-        ? orderBy.map(col => this.escapeName(col)).join(', ')
-        : this.escapeName(orderBy);
-      queryParts.push(`ORDER BY ${orderClause}`);
-    }
-    if (limit) {
-      queryParts.push(`LIMIT ${parseInt(limit, 10)}`);
-    }
-    if (offset) {
-      queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
-    }
-    const query = queryParts.join(' ');
-    this.logQuery(query);
-    try {
-      return await this.db.any(query, values);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
 
   // ---------------------------------------------------------------------------
   // 🟡 Counting
   // ---------------------------------------------------------------------------
-  async count(where) {
-    const { clause, values } = this.#buildWhereClause(where);
-    const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    this.logQuery(query);
-    try {
-      const result = await this.db.one(query, values);
-      return parseInt(result.count, 10);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
 
   async countAll() {
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
@@ -426,12 +290,8 @@ class TableModel {
     const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
-    const query =
-      this.pgp.helpers.update(safeRecords, cs) +
-      ' WHERE v.' +
-      this.escapeName(pk) +
-      ' = t.' +
-      this.escapeName(pk);
+    const query = this.pgp.helpers.update(safeRecords, cs) +
+      ' WHERE v.' + this.escapeName(pk) + ' = t.' + this.escapeName(pk);
     const wrapped = `UPDATE ${this.schemaName}.${this.tableName} AS t SET ${query}`;
     this.logQuery(wrapped);
     try {
@@ -444,27 +304,6 @@ class TableModel {
   // ---------------------------------------------------------------------------
   // 🟣 Utilities
   // ---------------------------------------------------------------------------
-  escapeName(name) {
-    return this.pgp.as.name(name);
-  }
-
-  get schema() {
-    return this._schema;
-  }
-
-  get schemaName() {
-    return this.escapeName(this._schema.dbSchema);
-  }
-
-  get tableName() {
-    return this.escapeName(this._schema.table);
-  }
-
-  logQuery(query) {
-    if (this.logger?.debug) {
-      this.logger.debug(`Running query: ${query}`);
-    }
-  }
 
   sanitizeDto(dto, { includeImmutable = true } = {}) {
     const validColumns = this._schema.columns
@@ -511,68 +350,6 @@ class TableModel {
   // ---------------------------------------------------------------------------
   // ⚫ Internal Helpers (Private)
   // ---------------------------------------------------------------------------
-  /**
-   * Builds a WHERE clause from an object of conditions.
-   * @param {Object} where - Object of column-value pairs.
-   * @param {boolean} [requireNonEmpty=true] - Whether to throw on empty object.
-   * @returns {{ clause: string, values: any[] }} SQL clause and values.
-   */
-  #buildWhereClause(where = {}, requireNonEmpty = true) {
-    if (
-      !isPlainObject(where) ||
-      (requireNonEmpty && Object.keys(where).length === 0)
-    ) {
-      throw new Error('WHERE clause must be a non-empty object');
-    }
-    const keys = Object.keys(where).map(key => this.escapeName(key));
-    const values = Object.values(where);
-    const clause = keys.map((key, i) => `${key} = $${i + 1}`).join(' AND ');
-    return { clause, values };
-  }
-
-  /**
-   * Builds a WHERE clause recursively for the conditions.
-   * @param {Array<Object>} group - Conditions to build the clause from.
-   * @param {string} [joiner='AND'] - The joiner for the conditions.
-   * @param {Array} values - Array to collect values for the query.
-   * @returns {string} The constructed WHERE clause.
-   */
-  #buildCondition(group, joiner = 'AND', values = []) {
-    const parts = [];
-    for (const item of group) {
-      if (item.and) {
-        parts.push(`(${this.#buildCondition(item.and, 'AND', values)})`);
-      } else if (item.or) {
-        parts.push(`(${this.#buildCondition(item.or, 'OR', values)})`);
-      } else {
-        for (const [key, val] of Object.entries(item)) {
-          const col = this.escapeName(key);
-          if (val && typeof val === 'object') {
-            if ('like' in val) {
-              values.push(val.like);
-              parts.push(`${col} LIKE $${values.length}`);
-            } else if ('ilike' in val) {
-              values.push(val.ilike);
-              parts.push(`${col} ILIKE $${values.length}`);
-            } else {
-              if (val.from) {
-                values.push(val.from);
-                parts.push(`${col} >= $${values.length}`);
-              }
-              if (val.to) {
-                values.push(val.to);
-                parts.push(`${col} <= $${values.length}`);
-              }
-            }
-          } else {
-            values.push(val);
-            parts.push(`${col} = $${values.length}`);
-          }
-        }
-      }
-    }
-    return parts.join(` ${joiner} `);
-  }
 
   handleDbError(err) {
     if (this.logger?.error) {

@@ -1,10 +1,10 @@
 import 'dotenv/config';
 import { createTableSQL } from '../../src/utils/schemaBuilder.js';
-import BaseModel from '../../src/BaseModel.js';
+import TableModel from '../../src/TableModel.js';
 import DB from '../../src/DB.js';
 
 // Create a User model for testing
-class Users extends BaseModel {
+class Users extends TableModel {
   constructor(db, pgp) {
     super(db, pgp, {
       dbSchema: 'test_schema',

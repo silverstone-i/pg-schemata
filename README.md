@@ -45,8 +45,8 @@ const userSchema = {
     { name: 'id', type: 'serial', primaryKey: true },
     { name: 'email', type: 'text', unique: true },
     { name: 'password', type: 'text' },
-    { name: 'created_at', type: 'timestamp', default: 'now()' }
-  ]
+    { name: 'created_at', type: 'timestamp', default: 'now()' },
+  ],
 };
 
 module.exports = userSchema;
@@ -58,10 +58,10 @@ module.exports = userSchema;
 
 ```javascript
 // models/User.js
-const BaseModel = require('pg-schemata').BaseModel;
+const TableModel = require('pg-schemata').TableModel;
 const userSchema = require('../schemas/userSchema');
 
-class User extends BaseModel {
+class User extends TableModel {
   constructor(db) {
     super(db, userSchema);
   }
@@ -82,15 +82,20 @@ module.exports = User;
 ### 3. Perform Operations
 
 ```javascript
-const { db } = require('./db');  // your pg-promise database instance
+const { db } = require('./db'); // your pg-promise database instance
 const User = require('./models/User');
 
 const userModel = new User(db);
 
 async function example() {
-  const newUser = await userModel.create({ email: 'test@example.com', password: 'secret' });
+  const newUser = await userModel.create({
+    email: 'test@example.com',
+    password: 'secret',
+  });
   const user = await userModel.findById(newUser.id);
-  const updated = await userModel.update(newUser.id, { password: 'newpassword' });
+  const updated = await userModel.update(newUser.id, {
+    password: 'newpassword',
+  });
   const users = await userModel.findAll({ limit: 10 });
   const deleted = await userModel.delete(newUser.id);
 }

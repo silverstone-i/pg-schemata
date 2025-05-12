@@ -1,5 +1,5 @@
 // ===============================
-// tests/integration/BaseModel.integration.test.js
+// tests/integration/TableModel.integration.test.js
 // ===============================
 
 import { createTestContext } from '../helpers/integrationHarness.js';
@@ -7,7 +7,7 @@ import { testUserSchema } from '../helpers/testUserSchema.js';
 
 let ctx, model, teardown, inserted;
 
-describe('BaseModel Integration', () => {
+describe('TableModel Integration', () => {
   beforeAll(async () => {
     ({ ctx, model, teardown } = await createTestContext(testUserSchema, null));
   });

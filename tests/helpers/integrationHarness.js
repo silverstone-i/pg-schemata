@@ -5,18 +5,16 @@
 import 'dotenv/config';
 import DB from '../../src/DB.js';
 import { createTableSQL } from '../../src/utils/schemaBuilder.js';
-import BaseModel from '../../src/BaseModel.js';
+import TableModel from '../../src/TableModel.js';
 
-class TestUserModel extends BaseModel {
+class TestUserModel extends TableModel {
   constructor(db, pgp) {
     super(db, pgp, testUserSchema);
   }
 }
 
-
 export async function createTestContext(schema, seed = null) {
-
- class Model extends BaseModel {
+  class Model extends TableModel {
     constructor(db, pgp) {
       super(db, pgp, schema);
     }
