@@ -46,6 +46,7 @@ class QueryModel {
     if (!Array.isArray(conditions) || conditions.length === 0) {
       throw new Error('Conditions must be a non-empty array');
     }
+    
     const table = `${this.schemaName}.${this.tableName}`;
     const selectCols = columnWhitelist?.length
       ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
@@ -55,8 +56,16 @@ class QueryModel {
     const whereClauses = [];
 
     const baseConditions = conditions.map((condition) => {
-      const key = Object.keys(condition)[0];
-      const val = Object.values(condition)[0];
+      if (!isPlainObject(condition)) {
+        throw new Error('Each condition must be a plain object');
+      }
+      if ('column' in condition && 'op' in condition && 'value' in condition) {
+        const { column, op, value } = condition;
+        values.push(value);
+        return `${this.escapeName(column)} ${op} $${values.length}`;
+      }
+
+      const [[key, val]] = Object.entries(condition);
       values.push(val);
       return `${this.escapeName(key)} = $${values.length}`;
     });
@@ -77,6 +86,7 @@ class QueryModel {
     if (offset) queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
 
     const query = queryParts.join(' ');
+
     this.logQuery(query);
     return this.db.any(query, values);
   }
