@@ -2,58 +2,39 @@
 
 ## [Unreleased]
 
-### 🧪 Experimental
-- Documented current WHERE clause operators and usage examples in `querymodel-conditions.md`
-- Added roadmap section for potential future operators (e.g. BETWEEN, NOT, EXISTS)
-
 ### 🚀 Features
-
-- Added `createTable()` to support table creation directly from schema (`BaseModel`, now `TableModel`)
-- Introduced `ReadOnlyModel` to enforce read-only data access patterns
-- Improved support for audit fields, nullable fields, and validation in `createTableSQL` and `createColumnSet`
-- Added logging support to schema tools and models (`createTableSQL`, `createColumnSet`, `sanitizeDto`)
-- Enhanced query building: improved WHERE clause generation, pagination, and flexible insert/update logic
-- Added `colProps` support for advanced pg-promise ColumnSet customization
-- Allowed `varchar(n)` syntax via extended `ColumnDefinition`
-- Allowed JSONB fields and formatted audit fields in table schemas
-- Repository constructors validated during DB class initialization
+- `TableModel.createTable()` supports table creation from schema definitions.
+- `QueryModel` enables flexible read-only access, including:
+  - `findWhere`, `count`, `findById`, `findOneBy`
+  - Enhanced support for `$in`, `$like`, and nested conditions.
+- Automatic audit field support (`created_by`, `updated_by`, timestamps).
+- Column customization with `colProps` and `ColumnSet` extensions.
+- DTO sanitization ensures schema validation and integrity.
+- Native JSONB and varchar(n) field support.
+- Pagination, ordering, and filtering logic is fully parameterized.
+- Logging enabled for `createTableSQL`, `createColumnSet`, and `sanitizeDto`.
 
 ### ♻️ Refactors
-
- #### refactor: extract query methods to QueryModel and clean up TableModel
-   - Moved read-only query logic (e.g. findWhere, count, findById) to new QueryModel base class
-   - Refactored TableModel to extend QueryModel and removed duplicate methods
-   - Simplifies inheritance structure and avoids code duplication
-
-- Renamed `BaseModel` → `TableModel`
-- Renamed `ReadOnlyModel` → `QueryModel` 
-- Added `ReadOnlyModel` class
-- Removed `BaseModel` and `ReadOnlyModel` classes (merged functionality into `TableModel`)
-- Restructured codebase to isolate reusable query and schema logic
-- Rewrote audit field injection to be array-based with conditional logic
-- Simplified column object creation with lodash and utility functions
-- Cleaned up test and script definitions in `package.json`
+- Merged `BaseModel` and `ReadOnlyModel` into `TableModel`.
+- Extracted query logic to `QueryModel` for reuse.
+- Streamlined schema and model structure across project.
+- Removed legacy method scaffolding and deprecated interfaces.
+- Rewrote audit field injection using array-based, conditional logic.
 
 ### 🐛 Fixes
+- Corrected return behavior of `update()` to return `null` when record not found.
+- Improved error messages during insert and query generation.
+- Fixed debug output in table creation logging.
 
-- Corrected return type of `update()` to include `null` if record doesn’t exist
-- Improved error handling in insert and query construction
-- Fixed incorrect debug logging in `createTableSQL`
-- Enhanced DTO sanitization to set defaults for `created_by` and `updated_by`
+### 🧪 Experimental
+- Logical condition operators are now standardized using `$` prefixes:
+  - Use `$or` and `$and` instead of `or` and `and`. The old forms are deprecated.
+  - This aligns with JSON-based DSL conventions (e.g. MongoDB, Mongoose).
+- Full documentation of supported operators is available in [`./design_docs/querymodel-conditions.md`](./design_docs/querymodel-conditions.md).
+- Planned extensions include support for `BETWEEN`, `NOT`, `EXISTS`. Nested logical operators like `$and` and `$or` are already supported.
 
 ### 📦 Dependencies
+- Added: `lodash`
 
-- Added `lodash` as a dependency
-
-## [0.1.0-beta.1] - 2025-04-17
-
-### Added
-
-- Initial beta release of `pg-schemata`.
-- Core features include:
-  - `TableModel` class for CRUD operations and filtering.
-  - `DB` class for singleton database connection handling.
-  - Schema definition utilities: `createColumnSet`, `addAuditFields`.
-  - Input validation utilities.
-  - Full JSDoc-based documentation generator support.
-  - Support for unit and integration tests with Jest.
+### 📌 Reference Commit
+- Latest commit included in this changelog: `5163bac` (2025-05-11)
