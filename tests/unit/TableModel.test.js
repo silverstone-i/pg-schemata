@@ -156,7 +156,7 @@ describe('TableModel (Unit)', () => {
     describe('updateWhere', () => {
       test('should apply updates and return row count', async () => {
         mockDb.result.mockResolvedValue(3);
-        const result = await model.updateWhere({ status: 'draft' }, { status: 'locked' });
+        const result = await model.updateWhere({ $eq: { status: 'draft' } }, { status: 'locked' });
         expect(result).toBe(3);
       });
 

@@ -52,7 +52,7 @@ describe('TableModel Integration', () => {
     await model.insert({ email: 'b@test.com', created_by: 'updateWhere' });
 
     const count = await model.updateWhere(
-      { created_by: 'updateWhere' },
+      { $eq: { created_by: 'updateWhere' } },
       { updated_by: 'bulk-editor' }
     );
 

@@ -71,17 +71,17 @@ describe('QueryModel', () => {
       expect(values).toEqual([1, 'test@example.com']);
     });
 
-    test('should handle OR condition block', () => {
+    test('should handle $or condition block', () => {
       const values = [];
-      const clause = model.buildCondition([{ or: [{ id: 1 }, { id: 2 }] }], 'AND', values);
+      const clause = model.buildCondition([{ $or: [{ id: 1 }, { id: 2 }] }], 'AND', values);
       expect(clause).toBe('("id" = $1 OR "id" = $2)');
       expect(values).toEqual([1, 2]);
     });
 
-    test('should wrap OR block and allow top-level AND joiner', () => {
+    test('should wrap $or block and allow top-level AND joiner', () => {
       const values = [];
       const clause = model.buildCondition(
-        [{ or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
+        [{ $or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
         'AND',
         values
       );
@@ -89,10 +89,10 @@ describe('QueryModel', () => {
       expect(values).toEqual([1, 2, 'a@x.com']);
     });
 
-    test('should wrap OR block and allow top-level OR joiner', () => {
+    test('should wrap $or block and allow top-level OR joiner', () => {
       const values = [];
       const clause = model.buildCondition(
-        [{ or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
+        [{ $or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
         'OR',
         values
       );
@@ -100,16 +100,16 @@ describe('QueryModel', () => {
       expect(values).toEqual([1, 2, 'a@x.com']);
     });
 
-    test('should handle ILIKE operator', () => {
+    test('should handle $ilike operator', () => {
       const values = [];
-      const clause = model.buildCondition([{ email: { ilike: '%@example.com' } }], 'AND', values);
+      const clause = model.buildCondition([{ email: { $ilike: '%@example.com' } }], 'AND', values);
       expect(clause).toBe('"email" ILIKE $1');
       expect(values).toEqual(['%@example.com']);
     });
 
-    test('should handle range with "from" and "to"', () => {
+    test('should handle range with $from and $to', () => {
       const values = [];
-      const clause = model.buildCondition([{ created_at: { from: '2024-01-01', to: '2024-12-31' } }], 'AND', values);
+      const clause = model.buildCondition([{ created_at: { $from: '2024-01-01', $to: '2024-12-31' } }], 'AND', values);
       expect(clause).toBe('"created_at" >= $1 AND "created_at" <= $2');
       expect(values).toEqual(['2024-01-01', '2024-12-31']);
     });
@@ -136,19 +136,19 @@ describe('QueryModel', () => {
       expect(resultValues).toEqual([1, 'a@x.com']);
     });
 
-    test('should build clause from OR condition array', () => {
+    test('should build clause from $or condition array', () => {
       const values = [];
-      const where = [{ or: [{ id: 1 }, { id: 2 }] }, { email: { ilike: '%@x.com' } }];
+      const where = [{ $or: [{ id: 1 }, { id: 2 }] }, { email: { $ilike: '%@x.com' } }];
       const { clause, values: resultValues } = model.buildWhereClause(where, true, values);
       expect(clause).toBe('("id" = $1 OR "id" = $2) AND "email" ILIKE $3');
       expect(resultValues).toEqual([1, 2, '%@x.com']);
     });
 
-    test('should build clause from nested OR and AND blocks', () => {
+    test('should build clause from nested $or and AND blocks', () => {
       const values = [];
       const where = [
-        { or: [{ id: 1 }, { id: 2 }] },
-        { or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] },
+        { $or: [{ id: 1 }, { id: 2 }] },
+        { $or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] },
         { password: 'secret' }
       ];
       const { clause, values: resultValues } = model.buildWhereClause(where, true, values);
@@ -229,17 +229,17 @@ describe('QueryModel', () => {
       expect(result).toEqual([{ id: 2 }]);
     });
 
-    test('findWhere should return filtered results with OR block', async () => {
+    test('findWhere should return filtered results with $or block', async () => {
       mockDb.any.mockResolvedValue([{ id: 1 }]);
-      const result = await model.findWhere([{ or: [{ id: 1 }, { id: 2 }] }, { email: { ilike: '%@x.com' } }]);
+      const result = await model.findWhere([{ $or: [{ id: 1 }, { id: 2 }] }, { email: { $ilike: '%@x.com' } }]);
       expect(result).toEqual([{ id: 1 }]);
     });
 
-    test('findWhere should return filtered results with nested OR and AND blocks', async () => {
+    test('findWhere should return filtered results with nested $or and AND blocks', async () => {
       mockDb.any.mockResolvedValue([{ id: 3 }]);
       const result = await model.findWhere([
-        { or: [{ id: 1 }, { id: 2 }] },
-        { or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] },
+        { $or: [{ id: 1 }, { id: 2 }] },
+        { $or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] },
         { password: 'secret' }
       ]);
       expect(result).toEqual([{ id: 3 }]);

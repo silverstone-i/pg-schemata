@@ -88,7 +88,7 @@ describe('QueryModel Integration', () => {
 
     const result = await model.findWhere([{ created_by: 'Admin' }], 'AND', {
       filters: {
-        and: [{ email: { ilike: '%findbyuser%' } }],
+        $and: [{ email: { $ilike: '%findbyuser%' } }],
       },
     });
 
@@ -133,8 +133,8 @@ describe('QueryModel Integration', () => {
     await model.insert({ email: 'nested2@example.com', created_by: 'System' });
 
     const result = await model.findWhere([
-      { or: [{ created_by: 'Admin' }, { created_by: 'System' }] },
-      { email: { ilike: '%nested%' } },
+      { $or: [{ created_by: 'Admin' }, { created_by: 'System' }] },
+      { email: { $ilike: '%nested%' } },
     ]);
     expect(result.length).toBeGreaterThanOrEqual(2);
   });
@@ -183,7 +183,7 @@ describe('QueryModel Integration', () => {
 
     // Intentionally include an empty OR group
     const result = await model.findWhere([
-      { or: [] },
+      { $or: [] },
       { email: 'emptyor@example.com' }
     ]);
     expect(result.length).toBe(1);
@@ -196,9 +196,9 @@ describe('QueryModel Integration', () => {
 
     const result = await model.findWhere([
       {
-        or: [
-          { and: [{ created_by: 'A' }, { email: 'x@example.com' }] },
-          { and: [{ created_by: 'B' }, { email: 'y@example.com' }] }
+        $or: [
+          { $and: [{ created_by: 'A' }, { email: 'x@example.com' }] },
+          { $and: [{ created_by: 'B' }, { email: 'y@example.com' }] }
         ]
       }
     ]);
@@ -218,7 +218,7 @@ describe('QueryModel Integration', () => {
     const resultExact = await model.findWhere([{ email: 'casesensitive@example.com' }]);
     expect(resultExact.length).toBe(0);
 
-    const resultIlike = await model.findWhere([{ email: { ilike: 'casesensitive@example.com' } }]);
+    const resultIlike = await model.findWhere([{ email: { $ilike: 'casesensitive@example.com' } }]);
     expect(resultIlike.length).toBe(1);
     expect(resultIlike[0].email).toBe('CaseSensitive@Example.com');
   });
@@ -229,16 +229,16 @@ describe('QueryModel Integration', () => {
 
     const result = await model.findWhere([
       {
-        or: [
+        $or: [
           {
-            and: [
-              { or: [{ created_by: 'A' }] },
+            $and: [
+              { $or: [{ created_by: 'A' }] },
               { email: 'nesteddeep1@example.com' }
             ]
           },
           {
-            and: [
-              { or: [{ created_by: 'B' }] },
+            $and: [
+              { $or: [{ created_by: 'B' }] },
               { email: 'nesteddeep2@example.com' }
             ]
           }
@@ -255,8 +255,8 @@ describe('QueryModel Integration', () => {
     const result = await model.findWhere([
       {
         created_at: {
-          from: early.created_at,
-          to: new Date(new Date(late.created_at).getTime() + 1000)
+          $from: early.created_at,
+          $to: new Date(new Date(late.created_at).getTime() + 1000)
         }
       }
     ]);
@@ -272,7 +272,7 @@ describe('QueryModel Integration', () => {
     await model.insert({ email: 'in2@example.com', created_by: 'User' });
 
     const result = await model.findWhere([
-      { email: { in: ['in1@example.com', 'in2@example.com'] } }
+      { email: { $in: ['in1@example.com', 'in2@example.com'] } }
     ]);
 
     const emails = result.map(r => r.email);
