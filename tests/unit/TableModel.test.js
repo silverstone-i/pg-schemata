@@ -25,7 +25,7 @@ const mockPgp = {
     ),
     // For bulkUpdate test, ColumnSet should have a columns array
     ColumnSet: jest.fn(() => ({
-      columns: [{ name: 'id' }, { name: 'email' }]
+      columns: [{ name: 'id' }, { name: 'email' }],
     })),
   },
 };
@@ -116,7 +116,10 @@ describe('TableModel (Unit)', () => {
     describe('Insert', () => {
       test('should sanitize dto and insert', async () => {
         mockDb.one.mockResolvedValue({ id: 1 });
-        const result = await model.insert({ id: 1, email: 'test@example.com' });
+        const result = await model.insert({
+          id: 1,
+          email: 'test@example.com',
+        });
         expect(mockDb.one).toHaveBeenCalled();
         expect(result).toEqual({ id: 1 });
       });
@@ -136,11 +139,13 @@ describe('TableModel (Unit)', () => {
       test('should update and return result', async () => {
         mockDb.result.mockResolvedValue({
           rowCount: 1,
-          row: { id: 1 }
+          row: { id: 1 },
         });
         // Ensure mockPgp.helpers.update returns SQL
         mockPgp.helpers.update.mockReturnValue('UPDATE SET "email" = $1');
-        const result = await model.update(1, { email: 'updated@example.com' });
+        const result = await model.update(1, {
+          email: 'updated@example.com',
+        });
         expect(result).toEqual({ id: 1 });
       });
     });
@@ -156,7 +161,10 @@ describe('TableModel (Unit)', () => {
     describe('updateWhere', () => {
       test('should apply updates and return row count', async () => {
         mockDb.result.mockResolvedValue(3);
-        const result = await model.updateWhere({ $eq: { status: 'draft' } }, { status: 'locked' });
+        const result = await model.updateWhere(
+          { $eq: { status: 'draft' } },
+          { status: 'locked' }
+        );
         expect(result).toBe(3);
       });
 
@@ -202,7 +210,12 @@ describe('TableModel (Unit)', () => {
     describe('bulkUpdate', () => {
       test('should update multiple records in a transaction', async () => {
         const records = [{ id: 1, email: 'x@test.com' }];
-        mockDb.tx = jest.fn(fn => fn({ result: mockDb.result, batch: jest.fn(promises => Promise.all(promises)) }));
+        mockDb.tx = jest.fn(fn =>
+          fn({
+            result: mockDb.result,
+            batch: jest.fn(promises => Promise.all(promises)),
+          })
+        );
         await model.bulkUpdate(records);
         expect(mockDb.tx).toHaveBeenCalled();
       });
@@ -224,9 +237,9 @@ describe('TableModel (Unit)', () => {
           ...mockSchema,
           constraints: { primaryKey: 'id' },
         });
-        await expect(testModel.bulkUpdate([{ email: 'missing@pk.com' }])).rejects.toThrow(
-          'Each record must include an "id" field'
-        );
+        await expect(
+          testModel.bulkUpdate([{ email: 'missing@pk.com' }])
+        ).rejects.toThrow('Each record must include an "id" field');
       });
 
       test('should throw if records is not an array', async () => {
@@ -263,7 +276,7 @@ describe('TableModel (Unit)', () => {
           descending: true,
           columnWhitelist: ['id'],
           filters: {
-            and: [{ email: { ilike: '%example.com' } }],
+            and: [{ email: { $like: '%example.com' } }],
           },
         });
         expect(result.rows).toEqual([{ id: 3 }]);
@@ -427,6 +440,77 @@ describe('TableModel (Unit)', () => {
       expect(() => modelWithoutLogger.handleDbError(error)).toThrow(
         'Something went wrong'
       );
+    });
+  });
+
+  describe('deleteWhere', () => {
+    test('should delete records matching where clause', async () => {
+      mockDb.result.mockResolvedValue(2);
+      const result = await model.deleteWhere({ status: 'archived' });
+      expect(result).toBe(2);
+    });
+
+    test('should throw if where clause is empty', async () => {
+      await expect(model.deleteWhere({})).rejects.toThrow(
+        'WHERE clause must be a non-empty object'
+      );
+    });
+  });
+
+  // ================================
+  // Mock xlsx for importFromSpreadsheet tests
+  // ================================
+  jest.mock('xlsx', () => ({
+    readFile: () => ({
+      Sheets: {
+        Sheet1: [{ email: 'x@test.com' }],
+      },
+      SheetNames: ['Sheet1'],
+    }),
+    utils: {
+      sheet_to_json: () => [{ email: 'x@test.com' }],
+    },
+  }));
+
+  describe('importFromSpreadsheet', () => {
+    test('should throw if sheet index is invalid', async () => {
+      await expect(model.importFromSpreadsheet('bad.xlsx', -1)).rejects.toThrow(
+        'Sheet index -1 is out of bounds. Found 1 sheets.'
+      );
+    });
+
+    test('should throw if file path is not a string', async () => {
+      mockDb.tx = jest.fn(fn =>
+        fn({
+          none: mockDb.none,
+          result: mockDb.result,
+          batch: jest.fn(promises => Promise.all(promises)),
+        })
+      );
+      await expect(model.importFromSpreadsheet(123)).rejects.toThrow(
+        'db error'
+      );
+    });
+
+    test('should throw if import fails internally', async () => {
+      model.bulkInsert = jest.fn(() => {
+        throw new Error('bulk insert failed');
+      });
+
+      await expect(model.importFromSpreadsheet('test.xlsx')).rejects.toThrow(
+        'bulk insert failed'
+      );
+    });
+
+    test('should call bulkInsert with parsed rows', async () => {
+      const dummyRows = [{ email: 'x@test.com' }];
+      const TableModelWithMock = (await import('../../src/TableModel.js'))
+        .default;
+      const testModel = new TableModelWithMock(mockDb, mockPgp, mockSchema);
+      testModel.bulkInsert = jest.fn();
+
+      await testModel.importFromSpreadsheet('test.xlsx');
+      expect(testModel.bulkInsert).toHaveBeenCalledWith(dummyRows);
     });
   });
 });
