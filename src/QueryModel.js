@@ -55,21 +55,9 @@ class QueryModel {
     const values = [];
     const whereClauses = [];
 
-    const baseConditions = conditions.map((condition) => {
-      if (!isPlainObject(condition)) {
-        throw new Error('Each condition must be a plain object');
-      }
-      if ('column' in condition && 'op' in condition && 'value' in condition) {
-        const { column, op, value } = condition;
-        values.push(value);
-        return `${this.escapeName(column)} ${op} $${values.length}`;
-      }
-
-      const [[key, val]] = Object.entries(condition);
-      values.push(val);
-      return `${this.escapeName(key)} = $${values.length}`;
-    });
-    whereClauses.push(`(${baseConditions.join(` ${joinType.toUpperCase()} `)})`);
+    const { clause, values: builtValues } = this.buildWhereClause(conditions, true, [], joinType);
+    values.push(...builtValues);
+    whereClauses.push(`(${clause})`);
 
     if (Object.keys(filters).length) {
       whereClauses.push(this.buildCondition([filters], 'AND', values));
@@ -139,12 +127,21 @@ class QueryModel {
     return this.escapeName(this._schema.table);
   }
 
-  buildWhereClause(where = {}, requireNonEmpty = true) {
+  buildWhereClause(where = {}, requireNonEmpty = true, values = [], joinType = 'AND') {
+    if (Array.isArray(where)) {
+      if (requireNonEmpty && where.length === 0) {
+        throw new Error('WHERE clause must be a non-empty array');
+      }
+      const clause = this.buildCondition(where, joinType, values);
+      return { clause, values };
+    }
+
     if (!isPlainObject(where) || (requireNonEmpty && Object.keys(where).length === 0)) {
       throw new Error('WHERE clause must be a non-empty object');
     }
     const keys = Object.keys(where).map(key => this.escapeName(key));
-    const values = Object.values(where);
+    const vals = Object.values(where);
+    vals.forEach(val => values.push(val));
     const clause = keys.map((key, i) => `${key} = $${i + 1}`).join(' AND ');
     return { clause, values };
   }
@@ -152,33 +149,64 @@ class QueryModel {
   buildCondition(group, joiner = 'AND', values = []) {
     const parts = [];
     for (const item of group) {
-      if (item.and) {
+      if (item.and && Array.isArray(item.and) && item.and.length > 0) {
         parts.push(`(${this.buildCondition(item.and, 'AND', values)})`);
-      } else if (item.or) {
+      } else if (item.or && Array.isArray(item.or) && item.or.length > 0) {
         parts.push(`(${this.buildCondition(item.or, 'OR', values)})`);
       } else {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
           if (val && typeof val === 'object') {
+            const supportedKeys = ['like', 'ilike', 'from', 'to', 'in', '$in'];
+            const keys = Object.keys(val);
+            const unsupported = keys.filter(k => !supportedKeys.includes(k));
+            if (unsupported.length > 0) {
+              throw new Error(`Unsupported operator: ${unsupported[0]}`);
+            }
+
             if ('like' in val) {
               values.push(val.like);
               parts.push(`${col} LIKE $${values.length}`);
-            } else if ('ilike' in val) {
+            }
+            if ('ilike' in val) {
               values.push(val.ilike);
               parts.push(`${col} ILIKE $${values.length}`);
-            } else {
-              if (val.from) {
-                values.push(val.from);
-                parts.push(`${col} >= $${values.length}`);
+            }
+            if ('from' in val) {
+              values.push(val.from);
+              parts.push(`${col} >= $${values.length}`);
+            }
+            if ('to' in val) {
+              values.push(val.to);
+              parts.push(`${col} <= $${values.length}`);
+            }
+            if ('in' in val) {
+              if (!Array.isArray(val.in) || val.in.length === 0) {
+                throw new Error(`IN clause must be a non-empty array`);
               }
-              if (val.to) {
-                values.push(val.to);
-                parts.push(`${col} <= $${values.length}`);
+              const placeholders = val.in.map(v => {
+                values.push(v);
+                return `$${values.length}`;
+              }).join(', ');
+              parts.push(`${col} IN (${placeholders})`);
+            }
+            if ('$in' in val) {
+              if (!Array.isArray(val['$in']) || val['$in'].length === 0) {
+                throw new Error(`$IN clause must be a non-empty array`);
               }
+              const placeholders = val['$in'].map(v => {
+                values.push(v);
+                return `$${values.length}`;
+              }).join(', ');
+              parts.push(`${col} IN (${placeholders})`);
             }
           } else {
-            values.push(val);
-            parts.push(`${col} = $${values.length}`);
+            if (val === null) {
+              parts.push(`${col} IS NULL`);
+            } else {
+              values.push(val);
+              parts.push(`${col} = $${values.length}`);
+            }
           }
         }
       }
