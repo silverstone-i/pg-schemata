@@ -56,6 +56,124 @@ describe('QueryModel', () => {
     });
   });
 
+  describe('buildCondition', () => {
+    test('should handle simple equality condition', () => {
+      const values = [];
+      const clause = model.buildCondition([{ id: 1 }], 'AND', values);
+      expect(clause).toBe('"id" = $1');
+      expect(values).toEqual([1]);
+    });
+
+    test('should handle multiple conditions joined with AND', () => {
+      const values = [];
+      const clause = model.buildCondition([{ id: 1 }, { email: 'test@example.com' }], 'AND', values);
+      expect(clause).toBe('"id" = $1 AND "email" = $2');
+      expect(values).toEqual([1, 'test@example.com']);
+    });
+
+    test('should handle OR condition block', () => {
+      const values = [];
+      const clause = model.buildCondition([{ or: [{ id: 1 }, { id: 2 }] }], 'AND', values);
+      expect(clause).toBe('("id" = $1 OR "id" = $2)');
+      expect(values).toEqual([1, 2]);
+    });
+
+    test('should wrap OR block and allow top-level AND joiner', () => {
+      const values = [];
+      const clause = model.buildCondition(
+        [{ or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
+        'AND',
+        values
+      );
+      expect(clause).toBe('("id" = $1 OR "id" = $2) AND "email" = $3');
+      expect(values).toEqual([1, 2, 'a@x.com']);
+    });
+
+    test('should wrap OR block and allow top-level OR joiner', () => {
+      const values = [];
+      const clause = model.buildCondition(
+        [{ or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
+        'OR',
+        values
+      );
+      expect(clause).toBe('("id" = $1 OR "id" = $2) OR "email" = $3');
+      expect(values).toEqual([1, 2, 'a@x.com']);
+    });
+
+    test('should handle ILIKE operator', () => {
+      const values = [];
+      const clause = model.buildCondition([{ email: { ilike: '%@example.com' } }], 'AND', values);
+      expect(clause).toBe('"email" ILIKE $1');
+      expect(values).toEqual(['%@example.com']);
+    });
+
+    test('should handle range with "from" and "to"', () => {
+      const values = [];
+      const clause = model.buildCondition([{ created_at: { from: '2024-01-01', to: '2024-12-31' } }], 'AND', values);
+      expect(clause).toBe('"created_at" >= $1 AND "created_at" <= $2');
+      expect(values).toEqual(['2024-01-01', '2024-12-31']);
+    });
+
+    test('should throw on unsupported operator', () => {
+      const values = [];
+      const conditions = [{ email: { likee: 'invalid' } }];
+      expect(() => model.buildCondition(conditions, 'AND', values)).toThrow('Unsupported operator: likee');
+    });
+  });
+
+  describe('buildWhereClause', () => {
+    test('should build clause from simple object', () => {
+      const values = [];
+      const { clause, values: resultValues } = model.buildWhereClause({ id: 1, email: 'a@x.com' }, true, values);
+      expect(clause).toBe('"id" = $1 AND "email" = $2');
+      expect(resultValues).toEqual([1, 'a@x.com']);
+    });
+
+    test('should build clause from array of condition objects', () => {
+      const values = [];
+      const { clause, values: resultValues } = model.buildWhereClause([{ id: 1 }, { email: 'a@x.com' }], true, values);
+      expect(clause).toBe('"id" = $1 AND "email" = $2');
+      expect(resultValues).toEqual([1, 'a@x.com']);
+    });
+
+    test('should build clause from OR condition array', () => {
+      const values = [];
+      const where = [{ or: [{ id: 1 }, { id: 2 }] }, { email: { ilike: '%@x.com' } }];
+      const { clause, values: resultValues } = model.buildWhereClause(where, true, values);
+      expect(clause).toBe('("id" = $1 OR "id" = $2) AND "email" ILIKE $3');
+      expect(resultValues).toEqual([1, 2, '%@x.com']);
+    });
+
+    test('should build clause from nested OR and AND blocks', () => {
+      const values = [];
+      const where = [
+        { or: [{ id: 1 }, { id: 2 }] },
+        { or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] },
+        { password: 'secret' }
+      ];
+      const { clause, values: resultValues } = model.buildWhereClause(where, true, values);
+      expect(clause).toBe('("id" = $1 OR "id" = $2) AND ("email" = $3 OR "email" = $4) AND "password" = $5');
+      expect(resultValues).toEqual([1, 2, 'a@x.com', 'b@x.com', 'secret']);
+    });
+
+    test('should allow empty object if requireNonEmpty is false', () => {
+      const values = [];
+      const { clause, values: resultValues } = model.buildWhereClause({}, false, values);
+      expect(clause).toBe('');
+      expect(resultValues).toEqual([]);
+    });
+
+    test('should throw on empty object if requireNonEmpty is true', () => {
+      expect(() => model.buildWhereClause({}, true)).toThrow('WHERE clause must be a non-empty object');
+    });
+
+    test('should throw on object with invalid condition structure', () => {
+      // const values = [];
+      // const invalidClause = [{ id: { not_supported: 123 } }];
+      expect(() => model.buildWhereClause('invalidClause', true)).toThrow('WHERE clause must be a non-empty object');
+    });
+  });
+
   describe('Read Operations', () => {
     test('findAll should query with limit/offset', async () => {
       mockDb.any.mockResolvedValue([{ id: 1 }]);
@@ -97,6 +215,34 @@ describe('QueryModel', () => {
       mockDb.any.mockResolvedValue([{ id: 1 }]);
       const result = await model.findWhere([{ id: 1 }]);
       expect(result).toEqual([{ id: 1 }]);
+    });
+
+    test('findWhere should return filtered results with simple object', async () => {
+      mockDb.any.mockResolvedValue([{ id: 1 }]);
+      const result = await model.findWhere([{ id: 1 }]);
+      expect(result).toEqual([{ id: 1 }]);
+    });
+
+    test('findWhere should return filtered results from array of condition objects', async () => {
+      mockDb.any.mockResolvedValue([{ id: 2 }]);
+      const result = await model.findWhere([{ id: 2 }, { email: 'a@x.com' }]);
+      expect(result).toEqual([{ id: 2 }]);
+    });
+
+    test('findWhere should return filtered results with OR block', async () => {
+      mockDb.any.mockResolvedValue([{ id: 1 }]);
+      const result = await model.findWhere([{ or: [{ id: 1 }, { id: 2 }] }, { email: { ilike: '%@x.com' } }]);
+      expect(result).toEqual([{ id: 1 }]);
+    });
+
+    test('findWhere should return filtered results with nested OR and AND blocks', async () => {
+      mockDb.any.mockResolvedValue([{ id: 3 }]);
+      const result = await model.findWhere([
+        { or: [{ id: 1 }, { id: 2 }] },
+        { or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] },
+        { password: 'secret' }
+      ]);
+      expect(result).toEqual([{ id: 3 }]);
     });
   });
 
