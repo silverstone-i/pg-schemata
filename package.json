@@ -32,7 +32,8 @@
   "dependencies": {
     "dotenv": "^16.5.0",
     "lodash": "^4.17.21",
-    "pg-promise": "^11.13.0"
+    "pg-promise": "^11.13.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@swc/jest": "^0.2.37",
