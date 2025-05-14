@@ -1,5 +1,7 @@
 'use strict';
 
+import _isPlainObject from 'lodash/isPlainObject.js';
+
 /**
  * @fileoverview Utility validation functions for IDs and object types.
  */
@@ -31,16 +33,4 @@ export function validateUUID(id) {
   return typeof id === 'string' && UUID_REGEX.test(id);
 }
 
-/**
- * Determines if a value is a plain object (i.e., created by {} or Object.create(null)).
- *
- * @param {*} obj - The value to check.
- * @returns {boolean} True if the value is a plain object.
- */
-export function isPlainObject(obj) {
-  // Exclude null and non-object types early
-  if (obj === null || typeof obj !== 'object') return false;
-  const proto = Object.getPrototypeOf(obj);
-  // A plain object has prototype of Object.prototype or null
-  return proto === Object.prototype || proto === null;
-}
+export const isPlainObject = _isPlainObject;
