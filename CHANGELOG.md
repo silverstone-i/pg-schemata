@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 🧪 Experimental
+- Documented current WHERE clause operators and usage examples in `querymodel-conditions.md`
+- Added roadmap section for potential future operators (e.g. BETWEEN, NOT, EXISTS)
+
 ### 🚀 Features
 
 - Added `createTable()` to support table creation directly from schema (`BaseModel`, now `TableModel`)
