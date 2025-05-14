@@ -228,6 +228,7 @@ class TableModel extends QueryModel {
     const { clause, values } = this.buildWhereClause(where);
     const query = `${setClause} WHERE ${clause}`;
     this.logQuery(query);
+    
     try {
       const result = await this.db.result(query, values, r => r.rowCount);
       return result;
@@ -298,6 +299,30 @@ class TableModel extends QueryModel {
     } catch (err) {
       this.handleDbError(err);
     }
+  }
+
+  /**
+   * Imports data from an Excel spreadsheet and inserts it into the table.
+   * You can specify the index of the sheet to import (default is 0).
+   * @param {string} filePath - Path to the .xlsx file to import.
+   * @param {number} [sheetIndex=0] - Index of the sheet to import.
+   */
+  async importFromSpreadsheet(filePath, sheetIndex = 0) {
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.readFile(filePath);
+    const sheetNames = workbook.SheetNames;
+
+    if (sheetIndex < 0 || sheetIndex >= sheetNames.length) {
+      throw new Error(`Sheet index ${sheetIndex} is out of bounds. Found ${sheetNames.length} sheets.`);
+    }
+
+    const sheetName = sheetNames[sheetIndex];
+    const sheet = workbook.Sheets[sheetName];
+    const jsonData = xlsx.utils.sheet_to_json(sheet);
+    if (!Array.isArray(jsonData) || jsonData.length === 0) {
+      throw new Error('Spreadsheet is empty or invalid format');
+    }
+    await this.bulkInsert(jsonData);
   }
 
   // ---------------------------------------------------------------------------
