@@ -180,21 +180,6 @@ class TableModel extends QueryModel {
 
 
   // ---------------------------------------------------------------------------
-  // 🟡 Counting
-  // ---------------------------------------------------------------------------
-
-  async countAll() {
-    const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
-    this.logQuery(query);
-    try {
-      const result = await this.db.one(query);
-      return parseInt(result.count, 10);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // 🟤 Conditional Mutations
   // ---------------------------------------------------------------------------
   async deleteWhere(where) {

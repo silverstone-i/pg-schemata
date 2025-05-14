@@ -79,7 +79,7 @@ class QueryModel {
     return this.db.any(query, values);
   }
 
-    async exists(conditions) {
+  async exists(conditions) {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
     }
@@ -105,6 +105,17 @@ class QueryModel {
   async findOneBy(conditions, options = {}) {
     const results = await this.findWhere(conditions, 'AND', options);
     return results[0] || null;
+  }
+
+  async countAll() {
+    const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
+    this.logQuery(query);
+    try {
+      const result = await this.db.one(query);
+      return parseInt(result.count, 10);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   escapeName(name) {
