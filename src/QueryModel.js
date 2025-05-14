@@ -149,6 +149,13 @@ class QueryModel {
   buildCondition(group, joiner = 'AND', values = []) {
     const parts = [];
     for (const item of group) {
+      if (item.$and && Array.isArray(item.$and) && item.$and.length > 0) {
+        parts.push(`(${this.buildCondition(item.$and, 'AND', values)})`);
+        continue;
+      } else if (item.$or && Array.isArray(item.$or) && item.$or.length > 0) {
+        parts.push(`(${this.buildCondition(item.$or, 'OR', values)})`);
+        continue;
+      }
       if (item.and && Array.isArray(item.and) && item.and.length > 0) {
         parts.push(`(${this.buildCondition(item.and, 'AND', values)})`);
       } else if (item.or && Array.isArray(item.or) && item.or.length > 0) {
@@ -157,38 +164,28 @@ class QueryModel {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
           if (val && typeof val === 'object') {
-            const supportedKeys = ['like', 'ilike', 'from', 'to', 'in', '$in'];
+            const supportedKeys = ['$like', '$ilike', '$from', '$to', '$in'];
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
             if (unsupported.length > 0) {
               throw new Error(`Unsupported operator: ${unsupported[0]}`);
             }
 
-            if ('like' in val) {
-              values.push(val.like);
+            if ('$like' in val) {
+              values.push(val['$like']);
               parts.push(`${col} LIKE $${values.length}`);
             }
-            if ('ilike' in val) {
-              values.push(val.ilike);
+            if ('$ilike' in val) {
+              values.push(val['$ilike']);
               parts.push(`${col} ILIKE $${values.length}`);
             }
-            if ('from' in val) {
-              values.push(val.from);
+            if ('$from' in val) {
+              values.push(val['$from']);
               parts.push(`${col} >= $${values.length}`);
             }
-            if ('to' in val) {
-              values.push(val.to);
+            if ('$to' in val) {
+              values.push(val['$to']);
               parts.push(`${col} <= $${values.length}`);
-            }
-            if ('in' in val) {
-              if (!Array.isArray(val.in) || val.in.length === 0) {
-                throw new Error(`IN clause must be a non-empty array`);
-              }
-              const placeholders = val.in.map(v => {
-                values.push(v);
-                return `$${values.length}`;
-              }).join(', ');
-              parts.push(`${col} IN (${placeholders})`);
             }
             if ('$in' in val) {
               if (!Array.isArray(val['$in']) || val['$in'].length === 0) {
