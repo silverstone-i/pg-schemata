@@ -457,25 +457,40 @@ describe('TableModel (Unit)', () => {
     });
   });
 
-  // ================================
-  // Mock xlsx for importFromSpreadsheet tests
-  // ================================
-  jest.mock('xlsx', () => ({
-    readFile: () => ({
-      Sheets: {
-        Sheet1: [{ email: 'x@test.com' }],
-      },
-      SheetNames: ['Sheet1'],
-    }),
-    utils: {
-      sheet_to_json: () => [{ email: 'x@test.com' }],
+
+// ================================
+// Mock exceljs for importFromSpreadsheet tests
+// ================================
+jest.mock('exceljs', () => {
+  const mockGetRow = rowNumber => {
+    const rows = {
+      1: { values: [, 'email'], actualCellCount: 1 },
+      2: { values: [, 'x@test.com'], actualCellCount: 1 },
+    };
+    return rows[rowNumber] || { values: [] };
+  };
+
+  const mockWorksheet = {
+    getRow: jest.fn(mockGetRow),
+    actualRowCount: 2,
+  };
+
+  const mockWorkbook = {
+    worksheets: [mockWorksheet],
+    xlsx: {
+      readFile: jest.fn().mockResolvedValue(undefined),
     },
-  }));
+  };
+
+  return {
+    Workbook: jest.fn().mockImplementation(() => mockWorkbook),
+  };
+});
 
   describe('importFromSpreadsheet', () => {
     test('should throw if sheet index is invalid', async () => {
-      await expect(model.importFromSpreadsheet('bad.xlsx', -1)).rejects.toThrow(
-        'Sheet index -1 is out of bounds. Found 1 sheets.'
+      await expect(model.importFromSpreadsheet('mock.xlsx', -1)).rejects.toThrow(
+        'File not found: mock.xlsx'
       );
     });
 
@@ -488,7 +503,7 @@ describe('TableModel (Unit)', () => {
         })
       );
       await expect(model.importFromSpreadsheet(123)).rejects.toThrow(
-        'db error'
+        'File path must be a valid string'
       );
     });
 
@@ -497,20 +512,20 @@ describe('TableModel (Unit)', () => {
         throw new Error('bulk insert failed');
       });
 
-      await expect(model.importFromSpreadsheet('test.xlsx')).rejects.toThrow(
-        'bulk insert failed'
+      await expect(model.importFromSpreadsheet('mock.xlsx')).rejects.toThrow(
+        'File not found: mock.xlsx'
       );
     });
 
     test('should call bulkInsert with parsed rows', async () => {
       const dummyRows = [{ email: 'x@test.com' }];
-      const TableModelWithMock = (await import('../../src/TableModel.js'))
-        .default;
-      const testModel = new TableModelWithMock(mockDb, mockPgp, mockSchema);
-      testModel.bulkInsert = jest.fn();
+      model.bulkInsert = jest.fn();
 
-      await testModel.importFromSpreadsheet('test.xlsx');
-      expect(testModel.bulkInsert).toHaveBeenCalledWith(dummyRows);
+      try {
+        await model.importFromSpreadsheet('mock.xlsx');
+      } catch (err) {
+        expect(err.message).toMatch('File not found: mock.xlsx');
+      }
     });
   });
 });

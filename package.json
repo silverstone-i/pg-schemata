@@ -31,9 +31,9 @@
   },
   "dependencies": {
     "dotenv": "^16.5.0",
+    "exceljs": "^4.4.0",
     "lodash": "^4.17.21",
-    "pg-promise": "^11.13.0",
-    "xlsx": "^0.18.5"
+    "pg-promise": "^11.13.0"
   },
   "devDependencies": {
     "@swc/jest": "^0.2.37",

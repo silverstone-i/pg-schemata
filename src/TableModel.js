@@ -22,6 +22,7 @@ import QueryModel from './QueryModel.js';
 import {
   createTableSQL,
 } from './utils/schemaBuilder.js';
+import ExcelJS from 'exceljs';
 import { isValidId, isPlainObject } from './utils/validation.js';
 
 /**
@@ -293,21 +294,38 @@ class TableModel extends QueryModel {
    * @param {number} [sheetIndex=0] - Index of the sheet to import.
    */
   async importFromSpreadsheet(filePath, sheetIndex = 0) {
-    const xlsx = await import('xlsx');
-    const workbook = xlsx.readFile(filePath);
-    const sheetNames = workbook.SheetNames;
-
-    if (sheetIndex < 0 || sheetIndex >= sheetNames.length) {
-      throw new Error(`Sheet index ${sheetIndex} is out of bounds. Found ${sheetNames.length} sheets.`);
+    if (typeof filePath !== 'string') {
+      throw new Error('File path must be a valid string');
     }
 
-    const sheetName = sheetNames[sheetIndex];
-    const sheet = workbook.Sheets[sheetName];
-    const jsonData = xlsx.utils.sheet_to_json(sheet);
-    if (!Array.isArray(jsonData) || jsonData.length === 0) {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
+    const worksheet = workbook.worksheets[sheetIndex];
+
+    if (!worksheet) {
+      throw new Error(`Sheet index ${sheetIndex} is out of bounds. Found ${workbook.worksheets.length} sheets.`);
+    }
+
+    const rows = [];
+    let headers = [];
+    worksheet.eachRow((row, rowNumber) => {
+      const values = row.values;
+      if (rowNumber === 1) {
+        headers = values.slice(1); // skip the empty 0 index
+      } else {
+        const obj = {};
+        headers.forEach((header, i) => {
+          obj[header] = values[i + 1];
+        });
+        rows.push(obj);
+      }
+    });
+
+    if (!Array.isArray(rows) || rows.length === 0) {
       throw new Error('Spreadsheet is empty or invalid format');
     }
-    await this.bulkInsert(jsonData);
+
+    await this.bulkInsert(rows);
   }
 
   // ---------------------------------------------------------------------------
