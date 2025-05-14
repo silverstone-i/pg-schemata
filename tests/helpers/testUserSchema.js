@@ -9,6 +9,8 @@ export const testUserSchema = {
   columns: [
     { name: 'id', type: 'uuid', default: 'uuid_generate_v4()', notNull: true },
     { name: 'email', type: 'text', notNull: true },
+    { name: 'notes', type: 'text', default: null },
+    { name: 'is_active', type: 'boolean', default: true },
   ],
   constraints: {
     primaryKey: ['id'],
