@@ -33,7 +33,7 @@ WHERE "column" IS NULL
 ## 🔎 LIKE
 
 ```js
-[{ column: { like: '%pattern%' } }]
+[{ column: { $like: '%pattern%' } }]
 ```
 
 ### SQL Equivalent:
@@ -46,7 +46,7 @@ WHERE "column" LIKE '%pattern%'
 ## 🔍 ILIKE (Case-Insensitive)
 
 ```js
-[{ column: { ilike: '%pattern%' } }]
+[{ column: { $ilike: '%pattern%' } }]
 ```
 
 ### SQL Equivalent:
@@ -59,7 +59,7 @@ WHERE "column" ILIKE '%pattern%'
 ## 🔢 Range Query
 
 ```js
-[{ column: { from: '2024-01-01', to: '2024-12-31' } }]
+[{ column: { $from: '2024-01-01', $to: '2024-12-31' } }]
 ```
 
 ### SQL Equivalent:
@@ -67,16 +67,15 @@ WHERE "column" ILIKE '%pattern%'
 WHERE "column" >= '2024-01-01' AND "column" <= '2024-12-31'
 ```
 
-You may use either `from`, `to`, or both.
+You may use either `$from`, `$to`, or both.
 
 ---
 
 ## 🧮 IN Clause
 
-Supports both `in` and `$in` for flexibility:
+Supports only `$in` for flexibility:
 
 ```js
-[{ column: { in: [1, 2, 3] } }]
 [{ column: { $in: ['a', 'b', 'c'] } }]
 ```
 
@@ -92,10 +91,10 @@ WHERE "column" IN (1, 2, 3)
 ```js
 [
   {
-    or: [
+    $or: [
       { column1: 'A' },
       {
-        and: [
+        $and: [
           { column2: 'B' },
           { column3: 'C' }
         ]
@@ -112,14 +111,13 @@ WHERE ("column1" = 'A' OR ("column2" = 'B' AND "column3" = 'C'))
 
 ---
 
-## ⚠️ Unsupported Operators
+## ✅ Supported Operators
 
-Only the following keys are supported inside condition objects:
-- `like`
-- `ilike`
-- `from`
-- `to`
-- `in`
+Only the following operator keys are supported inside condition objects:
+- `$like`
+- `$ilike`
+- `$from`
+- `$to`
 - `$in`
 
 Using unsupported keys will throw:  
@@ -133,7 +131,7 @@ Error: Unsupported operator: <key>
 
 - The top-level `findWhere()` method accepts an array of conditions.
 - These are joined by `AND` by default, but can be changed to `OR` via the second parameter.
-- Supports deep nesting of AND/OR.
+- Supports deep nesting of `$and` / `$or`.
 - Automatically uses parameterized queries to avoid SQL injection.
 
 ---
@@ -142,34 +140,36 @@ Error: Unsupported operator: <key>
 
 These operators are not currently supported, but may be considered for future implementation:
 
-- `!=` or `not`: for inequality comparisons  
+- `$not`: for inequality comparisons  
   ```js
-  [{ column: { not: value } }]
+  [{ column: { $not: value } }]
   // SQL: WHERE "column" != value
   ```
 
-- `>` and `<`: for greater-than / less-than  
+- `$gt` and `$lt`: for greater-than / less-than  
   ```js
-  [{ column: { gt: 10 } }, { column: { lt: 100 } }]
+  [{ column: { $gt: 10 } }, { column: { $lt: 100 } }]
   // SQL: WHERE "column" > 10 AND "column" < 100
   ```
 
-- `between`: an alternative to `from`/`to`  
+- `$between`: an alternative to `$from`/`$to`  
   ```js
-  [{ column: { between: [min, max] } }]
+  [{ column: { $between: [min, max] } }]
   // SQL: WHERE "column" BETWEEN min AND max
   ```
 
-- `notIn`: the inverse of the IN clause  
+- `$notIn`: the inverse of the IN clause  
   ```js
-  [{ column: { notIn: [1, 2, 3] } }]
+  [{ column: { $notIn: [1, 2, 3] } }]
   // SQL: WHERE "column" NOT IN (1, 2, 3)
   ```
 
-- `isNull` / `isNotNull`: for explicit null checking  
+- `$isNull` / `$isNotNull`: for explicit null checking  
   ```js
-  [{ column: { isNull: true } }, { column: { isNotNull: true } }]
+  [{ column: { $isNull: true } }, { column: { $isNotNull: true } }]
   // SQL: WHERE "column" IS NULL / IS NOT NULL
   ```
+
+- `or` / `and`: deprecated in favor of `$or` / `$and`
 
 Suggestions welcome as use cases evolve.
