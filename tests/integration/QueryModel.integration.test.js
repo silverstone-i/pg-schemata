@@ -27,11 +27,20 @@ describe('QueryModel Integration', () => {
   });
 
   test('should support findWhere with conditions', async () => {
-    await model.insert({ email: 'findwhere-1@example.com', created_by: 'System' });
-    await model.insert({ email: 'findwhere-2@example.com', created_by: 'System' });
+    await model.insert({
+      email: 'findwhere-1@example.com',
+      created_by: 'System',
+    });
+    await model.insert({
+      email: 'findwhere-2@example.com',
+      created_by: 'System',
+    });
 
     const result = await model.findWhere(
-      [{ email: 'findwhere-1@example.com' }, { email: 'findwhere-2@example.com' }],
+      [
+        { email: 'findwhere-1@example.com' },
+        { email: 'findwhere-2@example.com' },
+      ],
       'OR'
     );
     expect(result.length).toBe(2);
@@ -53,14 +62,51 @@ describe('QueryModel Integration', () => {
     expect(count).toBeGreaterThan(0);
   });
 
+  test('should return 0 for unmatched filter in count()', async () => {
+    const count = await model.count({ email: 'doesnotexist@example.com' });
+    expect(count).toBe(0);
+  });
+
+  test('should return correct count using $ilike operator in count()', async () => {
+    await model.insert({
+      email: 'countilike1@example.com',
+      created_by: 'System',
+    });
+
+    const count = await model.count([
+      {
+        email: { $ilike: '%countilike1%' },
+      },
+    ]);
+
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
+  test('should return correct count using nested $or condition in count()', async () => {
+    await model.insert({ email: 'orcount1@example.com', created_by: 'X' });
+    await model.insert({ email: 'orcount2@example.com', created_by: 'Y' });
+
+    const count = await model.count(
+      [{'$or': [{ created_by: 'X' }, { created_by: 'Y' }]}],
+);
+
+    expect(count).toBeGreaterThanOrEqual(2);
+  });
+
   test('should reload a record by id', async () => {
     const reloaded = await model.reload(inserted.id);
     expect(reloaded.email).toBe('test@example.com');
   });
 
   test('should support findAfterCursor with descending and columnWhitelist options', async () => {
-    const a = await model.insert({ email: 'z@example.com', created_by: 'System' });
-    const b = await model.insert({ email: 'y@example.com', created_by: 'System' });
+    const a = await model.insert({
+      email: 'z@example.com',
+      created_by: 'System',
+    });
+    const b = await model.insert({
+      email: 'y@example.com',
+      created_by: 'System',
+    });
     await model.insert({ email: 'x@example.com', created_by: 'System' });
 
     const rows = await model.findAfterCursor(
@@ -83,8 +129,14 @@ describe('QueryModel Integration', () => {
   });
 
   test('should support findWhere with filters using AND and ILIKE', async () => {
-    await model.insert({ email: 'findbyuser1@example.com', created_by: 'Admin' });
-    await model.insert({ email: 'findbyuser2@example.com', created_by: 'Admin' });
+    await model.insert({
+      email: 'findbyuser1@example.com',
+      created_by: 'Admin',
+    });
+    await model.insert({
+      email: 'findbyuser2@example.com',
+      created_by: 'Admin',
+    });
 
     const result = await model.findWhere([{ created_by: 'Admin' }], 'AND', {
       filters: {
@@ -99,7 +151,10 @@ describe('QueryModel Integration', () => {
   });
 
   test('should support findOneBy returning a single row', async () => {
-    await model.insert({ email: 'findoneby@example.com', created_by: 'UnitTest' });
+    await model.insert({
+      email: 'findoneby@example.com',
+      created_by: 'UnitTest',
+    });
     const found = await model.findOneBy([{ email: 'findoneby@example.com' }]);
     expect(found).toBeDefined();
     expect(found.email).toBe('findoneby@example.com');
@@ -119,7 +174,9 @@ describe('QueryModel Integration', () => {
   });
 
   test('should throw on empty condition array in findWhere', async () => {
-    await expect(model.findWhere([])).rejects.toThrow('Conditions must be a non-empty array');
+    await expect(model.findWhere([])).rejects.toThrow(
+      'Conditions must be a non-empty array'
+    );
   });
 
   test('should throw on unsupported operator in findWhere', async () => {
@@ -140,7 +197,10 @@ describe('QueryModel Integration', () => {
   });
 
   test('should support exists with multiple conditions', async () => {
-    const exists = await model.exists({ email: 'test@example.com', created_by: 'Jill Lazarus' });
+    const exists = await model.exists({
+      email: 'test@example.com',
+      created_by: 'Jill Lazarus',
+    });
     expect(exists).toBe(true);
   });
 
@@ -152,13 +212,13 @@ describe('QueryModel Integration', () => {
     expect(one.email).toBe('dupe@example.com');
   });
   test('should return single result for duplicate OR conditions', async () => {
-    await model.insert({ email: 'redundant@example.com', created_by: 'System' });
+    await model.insert({
+      email: 'redundant@example.com',
+      created_by: 'System',
+    });
 
     const result = await model.findWhere(
-      [
-        { email: 'redundant@example.com' },
-        { email: 'redundant@example.com' }
-      ],
+      [{ email: 'redundant@example.com' }, { email: 'redundant@example.com' }],
       'OR'
     );
     expect(result.length).toBe(1);
@@ -166,13 +226,13 @@ describe('QueryModel Integration', () => {
   });
 
   test('should return no results for conflicting AND conditions', async () => {
-    await model.insert({ email: 'conflict@example.com', created_by: 'TestUser' });
+    await model.insert({
+      email: 'conflict@example.com',
+      created_by: 'TestUser',
+    });
 
     const result = await model.findWhere(
-      [
-        { email: 'conflict@example.com' },
-        { email: 'notfound@example.com' }
-      ],
+      [{ email: 'conflict@example.com' }, { email: 'notfound@example.com' }],
       'AND'
     );
     expect(result.length).toBe(0);
@@ -184,7 +244,7 @@ describe('QueryModel Integration', () => {
     // Intentionally include an empty OR group
     const result = await model.findWhere([
       { $or: [] },
-      { email: 'emptyor@example.com' }
+      { email: 'emptyor@example.com' },
     ]);
     expect(result.length).toBe(1);
     expect(result[0].email).toBe('emptyor@example.com');
@@ -198,27 +258,41 @@ describe('QueryModel Integration', () => {
       {
         $or: [
           { $and: [{ created_by: 'A' }, { email: 'x@example.com' }] },
-          { $and: [{ created_by: 'B' }, { email: 'y@example.com' }] }
-        ]
-      }
+          { $and: [{ created_by: 'B' }, { email: 'y@example.com' }] },
+        ],
+      },
     ]);
     expect(result.length).toBe(2);
   });
 
   test('should support null values in where clause', async () => {
-    await model.insert({ email: 'nulltest@example.com', created_by: 'Test', notes: null });
-    const result = await model.findWhere([{ email: 'nulltest@example.com' }, { notes: null }]);
+    await model.insert({
+      email: 'nulltest@example.com',
+      created_by: 'Test',
+      notes: null,
+    });
+    const result = await model.findWhere([
+      { email: 'nulltest@example.com' },
+      { notes: null },
+    ]);
     expect(result.length).toBe(1);
     expect(result[0].email).toBe('nulltest@example.com');
   });
 
   test('should distinguish case-sensitive values unless ILIKE is used', async () => {
-    await model.insert({ email: 'CaseSensitive@Example.com', created_by: 'CaseTest' });
+    await model.insert({
+      email: 'CaseSensitive@Example.com',
+      created_by: 'CaseTest',
+    });
 
-    const resultExact = await model.findWhere([{ email: 'casesensitive@example.com' }]);
+    const resultExact = await model.findWhere([
+      { email: 'casesensitive@example.com' },
+    ]);
     expect(resultExact.length).toBe(0);
 
-    const resultIlike = await model.findWhere([{ email: { $ilike: 'casesensitive@example.com' } }]);
+    const resultIlike = await model.findWhere([
+      { email: { $ilike: 'casesensitive@example.com' } },
+    ]);
     expect(resultIlike.length).toBe(1);
     expect(resultIlike[0].email).toBe('CaseSensitive@Example.com');
   });
@@ -233,32 +307,38 @@ describe('QueryModel Integration', () => {
           {
             $and: [
               { $or: [{ created_by: 'A' }] },
-              { email: 'nesteddeep1@example.com' }
-            ]
+              { email: 'nesteddeep1@example.com' },
+            ],
           },
           {
             $and: [
               { $or: [{ created_by: 'B' }] },
-              { email: 'nesteddeep2@example.com' }
-            ]
-          }
-        ]
-      }
+              { email: 'nesteddeep2@example.com' },
+            ],
+          },
+        ],
+      },
     ]);
     expect(result.length).toBe(2);
   });
 
   test('should support range with from and to syntax', async () => {
-    const early = await model.insert({ email: 'range1@example.com', created_by: 'System' });
-    const late = await model.insert({ email: 'range2@example.com', created_by: 'System' });
+    const early = await model.insert({
+      email: 'range1@example.com',
+      created_by: 'System',
+    });
+    const late = await model.insert({
+      email: 'range2@example.com',
+      created_by: 'System',
+    });
 
     const result = await model.findWhere([
       {
         created_at: {
           $from: early.created_at,
-          $to: new Date(new Date(late.created_at).getTime() + 1000)
-        }
-      }
+          $to: new Date(new Date(late.created_at).getTime() + 1000),
+        },
+      },
     ]);
 
     expect(result.length).toBeGreaterThanOrEqual(2);
@@ -272,7 +352,7 @@ describe('QueryModel Integration', () => {
     await model.insert({ email: 'in2@example.com', created_by: 'User' });
 
     const result = await model.findWhere([
-      { email: { $in: ['in1@example.com', 'in2@example.com'] } }
+      { email: { $in: ['in1@example.com', 'in2@example.com'] } },
     ]);
 
     const emails = result.map(r => r.email);
@@ -285,12 +365,12 @@ describe('QueryModel Integration', () => {
     const activeUser = await model.insert({
       email: 'bool1@example.com',
       created_by: 'Tester',
-      is_active: true
+      is_active: true,
     });
     const inactiveUser = await model.insert({
       email: 'bool2@example.com',
       created_by: 'Tester',
-      is_active: false
+      is_active: false,
     });
 
     const result = await model.findWhere([{ is_active: true }]);
@@ -299,11 +379,17 @@ describe('QueryModel Integration', () => {
   });
 
   test('should find multiple records by id using $in syntax', async () => {
-    const user1 = await model.insert({ email: 'multiin1@example.com', created_by: 'MultiTest' });
-    const user2 = await model.insert({ email: 'multiin2@example.com', created_by: 'MultiTest' });
+    const user1 = await model.insert({
+      email: 'multiin1@example.com',
+      created_by: 'MultiTest',
+    });
+    const user2 = await model.insert({
+      email: 'multiin2@example.com',
+      created_by: 'MultiTest',
+    });
 
     const result = await model.findWhere([
-      { id: { $in: [user1.id, user2.id] } }
+      { id: { $in: [user1.id, user2.id] } },
     ]);
 
     expect(result.length).toBe(2);
