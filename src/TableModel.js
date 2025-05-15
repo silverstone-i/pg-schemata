@@ -19,9 +19,7 @@ import QueryModel from './QueryModel.js';
  * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
  */
 
-import {
-  createTableSQL,
-} from './utils/schemaBuilder.js';
+import { createTableSQL } from './utils/schemaBuilder.js';
 import ExcelJS from 'exceljs';
 import { isValidId, isPlainObject } from './utils/validation.js';
 
@@ -34,7 +32,6 @@ import { isValidId, isPlainObject } from './utils/validation.js';
  * @param {Object} [logger] - Optional logger with debug and error methods.
  */
 class TableModel extends QueryModel {
-
   async delete(id) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
@@ -46,7 +43,6 @@ class TableModel extends QueryModel {
       this.handleDbError(err);
     }
   }
-
 
   async insert(dto) {
     if (!isPlainObject(dto)) {
@@ -179,7 +175,6 @@ class TableModel extends QueryModel {
     return { rows, nextCursor };
   }
 
-
   // ---------------------------------------------------------------------------
   // 🟤 Conditional Mutations
   // ---------------------------------------------------------------------------
@@ -199,22 +194,37 @@ class TableModel extends QueryModel {
   }
 
   async updateWhere(where, updates) {
-    if (!isPlainObject(where) || Object.keys(where).length === 0) {
-      throw new Error('WHERE clause must be a non-empty object');
+    const isNonEmpty = val =>
+      Array.isArray(val)
+        ? val.length > 0
+        : isPlainObject(val)
+        ? Object.keys(val).length > 0
+        : false;
+
+    if (!isNonEmpty(where)) {
+      throw new Error(
+        'WHERE clause must be a non-empty object or non-empty array'
+      );
     }
-    if (!isPlainObject(updates) || Object.keys(updates).length === 0) {
+
+    if (!isNonEmpty(updates)) {
       throw new Error('UPDATE payload must be a non-empty object');
     }
+
     const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
+
     if (!safeUpdates.updated_by) safeUpdates.updated_by = 'system';
     const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
+
     const setClause = this.pgp.helpers.update(safeUpdates, updateCs);
+
     const { clause, values } = this.buildWhereClause(where);
+
     const query = `${setClause} WHERE ${clause}`;
     this.logQuery(query);
-    
+
     try {
       const result = await this.db.result(query, values, r => r.rowCount);
       return result;
@@ -235,13 +245,15 @@ class TableModel extends QueryModel {
       if (!sanitized.created_by) sanitized.created_by = 'system';
       return sanitized;
     });
+
     const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
     const query = this.pgp.helpers.insert(safeRecords, cs);
+
     this.logQuery(query);
     try {
-      await this.db.tx(t => t.none(query));
+      return await this.db.tx(t => t.result(query, [], r => r.rowCount));
     } catch (err) {
       this.handleDbError(err);
     }
@@ -303,7 +315,9 @@ class TableModel extends QueryModel {
     const worksheet = workbook.worksheets[sheetIndex];
 
     if (!worksheet) {
-      throw new Error(`Sheet index ${sheetIndex} is out of bounds. Found ${workbook.worksheets.length} sheets.`);
+      throw new Error(
+        `Sheet index ${sheetIndex} is out of bounds. Found ${workbook.worksheets.length} sheets.`
+      );
     }
 
     const rows = [];
@@ -325,7 +339,8 @@ class TableModel extends QueryModel {
       throw new Error('Spreadsheet is empty or invalid format');
     }
 
-    await this.bulkInsert(rows);
+    const inserted = await this.bulkInsert(rows);
+    return { inserted };
   }
 
   // ---------------------------------------------------------------------------
