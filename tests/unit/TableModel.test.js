@@ -462,41 +462,40 @@ describe('TableModel (Unit)', () => {
     });
   });
 
-
-// ================================
-// Mock exceljs for importFromSpreadsheet tests
-// ================================
-jest.mock('exceljs', () => {
-  const mockGetRow = rowNumber => {
-    const rows = {
-      1: { values: [, 'email'], actualCellCount: 1 },
-      2: { values: [, 'x@test.com'], actualCellCount: 1 },
+  // ================================
+  // Mock exceljs for importFromSpreadsheet tests
+  // ================================
+  jest.mock('exceljs', () => {
+    const mockGetRow = rowNumber => {
+      const rows = {
+        1: { values: [, 'email'], actualCellCount: 1 },
+        2: { values: [, 'x@test.com'], actualCellCount: 1 },
+      };
+      return rows[rowNumber] || { values: [] };
     };
-    return rows[rowNumber] || { values: [] };
-  };
 
-  const mockWorksheet = {
-    getRow: jest.fn(mockGetRow),
-    actualRowCount: 2,
-  };
+    const mockWorksheet = {
+      getRow: jest.fn(mockGetRow),
+      actualRowCount: 2,
+    };
 
-  const mockWorkbook = {
-    worksheets: [mockWorksheet],
-    xlsx: {
-      readFile: jest.fn().mockResolvedValue(undefined),
-    },
-  };
+    const mockWorkbook = {
+      worksheets: [mockWorksheet],
+      xlsx: {
+        readFile: jest.fn().mockResolvedValue(undefined),
+      },
+    };
 
-  return {
-    Workbook: jest.fn().mockImplementation(() => mockWorkbook),
-  };
-});
+    return {
+      Workbook: jest.fn().mockImplementation(() => mockWorkbook),
+    };
+  });
 
   describe('importFromSpreadsheet', () => {
     test('should throw if sheet index is invalid', async () => {
-      await expect(model.importFromSpreadsheet('mock.xlsx', -1)).rejects.toThrow(
-        'File not found: mock.xlsx'
-      );
+      await expect(
+        model.importFromSpreadsheet('mock.xlsx', -1)
+      ).rejects.toThrow('File not found: mock.xlsx');
     });
 
     test('should throw if file path is not a string', async () => {

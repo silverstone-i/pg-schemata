@@ -170,7 +170,7 @@ describe('QueryModel', () => {
     test('should throw on object with invalid condition structure', () => {
       // const values = [];
       // const invalidClause = [{ id: { not_supported: 123 } }];
-      expect(() => model.buildWhereClause('invalidClause', true)).toThrow('WHERE clause must be a non-empty object');
+      expect(() => model.buildWhereClause('invalidClause', true)).toThrow('WHERE clause must be an array or plain object');
     });
   });
 

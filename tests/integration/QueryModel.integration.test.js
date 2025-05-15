@@ -1,6 +1,8 @@
 import { createTestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
 
+const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+
 let ctx, model, teardown, inserted;
 
 describe('QueryModel Integration', () => {
@@ -9,6 +11,7 @@ describe('QueryModel Integration', () => {
     inserted = await model.insert({
       email: 'test@example.com',
       created_by: 'Jill Lazarus',
+      tenant_id: TENANT_ID,
     });
   });
 
@@ -30,10 +33,12 @@ describe('QueryModel Integration', () => {
     await model.insert({
       email: 'findwhere-1@example.com',
       created_by: 'System',
+      tenant_id: TENANT_ID,
     });
     await model.insert({
       email: 'findwhere-2@example.com',
       created_by: 'System',
+      tenant_id: TENANT_ID,
     });
 
     const result = await model.findWhere(
@@ -71,6 +76,7 @@ describe('QueryModel Integration', () => {
     await model.insert({
       email: 'countilike1@example.com',
       created_by: 'System',
+      tenant_id: TENANT_ID,
     });
 
     const count = await model.count([
@@ -83,8 +89,8 @@ describe('QueryModel Integration', () => {
   });
 
   test('should return correct count using nested $or condition in count()', async () => {
-    await model.insert({ email: 'orcount1@example.com', created_by: 'X' });
-    await model.insert({ email: 'orcount2@example.com', created_by: 'Y' });
+    await model.insert({ email: 'orcount1@example.com', created_by: 'X', tenant_id: TENANT_ID });
+    await model.insert({ email: 'orcount2@example.com', created_by: 'Y', tenant_id: TENANT_ID });
 
     const count = await model.count(
       [{'$or': [{ created_by: 'X' }, { created_by: 'Y' }]}],
@@ -102,12 +108,14 @@ describe('QueryModel Integration', () => {
     const a = await model.insert({
       email: 'z@example.com',
       created_by: 'System',
+      tenant_id: TENANT_ID,
     });
     const b = await model.insert({
       email: 'y@example.com',
       created_by: 'System',
+      tenant_id: TENANT_ID,
     });
-    await model.insert({ email: 'x@example.com', created_by: 'System' });
+    await model.insert({ email: 'x@example.com', created_by: 'System', tenant_id: TENANT_ID });
 
     const rows = await model.findAfterCursor(
       { created_at: b.created_at, id: b.id },
@@ -132,10 +140,12 @@ describe('QueryModel Integration', () => {
     await model.insert({
       email: 'findbyuser1@example.com',
       created_by: 'Admin',
+      tenant_id: TENANT_ID,
     });
     await model.insert({
       email: 'findbyuser2@example.com',
       created_by: 'Admin',
+      tenant_id: TENANT_ID,
     });
 
     const result = await model.findWhere([{ created_by: 'Admin' }], 'AND', {
@@ -154,6 +164,7 @@ describe('QueryModel Integration', () => {
     await model.insert({
       email: 'findoneby@example.com',
       created_by: 'UnitTest',
+      tenant_id: TENANT_ID,
     });
     const found = await model.findOneBy([{ email: 'findoneby@example.com' }]);
     expect(found).toBeDefined();
@@ -186,8 +197,8 @@ describe('QueryModel Integration', () => {
   });
 
   test('should support nested OR and AND conditions in findWhere', async () => {
-    await model.insert({ email: 'nested1@example.com', created_by: 'Admin' });
-    await model.insert({ email: 'nested2@example.com', created_by: 'System' });
+    await model.insert({ email: 'nested1@example.com', created_by: 'Admin', tenant_id: TENANT_ID });
+    await model.insert({ email: 'nested2@example.com', created_by: 'System', tenant_id: TENANT_ID });
 
     const result = await model.findWhere([
       { $or: [{ created_by: 'Admin' }, { created_by: 'System' }] },
@@ -205,8 +216,8 @@ describe('QueryModel Integration', () => {
   });
 
   test('should return single record in findOneBy with multiple matches', async () => {
-    await model.insert({ email: 'dupe@example.com', created_by: 'X' });
-    await model.insert({ email: 'dupe@example.com', created_by: 'Y' });
+    await model.insert({ email: 'dupe@example.com', created_by: 'X', tenant_id: TENANT_ID });
+    await model.insert({ email: 'dupe@example.com', created_by: 'Y', tenant_id: TENANT_ID });
     const one = await model.findOneBy([{ email: 'dupe@example.com' }]);
     expect(one).toBeDefined();
     expect(one.email).toBe('dupe@example.com');
@@ -215,6 +226,7 @@ describe('QueryModel Integration', () => {
     await model.insert({
       email: 'redundant@example.com',
       created_by: 'System',
+      tenant_id: TENANT_ID,
     });
 
     const result = await model.findWhere(
@@ -229,6 +241,7 @@ describe('QueryModel Integration', () => {
     await model.insert({
       email: 'conflict@example.com',
       created_by: 'TestUser',
+      tenant_id: TENANT_ID,
     });
 
     const result = await model.findWhere(
@@ -239,7 +252,7 @@ describe('QueryModel Integration', () => {
   });
 
   test('should handle empty OR group gracefully', async () => {
-    await model.insert({ email: 'emptyor@example.com', created_by: 'Admin' });
+    await model.insert({ email: 'emptyor@example.com', created_by: 'Admin', tenant_id: TENANT_ID });
 
     // Intentionally include an empty OR group
     const result = await model.findWhere([
@@ -251,8 +264,8 @@ describe('QueryModel Integration', () => {
   });
 
   test('should support nested AND inside OR conditions', async () => {
-    await model.insert({ email: 'x@example.com', created_by: 'A' });
-    await model.insert({ email: 'y@example.com', created_by: 'B' });
+    await model.insert({ email: 'x@example.com', created_by: 'A', tenant_id: TENANT_ID });
+    await model.insert({ email: 'y@example.com', created_by: 'B', tenant_id: TENANT_ID });
 
     const result = await model.findWhere([
       {
@@ -270,6 +283,7 @@ describe('QueryModel Integration', () => {
       email: 'nulltest@example.com',
       created_by: 'Test',
       notes: null,
+      tenant_id: TENANT_ID,
     });
     const result = await model.findWhere([
       { email: 'nulltest@example.com' },
@@ -283,6 +297,7 @@ describe('QueryModel Integration', () => {
     await model.insert({
       email: 'CaseSensitive@Example.com',
       created_by: 'CaseTest',
+      tenant_id: TENANT_ID,
     });
 
     const resultExact = await model.findWhere([
@@ -298,8 +313,8 @@ describe('QueryModel Integration', () => {
   });
 
   test('should support multiple levels of nested OR/AND', async () => {
-    await model.insert({ email: 'nesteddeep1@example.com', created_by: 'A' });
-    await model.insert({ email: 'nesteddeep2@example.com', created_by: 'B' });
+    await model.insert({ email: 'nesteddeep1@example.com', created_by: 'A', tenant_id: TENANT_ID });
+    await model.insert({ email: 'nesteddeep2@example.com', created_by: 'B', tenant_id: TENANT_ID });
 
     const result = await model.findWhere([
       {
@@ -326,10 +341,12 @@ describe('QueryModel Integration', () => {
     const early = await model.insert({
       email: 'range1@example.com',
       created_by: 'System',
+      tenant_id: TENANT_ID,
     });
     const late = await model.insert({
       email: 'range2@example.com',
       created_by: 'System',
+      tenant_id: TENANT_ID,
     });
 
     const result = await model.findWhere([
@@ -348,8 +365,8 @@ describe('QueryModel Integration', () => {
   });
 
   test('should support IN clause via array of values', async () => {
-    await model.insert({ email: 'in1@example.com', created_by: 'User' });
-    await model.insert({ email: 'in2@example.com', created_by: 'User' });
+    await model.insert({ email: 'in1@example.com', created_by: 'User', tenant_id: TENANT_ID });
+    await model.insert({ email: 'in2@example.com', created_by: 'User', tenant_id: TENANT_ID });
 
     const result = await model.findWhere([
       { email: { $in: ['in1@example.com', 'in2@example.com'] } },
@@ -366,11 +383,13 @@ describe('QueryModel Integration', () => {
       email: 'bool1@example.com',
       created_by: 'Tester',
       is_active: true,
+      tenant_id: TENANT_ID,
     });
     const inactiveUser = await model.insert({
       email: 'bool2@example.com',
       created_by: 'Tester',
       is_active: false,
+      tenant_id: TENANT_ID,
     });
 
     const result = await model.findWhere([{ is_active: true }]);
@@ -382,10 +401,12 @@ describe('QueryModel Integration', () => {
     const user1 = await model.insert({
       email: 'multiin1@example.com',
       created_by: 'MultiTest',
+      tenant_id: TENANT_ID,
     });
     const user2 = await model.insert({
       email: 'multiin2@example.com',
       created_by: 'MultiTest',
+      tenant_id: TENANT_ID,
     });
 
     const result = await model.findWhere([
