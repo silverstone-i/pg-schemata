@@ -219,7 +219,7 @@ class QueryModel {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
           if (val && typeof val === 'object') {
-            const supportedKeys = ['$like', '$ilike', '$from', '$to', '$in'];
+            const supportedKeys = ['$like', '$ilike', '$from', '$to', '$in', '$eq'];
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
             if (unsupported.length > 0) {
@@ -253,6 +253,10 @@ class QueryModel {
                 })
                 .join(', ');
               parts.push(`${col} IN (${placeholders})`);
+            }
+            if ('$eq' in val) {
+              values.push(val['$eq']);
+              parts.push(`${col} = $${values.length}`);
             }
           } else {
             if (val === null) {
