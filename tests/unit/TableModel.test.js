@@ -162,7 +162,7 @@ describe('TableModel (Unit)', () => {
       test('should apply updates and return row count', async () => {
         mockDb.result.mockResolvedValue(3);
         const result = await model.updateWhere(
-          { $eq: { status: 'draft' } },
+          { email: { $ilike: '%@example.com' } },
           { status: 'locked' }
         );
         expect(result).toBe(3);
@@ -195,7 +195,12 @@ describe('TableModel (Unit)', () => {
     describe('bulkInsert', () => {
       test('should insert multiple records using a transaction', async () => {
         const records = [{ id: 1, email: 'a@test.com' }];
-        mockDb.tx = jest.fn(fn => fn({ none: mockDb.none }));
+        mockDb.tx = jest.fn(fn =>
+          fn({
+            none: mockDb.none,
+            result: mockDb.result,
+          })
+        );
         await model.bulkInsert(records);
         expect(mockDb.tx).toHaveBeenCalled();
       });
