@@ -15,12 +15,17 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD func
 
 ## ✨ Features
 
-- Schema-driven table configuration
-- Smart `ColumnSet` management for inserts/updates
-- Base CRUD operations out of the box
-- Cursor-based pagination (keyset pagination)
+- Schema-driven table configuration via plain JavaScript objects
+- Automatic `ColumnSet` generation for efficient pg-promise integration
+- Full CRUD operations, including:
+  - insert, update, delete
+  - updateWhere, deleteWhere with flexible conditions
+  - bulkInsert, bulkUpdate using transactions
+- Cursor-based pagination (keyset pagination) with column whitelisting
 - Multi-schema (PostgreSQL schemas) support
-- Extensible via simple class inheritance
+- Import data directly from spreadsheets (via selected sheet index)
+- Extensible via class inheritance
+- Auto-sanitization of DTOs with support for audit fields
 
 ---
 
@@ -105,12 +110,12 @@ async function example() {
 
 ## 🛠️ Planned Enhancements
 
-- Soft deletes (optional)
-- Auto table creation from schema definition
-- Data validation before inserts/updates
-- Relationship handling (joins)
-- Dynamic query filters
-- Schema migration helper (diff schemas and generate DDL)
+- Soft delete support
+- Automatic table creation and migration from schema definitions
+- Schema differencing utility to generate DDL
+- Relationship handling (foreign key-aware querying and joins)
+- Declarative data validation (e.g. Zod/Joi integration)
+- Type-safe model generation
 
 ---
 
