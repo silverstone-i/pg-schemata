@@ -44,5 +44,5 @@ export async function createTestContext(schema, seed = null) {
     await pgp.end();
   }
 
-  return { db, model: db.model, teardown };
+  return { ctx: {db}, model: db.model, teardown };
 }
