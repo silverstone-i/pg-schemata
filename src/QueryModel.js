@@ -18,14 +18,24 @@ class QueryModel {
     if (!schema || typeof schema !== 'object') {
       throw new Error('Schema must be an object');
     }
-    if (!db || !pgp || !schema.table || !schema.columns || !schema.constraints.primaryKey) {
-      throw new Error('Missing required parameters: db, pgp, schema, table, or primary key');
+    if (
+      !db ||
+      !pgp ||
+      !schema.table ||
+      !schema.columns ||
+      !schema.constraints.primaryKey
+    ) {
+      throw new Error(
+        'Missing required parameters: db, pgp, schema, table, or primary key'
+      );
     }
 
     this.db = db;
     this.pgp = pgp;
     this.logger = logger;
-    this._schema = cloneDeep(schema.hasAuditFields ? addAuditFields(schema) : schema);
+    this._schema = cloneDeep(
+      schema.hasAuditFields ? addAuditFields(schema) : schema
+    );
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
@@ -42,11 +52,21 @@ class QueryModel {
     return this.db.oneOrNone(query, [id]);
   }
 
-  async findWhere(conditions = [], joinType = 'AND', { columnWhitelist = null, filters = {}, orderBy = null, limit = null, offset = null } = {}) {
+  async findWhere(
+    conditions = [],
+    joinType = 'AND',
+    {
+      columnWhitelist = null,
+      filters = {},
+      orderBy = null,
+      limit = null,
+      offset = null,
+    } = {}
+  ) {
     if (!Array.isArray(conditions) || conditions.length === 0) {
       throw new Error('Conditions must be a non-empty array');
     }
-    
+
     const table = `${this.schemaName}.${this.tableName}`;
     const selectCols = columnWhitelist?.length
       ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
@@ -55,7 +75,12 @@ class QueryModel {
     const values = [];
     const whereClauses = [];
 
-    const { clause, values: builtValues } = this.buildWhereClause(conditions, true, [], joinType);
+    const { clause, values: builtValues } = this.buildWhereClause(
+      conditions,
+      true,
+      [],
+      joinType
+    );
     values.push(...builtValues);
     whereClauses.push(`(${clause})`);
 
@@ -63,7 +88,8 @@ class QueryModel {
       whereClauses.push(this.buildCondition([filters], 'AND', values));
     }
 
-    if (whereClauses.length) queryParts.push('WHERE', whereClauses.join(' AND '));
+    if (whereClauses.length)
+      queryParts.push('WHERE', whereClauses.join(' AND '));
     if (orderBy) {
       const orderClause = Array.isArray(orderBy)
         ? orderBy.map(col => this.escapeName(col)).join(', ')
@@ -74,9 +100,10 @@ class QueryModel {
     if (offset) queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
 
     const query = queryParts.join(' ');
-
     this.logQuery(query);
-    return this.db.any(query, values);
+
+    const result = await this.db.any(query, values);
+    return result;
   }
 
   async exists(conditions) {
@@ -138,25 +165,42 @@ class QueryModel {
     return this.escapeName(this._schema.table);
   }
 
-  buildWhereClause(where = {}, requireNonEmpty = true, values = [], joinType = 'AND') {
-    if (Array.isArray(where)) {
+  buildWhereClause(
+    where = {},
+    requireNonEmpty = true,
+    values = [],
+    joinType = 'AND'
+  ) {
+    const isValidArray = Array.isArray(where);
+    const isValidObject = isPlainObject(where);
+
+    if (isValidArray) {
       if (requireNonEmpty && where.length === 0) {
         throw new Error('WHERE clause must be a non-empty array');
       }
-      const clause = this.buildCondition(where, joinType, values);
-      return { clause, values };
+      return { clause: this.buildCondition(where, joinType, values), values };
     }
 
-    if (!isPlainObject(where) || (requireNonEmpty && Object.keys(where).length === 0)) {
-      throw new Error('WHERE clause must be a non-empty object');
+    if (isValidObject) {
+      const isEmptyObject = Object.keys(where).length === 0;
+      if (requireNonEmpty && isEmptyObject) {
+        throw new Error('WHERE clause must be a non-empty object');
+      }
+      return { clause: this.buildCondition([where], joinType, values), values };
     }
-    const keys = Object.keys(where).map(key => this.escapeName(key));
-    const vals = Object.values(where);
-    vals.forEach(val => values.push(val));
-    const clause = keys.map((key, i) => `${key} = $${i + 1}`).join(' AND ');
-    return { clause, values };
+
+    throw new Error('WHERE clause must be an array or plain object');
   }
 
+  /**
+   * Builds a SQL WHERE clause from a list of conditions.
+   *
+   * @param {Array|Object} group - Array of condition objects or a single condition object.
+   * @param {string} joiner - Logical operator ('AND' | 'OR') to join top-level conditions.
+   *                          This does NOT override nested $or/$and operators inside condition objects.
+   * @param {Array} values - Accumulator for parameterized query values.
+   * @returns {string} - A SQL WHERE clause string.
+   */
   buildCondition(group, joiner = 'AND', values = []) {
     const parts = [];
     for (const item of group) {
@@ -202,10 +246,12 @@ class QueryModel {
               if (!Array.isArray(val['$in']) || val['$in'].length === 0) {
                 throw new Error(`$IN clause must be a non-empty array`);
               }
-              const placeholders = val['$in'].map(v => {
-                values.push(v);
-                return `$${values.length}`;
-              }).join(', ');
+              const placeholders = val['$in']
+                .map(v => {
+                  values.push(v);
+                  return `$${values.length}`;
+                })
+                .join(', ');
               parts.push(`${col} IN (${placeholders})`);
             }
           } else {
