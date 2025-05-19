@@ -161,6 +161,15 @@ class QueryModel {
     return this.escapeName(this._schema.dbSchema);
   }
 
+  setSchemaName(name) {
+    if (typeof name !== 'string' || !name.trim()) {
+      throw new Error('Schema name must be a non-empty string');
+    }
+    this._schema.dbSchema = name;
+    this.cs = createColumnSet(this._schema, this.pgp);
+    return this;
+  }
+
   get tableName() {
     return this.escapeName(this._schema.table);
   }
@@ -219,7 +228,14 @@ class QueryModel {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
           if (val && typeof val === 'object') {
-            const supportedKeys = ['$like', '$ilike', '$from', '$to', '$in', '$eq'];
+            const supportedKeys = [
+              '$like',
+              '$ilike',
+              '$from',
+              '$to',
+              '$in',
+              '$eq',
+            ];
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
             if (unsupported.length > 0) {

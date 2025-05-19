@@ -15,6 +15,10 @@
  */
 
 import crypto from 'crypto';
+import LRU from 'lru-cache';
+
+const columnSetCache = new LRU({ max: 20000, ttl: 1000 * 60 * 60 }); // 20k entries, 1 hour TTL
+
 /**
  * Creates a short MD5-based hash of the input string.
  *
@@ -215,16 +219,18 @@ function normalizeSQL(sql) {
  * @returns {Object} ColumnSet configurations for insert and update.
  */
 function createColumnSet(schema, pgp) {
-  // Define standard audit field names to exclude from base ColumnSet
+  const cacheKey = `${schema.table}::${schema.dbSchema}`;
+  if (columnSetCache.has(cacheKey)) {
+    return columnSetCache.get(cacheKey);
+  }
+
   const auditFields = ['created_at', 'created_by', 'updated_at', 'updated_by'];
-  // Remove audit fields from the list of columns
   const columnsetColumns = schema.columns.filter(
     col => !auditFields.includes(col.name)
   );
 
   const hasAuditFields = columnsetColumns.length !== schema.columns.length;
 
-  // Validate that audit fields hav been added correctly
   if (
     schema.hasOwnProperty('hasAuditFields') &&
     hasAuditFields !== schema.hasAuditFields
@@ -235,13 +241,10 @@ function createColumnSet(schema, pgp) {
     throw new Error(message);
   }
 
-  // Transform schema columns into ColumnSet configurations
   const columns = columnsetColumns
     .map(col => {
       const isPrimaryKey = schema.constraints?.primaryKey?.includes(col.name);
       const hasDefault = col.hasOwnProperty('default');
-
-      // Skip serial or UUID primary keys with defaults
       if (
         col.type === 'serial' ||
         (col.type === 'uuid' && isPrimaryKey && hasDefault)
@@ -249,21 +252,17 @@ function createColumnSet(schema, pgp) {
         return null;
       }
 
-      const columnObject = {
+      return {
         name: col.name,
         ...(col.colProps || {}),
         def: col.hasOwnProperty('default')
           ? col.default
           : col.colProps?.def ?? undefined,
       };
-
-      return columnObject;
     })
-    .filter(col => col !== null); // Remove nulls (skipped columns)
+    .filter(col => col !== null);
 
   const cs = {};
-
-  // Instantiate ColumnSet for base table operations
   cs[schema.table] = new pgp.helpers.ColumnSet(columns, {
     table: {
       table: schema.table,
@@ -271,26 +270,18 @@ function createColumnSet(schema, pgp) {
     },
   });
 
-  // Create separate ColumnSet variants for insert and update to include audit fields
-  if (hasAuditFields) {
-    cs.insert = cs[schema.table].extend(['created_by']);
-    cs.update = cs[schema.table].extend([
-      {
-        name: 'updated_at',
-        mod: '^',
-        def: 'CURRENT_TIMESTAMP',
-      },
-      'updated_by',
-    ]);
-  } else {
-    cs.insert = cs[schema.table];
-    cs.update = cs[schema.table];
-  }
+  cs.insert = hasAuditFields
+    ? cs[schema.table].extend(['created_by'])
+    : cs[schema.table];
 
-  // if (schema.table === 'clients') {
-  //   console.log('cs', cs);
-  // }
+  cs.update = hasAuditFields
+    ? cs[schema.table].extend([
+        { name: 'updated_at', mod: '^', def: 'CURRENT_TIMESTAMP' },
+        'updated_by',
+      ])
+    : cs[schema.table];
 
+  columnSetCache.set(cacheKey, cs);
   return cs;
 }
 
