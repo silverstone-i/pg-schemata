@@ -291,4 +291,5 @@ export {
   createIndexesSQL,
   normalizeSQL,
   createColumnSet,
+  columnSetCache,
 };
