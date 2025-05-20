@@ -161,6 +161,17 @@ class QueryModel {
     return this.escapeName(this._schema.dbSchema);
   }
 
+  setSchemaName(name) {
+    if (typeof name !== 'string' || !name.trim()) {
+      throw new Error('Schema name must be a non-empty string');
+    }
+
+    this._schema.dbSchema = name;
+    
+    this.cs = createColumnSet(this._schema, this.pgp);
+    return this;
+  }
+
   get tableName() {
     return this.escapeName(this._schema.table);
   }
@@ -271,6 +282,26 @@ class QueryModel {
     }
     return parts.join(` ${joiner} `);
   }
+  // handleDbError(err) {
+  //   if (err.code === '23505') {
+  //     throw new Error('Unique constraint violation');
+  //   } else if (err.code === '23503') {
+  //     throw new Error('Foreign key constraint violation');
+  //   } else if (err.code === '23514') {
+  //     throw new Error('Check constraint violation');
+  //   } else if (err.code === '22P02') {
+  //     throw new Error('Invalid input syntax for type');
+  //   } else {
+  //     throw err;
+  //   }
+  // }
+  handleDbError(err) {
+    if (this.logger?.error) {
+      this.logger.error('Database error:', err);
+    }
+    throw err;
+  }
+
 }
 
 export default QueryModel;
