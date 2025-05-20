@@ -77,7 +77,7 @@ describe('Schema Utilities', () => {
             {
               columns: ['user_id', 'tenant_id'],
               references: {
-                schema: 'public',
+                dbSchema: 'public',
                 table: 'users',
                 columns: ['id', 'tenant_id'], // <-- Added this
               },
@@ -183,7 +183,7 @@ describe('Schema Utilities', () => {
             {
               columns: ['user_id'],
               references: {
-                schema: 'public',
+                dbSchema: 'public',
                 table: 'users',
                 columns: ['id'],
               },
@@ -263,7 +263,7 @@ describe('Schema Utilities', () => {
 
     it('should handle schema without primary key in createColumnSet', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'products',
         columns: [
           {
@@ -316,7 +316,7 @@ describe('Schema Utilities', () => {
 
     it('should create ColumnSet with insert and update extensions', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'users',
         columns: [
           { name: 'id', type: 'serial' },
@@ -350,7 +350,7 @@ describe('Schema Utilities', () => {
 
     it('should not extend insert and update if audit fields are missing', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'products',
         columns: [
           { name: 'id', type: 'serial' },
@@ -370,7 +370,7 @@ describe('Schema Utilities', () => {
 
     it('should handle columns with default values correctly', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial' },
@@ -430,20 +430,14 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      console.log('schema', schema);
-      
       const idCol = columnSet.orders.columns.find(col => col.name === 'id');
-      console.log('idCol', idCol);
-      console.log('icol.cnd', idCol.cnd);
-      
-      
 
       expect(idCol.cnd).toBe(true);
     });
 
     it('should skip columns with type uuid and is a primary key and has a default value in createColumnSet', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'test_table',
         columns: [
           { name: 'id', type: 'uuid', default: 'uuid_generate_v4()' }, // Should be skipped
@@ -462,7 +456,7 @@ describe('Schema Utilities', () => {
 
     it('should apply colProps for pg-promise column configuration', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'users',
         columns: [
           {
