@@ -16,6 +16,7 @@ import {
   createIndexesSQL,
   normalizeSQL,
   createColumnSet,
+  columnSetCache
 } from '../../src/utils/schemaBuilder';
 
 // Mock pg-promise and its helpers
@@ -310,6 +311,7 @@ describe('Schema Utilities', () => {
     beforeEach(() => {
       mockColumnSet.mockClear();
       mockExtend.mockClear();
+      columnSetCache.clear(); // Clear the cache before each test
     });
 
     it('should create ColumnSet with insert and update extensions', () => {
@@ -388,7 +390,7 @@ describe('Schema Utilities', () => {
 
     it('should skip missing columns correctly', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial' },
@@ -416,7 +418,7 @@ describe('Schema Utilities', () => {
 
     it('should recognize primary key columns that are not serial or uuid with default', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'orders',
         columns: [
           { name: 'id', type: 'int', colProps: { cnd: true } },
@@ -428,8 +430,13 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-
+      console.log('schema', schema);
+      
       const idCol = columnSet.orders.columns.find(col => col.name === 'id');
+      console.log('idCol', idCol);
+      console.log('icol.cnd', idCol.cnd);
+      
+      
 
       expect(idCol.cnd).toBe(true);
     });
