@@ -16,8 +16,9 @@ import {
   createIndexesSQL,
   normalizeSQL,
   createColumnSet,
-  columnSetCache
+  columnSetCache,
 } from '../../src/utils/schemaBuilder';
+import { LRUCache } from 'lru-cache';
 
 // Mock pg-promise and its helpers
 const mockExtend = jest.fn(columns => ({ extendedWith: columns }));
@@ -270,7 +271,7 @@ describe('Schema Utilities', () => {
             name: 'name',
             type: 'varchar(255)',
             nullable: true,
-            colProps: { skip: c => !c.exists }
+            colProps: { skip: c => !c.exists },
           },
           { name: 'price', type: 'numeric' },
         ],
@@ -394,12 +395,12 @@ describe('Schema Utilities', () => {
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial' },
-          { 
-            name: 'status', 
-            type: 'varchar(50)', 
-            default: 'pending', 
+          {
+            name: 'status',
+            type: 'varchar(50)',
+            default: 'pending',
             nullable: true,
-            colProps: { skip: c => !c.exists }
+            colProps: { skip: c => !c.exists },
           },
         ],
         constraints: {
@@ -462,9 +463,9 @@ describe('Schema Utilities', () => {
           {
             name: 'address',
             type: 'jsonb',
-            colProps: { mod: ':json', skip: c => !c.exists }
+            colProps: { mod: ':json', skip: c => !c.exists },
           },
-          { name: 'email', type: 'varchar(255)' }
+          { name: 'email', type: 'varchar(255)' },
         ],
         constraints: {
           primaryKey: ['email'],
@@ -472,11 +473,49 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      const addressCol = columnSet.users.columns.find(col => col.name === 'address');
+      const addressCol = columnSet.users.columns.find(
+        col => col.name === 'address'
+      );
 
       expect(addressCol.mod).toBe(':json');
       expect(typeof addressCol.skip).toBe('function');
       expect(addressCol.skip({ exists: false })).toBe(true);
+    });
+  });
+  // LRU Cache tests for columnSetCache
+  describe('columnSetCache (LRU)', () => {
+    beforeEach(() => {
+      columnSetCache.clear();
+    });
+
+    it('should store and retrieve a cached value', () => {
+      const key = 'test-key';
+      const value = { dummy: true };
+      columnSetCache.set(key, value);
+      expect(columnSetCache.get(key)).toEqual(value);
+    });
+
+    it('should evict the oldest entry when max size is exceeded', () => {
+      const maxEntries = 20000;
+      // Add max + 1 entries
+      for (let i = 0; i <= maxEntries; i++) {
+        columnSetCache.set(`key-${i}`, { value: i });
+      }
+      expect(columnSetCache.get('key-0')).toBeUndefined(); // key-0 should be evicted
+    });
+
+    // Use a dedicated LRUCache instance with a short TTL for this test
+
+    it('should expire items after TTL', done => {
+      const testCache = new LRUCache({ max: 10, ttl: 100 }); // 100ms TTL
+      const key = 'ttl-key';
+      const value = { dummy: 'expired' };
+      testCache.set(key, value);
+
+      setTimeout(() => {
+        expect(testCache.get(key)).toBeUndefined();
+        done();
+      }, 200); // Wait longer than TTL
     });
   });
 });
