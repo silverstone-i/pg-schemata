@@ -33,6 +33,7 @@
     "dotenv": "^16.5.0",
     "exceljs": "^4.4.0",
     "lodash": "^4.17.21",
+    "lru-cache": "^11.1.0",
     "pg-promise": "^11.13.0"
   },
   "devDependencies": {
