@@ -224,9 +224,6 @@ function createColumnSet(schema, pgp) {
     return columnSetCache.get(cacheKey);
   }
 
-  console.log('cacheKey', cacheKey);
-  
-
   // Define standard audit field names to exclude from base ColumnSet
   const auditFields = ['created_at', 'created_by', 'updated_at', 'updated_by'];
   // Remove audit fields from the list of columns
