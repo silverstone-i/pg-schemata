@@ -15,6 +15,9 @@
  */
 
 import crypto from 'crypto';
+import { LRUCache } from 'lru-cache';
+
+const columnSetCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
 /**
  * Creates a short MD5-based hash of the input string.
  *
@@ -215,6 +218,15 @@ function normalizeSQL(sql) {
  * @returns {Object} ColumnSet configurations for insert and update.
  */
 function createColumnSet(schema, pgp) {
+  // Check if the schema is already cached
+  const cacheKey = `${schema.table}::${schema.dbSchema}`;
+  if (columnSetCache.has(cacheKey)) {
+    return columnSetCache.get(cacheKey);
+  }
+
+  console.log('cacheKey', cacheKey);
+  
+
   // Define standard audit field names to exclude from base ColumnSet
   const auditFields = ['created_at', 'created_by', 'updated_at', 'updated_by'];
   // Remove audit fields from the list of columns
@@ -287,6 +299,8 @@ function createColumnSet(schema, pgp) {
     cs.update = cs[schema.table];
   }
 
+  columnSetCache.set(cacheKey, cs);
+
   // if (schema.table === 'clients') {
   //   console.log('cs', cs);
   // }
@@ -300,4 +314,5 @@ export {
   createIndexesSQL,
   normalizeSQL,
   createColumnSet,
+  columnSetCache,
 };
