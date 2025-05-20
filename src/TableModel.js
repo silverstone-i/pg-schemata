@@ -388,17 +388,6 @@ class TableModel extends QueryModel {
       this.handleDbError(err);
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // ⚫ Internal Helpers (Private)
-  // ---------------------------------------------------------------------------
-
-  handleDbError(err) {
-    if (this.logger?.error) {
-      this.logger.error('Database error:', err);
-    }
-    throw err;
-  }
 }
 
 export default TableModel;
