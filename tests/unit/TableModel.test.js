@@ -436,7 +436,12 @@ describe('TableModel (Unit)', () => {
       expect(() => loggerModel.handleDbError(error)).toThrow(
         'Database operation failed'
       );
-      expect(mockErrorLogger).toHaveBeenCalledWith('Database error:', error);
+      expect(mockErrorLogger).toHaveBeenCalledWith(
+        expect.stringMatching(/^\[DB ERROR\]/),
+        expect.objectContaining({
+          message: 'Database operation failed',
+        })
+      );
     });
 
     test('should rethrow without logging if logger is absent', () => {

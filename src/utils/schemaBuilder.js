@@ -39,9 +39,10 @@ function createHash(input) {
  * @param {string} schema.table - Table name.
  * @param {Array} schema.columns - Array of column definition objects.
  * @param {Object} [schema.constraints] - Constraints like primary key, foreign keys, and indexes.
+ * @param {Object|null} logger - Optional logger for debug output.
  * @returns {string} SQL statement to create the table.
  */
-function createTableSQL(schema) {
+function createTableSQL(schema, logger = null) {
   // Extract schema components: schema name, table name, columns, and constraints
   const { dbSchema, table, columns, constraints = {} } = schema;
   const schemaName = dbSchema || 'public';
@@ -135,6 +136,10 @@ function createTableSQL(schema) {
   );
   `.trim();
 
+  if (logger?.debug) {
+    logger.debug(`[${schemaName}.${table}] Generated CREATE TABLE SQL:\n${sql}`);
+  }
+
   // if (table === 'costlines') {
   //   console.log('costlines sql', sql);
   // }
@@ -182,9 +187,10 @@ function addAuditFields(schema) {
  * @param {Object} schema - Schema with defined indexes in the constraints.
  * @param {boolean} [unique] - If true, creates unique indexes.
  * @param {string|null} [where] - Optional WHERE clause for partial indexes.
+ * @param {Object|null} logger - Optional logger for debug output.
  * @returns {string} SQL statements to create indexes.
  */
-function createIndexesSQL(schema, unique = false, where = null) {
+function createIndexesSQL(schema, unique = false, where = null, logger = null) {
   // Ensure that index definitions are present in the schema
   if (!schema.constraints || !schema.constraints.indexes) {
     throw new SchemaDefinitionError('No indexes defined in schema');
@@ -200,6 +206,10 @@ function createIndexesSQL(schema, unique = false, where = null) {
       schema.schemaName
     }"."${schema.table}" (${index.columns.join(', ')});`;
   });
+
+  if (logger?.debug) {
+    logger.debug(`[${schema.schemaName}.${schema.table}] Generated INDEX SQL:\n${indexSQL.join('\n')}`);
+  }
 
   return indexSQL.join('\n');
 }
@@ -219,9 +229,10 @@ function normalizeSQL(sql) {
  *
  * @param {Object} schema - Schema definition including columns and constraints.
  * @param {Object} pgp - pg-promise instance with helpers.
+ * @param {Object|null} logger - Optional logger for debug output.
  * @returns {Object} ColumnSet configurations for insert and update.
  */
-function createColumnSet(schema, pgp) {
+function createColumnSet(schema, pgp, logger = null) {
   // Check if the schema is already cached
   const cacheKey = `${schema.table}::${schema.dbSchema}`;
   if (columnSetCache.has(cacheKey)) {
@@ -298,6 +309,10 @@ function createColumnSet(schema, pgp) {
   } else {
     cs.insert = cs[schema.table];
     cs.update = cs[schema.table];
+  }
+
+  if (logger?.debug) {
+    logger.debug(`[${schema.dbSchema}.${schema.table}] Created ColumnSet with columns: ${columns.map(c => c.name).join(', ')}`);
   }
 
   columnSetCache.set(cacheKey, cs);

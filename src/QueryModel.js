@@ -43,14 +43,14 @@ class QueryModel {
 
   async findAll({ limit = 50, offset = 0 } = {}) {
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} ORDER BY id LIMIT $1 OFFSET $2`;
-    this.logQuery(query);
+    this.logQuery(query, [limit, offset]);
     return this.db.any(query, [limit, offset]);
   }
 
   async findById(id) {
     if (!isValidId(id)) throw new Error('Invalid ID format');
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
-    this.logQuery(query);
+    this.logQuery(query, [id]);
     return this.db.oneOrNone(query, [id]);
   }
 
@@ -102,7 +102,7 @@ class QueryModel {
     if (offset) queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
 
     const query = queryParts.join(' ');
-    this.logQuery(query);
+    this.logQuery(query, values);
 
     const result = await this.db.any(query, values);
     return result;
@@ -114,7 +114,7 @@ class QueryModel {
     }
     const { clause, values } = this.buildWhereClause(conditions);
     const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${clause}) AS "exists"`;
-    this.logQuery(query);
+    this.logQuery(query, values);
     try {
       const result = await this.db.one(query, values);
       return result.exists;
@@ -126,7 +126,7 @@ class QueryModel {
   async count(where) {
     const { clause, values } = this.buildWhereClause(where);
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    this.logQuery(query);
+    this.logQuery(query, values);
     try {
       const result = await this.db.one(query, values);
       return parseInt(result.count, 10);
@@ -155,8 +155,12 @@ class QueryModel {
     return this.pgp.as.name(name);
   }
 
-  logQuery(query) {
-    if (this.logger?.debug) this.logger.debug(`Running query: ${query}`);
+  logQuery(query, values = []) {
+    if (this.logger?.debug) {
+      const msg = `[${this._schema.dbSchema}.${this._schema.table}] SQL: ${query}` +
+        (values.length ? ` | Params: ${JSON.stringify(values)}` : '');
+      this.logger.debug(msg);
+    }
   }
 
   get schema() {
@@ -290,7 +294,12 @@ class QueryModel {
   }
   handleDbError(err) {
     if (this.logger?.error) {
-      this.logger.error('Database error:', err);
+      this.logger.error(`[DB ERROR] (${this._schema.dbSchema}.${this._schema.table})`, {
+        message: err.message,
+        code: err.code,
+        detail: err.detail,
+        stack: err.stack,
+      });
     }
 
     switch (err.code) {

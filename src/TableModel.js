@@ -33,11 +33,13 @@ import { isValidId, isPlainObject } from './utils/validation.js';
  * @param {Object} [logger] - Optional logger with debug and error methods.
  */
 class TableModel extends QueryModel {
+
   async delete(id) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
     }
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
+    this.logQuery(query, [id]);
     try {
       return await this.db.result(query, [id], r => r.rowCount);
     } catch (err) {
@@ -64,7 +66,7 @@ class TableModel extends QueryModel {
       error.cause = err;
       return Promise.reject(error);
     }
-    this.logQuery(query);
+    this.logQuery(query, []);
     try {
       return await this.db.one(query);
     } catch (err) {
@@ -98,7 +100,7 @@ class TableModel extends QueryModel {
       ' ' +
       condition +
       ' RETURNING *';
-    this.logQuery(query);
+    this.logQuery(query, [id]);
     try {
       const result = await this.db.result(query, undefined, r => ({
         rowCount: r.rowCount,
@@ -164,7 +166,7 @@ class TableModel extends QueryModel {
     queryParts.push(`LIMIT $${values.length + 1}`);
     values.push(limit);
     const query = queryParts.join(' ');
-    this.logQuery?.(query);
+    this.logQuery(query, values);
     const rows = await this.db.any(query, values);
     const nextCursor =
       rows.length > 0
@@ -182,7 +184,7 @@ class TableModel extends QueryModel {
   async deleteWhere(where) {
     const { clause, values } = this.buildWhereClause(where);
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    this.logQuery(query);
+    this.logQuery(query, values);
     try {
       return await this.db.result(query, values, r => r.rowCount);
     } catch (err) {
@@ -224,7 +226,7 @@ class TableModel extends QueryModel {
     const { clause, values } = this.buildWhereClause(where);
 
     const query = `${setClause} WHERE ${clause}`;
-    this.logQuery(query);
+    this.logQuery(query, values);
 
     try {
       const result = await this.db.result(query, values, r => r.rowCount);
@@ -252,7 +254,7 @@ class TableModel extends QueryModel {
     });
     const query = this.pgp.helpers.insert(safeRecords, cs);
 
-    this.logQuery(query);
+    this.logQuery(query, []);
     try {
       return await this.db.tx(t => t.result(query, [], r => r.rowCount));
     } catch (err) {
@@ -290,7 +292,7 @@ class TableModel extends QueryModel {
     });
 
     const query = queries.join('; ');
-    this.logQuery(query);
+    this.logQuery(query, []);
     try {
       return await this.db.tx(t => {
         return t.batch(queries.map(q => t.result(q, [], r => r.rowCount)));

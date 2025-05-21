@@ -182,7 +182,12 @@ describe('QueryModel Integration', () => {
     model.logger = mockLogger;
     const error = new Error('Database operation failed');
     expect(() => model.handleDbError(error)).toThrow('Database operation failed');
-    expect(mockLogger.error).toHaveBeenCalledWith('Database error:', error);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringMatching(/^\[DB ERROR\]/),
+      expect.objectContaining({
+        message: 'Database operation failed',
+      })
+    );
   });
 
   test('should throw on empty condition array in findWhere', async () => {
