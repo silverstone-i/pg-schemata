@@ -9,6 +9,10 @@ All notable changes to **pg-schemata** will be documented in this file.
 ## [Unreleased]
 
 ### 🚀 Features
+- Implement `logMessage` utility for consistent logging across QueryModel and TableModel (`9ef603f`)
+- Introduce `DatabaseError` and `SchemaDefinitionError` classes for better error handling (`660d3ac`)
+- Add `setSchemaName` method and improve error handling in `QueryModel` (`e55760d`)
+- Implement LRU caching for `ColumnSet` creation to improve performance in `schemaBuilder` (`9e4020e`)
 - Add support for `importFromSpreadsheet`, `bulkInsert`, and `bulkUpdate` with transactions
 - Introduce `countAll`, `deleteWhere`, `updateWhere` methods to `TableModel` and `QueryModel`
 - Support nested logical operators and `$`-prefixed condition keys in `buildCondition`
@@ -19,11 +23,22 @@ All notable changes to **pg-schemata** will be documented in this file.
 - Spreadsheet-driven testing and import using structured test files
 
 ### 🛠 Refactors
+- Enhance `logQuery` to include parameters and improve error logging format (`5d08f35`)
+- Rename `schema` to `dbSchema` in `schemaBuilder` for consistency (`c7dcd40`)
+- Remove internal error handling method from `TableModel` to streamline code (`dd40395`)
+- Remove debug logging and standardize property names in `schemaBuilder` (`fb99d36`)
 - Renamed `BaseModel` → `TableModel`; removed `ReadOnlyModel` for simplicity
 - Modularized and enhanced code clarity in `QueryModel`, `TableModel`, and tests
 - Unified schema structure and column handling logic
 - Replaced custom `isPlainObject` with lodash implementation
 - Rewrote test harness for tenant-awareness and reusable structure
+
+### 🧪 Tests
+- Add unit tests for `columnSetCache` in `schemaBuilder` (`aae5c68`)
+- Clear columnSet cache and update schema properties in tests (`5b83d7e`)
+
+### 📦 Dependencies
+- Add `lru-cache` dependency to `package.json` (`500273a`)
 
 ### 🐛 Fixes
 - Standardized handling of `$and`, `$or`, and condition operator normalization
@@ -31,10 +46,11 @@ All notable changes to **pg-schemata** will be documented in this file.
 - Improved integration test structure and database teardown logic
 
 ### 📚 Documentation
+- Update README with enhanced features and spreadsheet import support (`ee4a01a`)
 - Added best practices, design overview, and WHERE clause usage examples
 - Improved JSDoc across DB, Model, and Schema utilities
 
-Latest commit: `bbcfa57`
+Latest commit: `9ef603f`
 
 ---
 

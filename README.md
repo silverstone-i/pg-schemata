@@ -26,6 +26,9 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD func
 - Import data directly from spreadsheets (via selected sheet index)
 - Extensible via class inheritance
 - Auto-sanitization of DTOs with support for audit fields
+- Consistent development and production logging via `logMessage` utility
+- Typed error classes (`DatabaseError`, `SchemaDefinitionError`) for structured error handling
+- LRU caching of `ColumnSet` definitions for improved performance
 
 ---
 
@@ -133,6 +136,7 @@ async function example() {
 - Node.js >= 14
 - PostgreSQL >= 12
 - [`pg-promise`](https://github.com/vitaly-t/pg-promise)
+- [`lru-cache`](https://www.npmjs.com/package/lru-cache) (installed automatically)
 
 ---
 
