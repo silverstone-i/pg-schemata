@@ -12,6 +12,8 @@
 import cloneDeep from 'lodash/cloneDeep.js';
 import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
+import DatabaseError from './DatabaseError.js';
+import SchemaDefinitionError from './SchemaDefinitionError.js';
 
 class QueryModel {
   constructor(db, pgp, schema, logger = null) {
@@ -125,8 +127,12 @@ class QueryModel {
     const { clause, values } = this.buildWhereClause(where);
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     this.logQuery(query);
-    const result = await this.db.one(query, values);
-    return parseInt(result.count, 10);
+    try {
+      const result = await this.db.one(query, values);
+      return parseInt(result.count, 10);
+    } catch (err) {
+      this.handleDbError(err);
+    }
   }
 
   async findOneBy(conditions, options = {}) {
@@ -234,7 +240,7 @@ class QueryModel {
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
             if (unsupported.length > 0) {
-              throw new Error(`Unsupported operator: ${unsupported[0]}`);
+              throw new SchemaDefinitionError(`Unsupported operator: ${unsupported[0]}`);
             }
 
             if ('$like' in val) {
@@ -255,7 +261,7 @@ class QueryModel {
             }
             if ('$in' in val) {
               if (!Array.isArray(val['$in']) || val['$in'].length === 0) {
-                throw new Error(`$IN clause must be a non-empty array`);
+                throw new SchemaDefinitionError(`$IN clause must be a non-empty array`);
               }
               const placeholders = val['$in']
                 .map(v => {
@@ -282,24 +288,23 @@ class QueryModel {
     }
     return parts.join(` ${joiner} `);
   }
-  // handleDbError(err) {
-  //   if (err.code === '23505') {
-  //     throw new Error('Unique constraint violation');
-  //   } else if (err.code === '23503') {
-  //     throw new Error('Foreign key constraint violation');
-  //   } else if (err.code === '23514') {
-  //     throw new Error('Check constraint violation');
-  //   } else if (err.code === '22P02') {
-  //     throw new Error('Invalid input syntax for type');
-  //   } else {
-  //     throw err;
-  //   }
-  // }
   handleDbError(err) {
     if (this.logger?.error) {
       this.logger.error('Database error:', err);
     }
-    throw err;
+
+    switch (err.code) {
+      case '23505':
+        throw new DatabaseError('Unique constraint violation', err);
+      case '23503':
+        throw new DatabaseError('Foreign key constraint violation', err);
+      case '23514':
+        throw new DatabaseError('Check constraint violation', err);
+      case '22P02':
+        throw new DatabaseError('Invalid input syntax for type', err);
+      default:
+        throw new DatabaseError('Database operation failed', err);
+    }
   }
 
 }

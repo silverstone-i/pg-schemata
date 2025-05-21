@@ -1,5 +1,6 @@
 import { createTestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
+import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -179,8 +180,8 @@ describe('QueryModel Integration', () => {
   test('should log and rethrow database errors', async () => {
     const mockLogger = { error: jest.fn() };
     model.logger = mockLogger;
-    const error = new Error('Fake DB Error');
-    expect(() => model.handleDbError(error)).toThrow('Fake DB Error');
+    const error = new Error('Database operation failed');
+    expect(() => model.handleDbError(error)).toThrow('Database operation failed');
     expect(mockLogger.error).toHaveBeenCalledWith('Database error:', error);
   });
 

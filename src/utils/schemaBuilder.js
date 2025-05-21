@@ -1,10 +1,4 @@
 'use strict';
-/**
- * @fileoverview
- * Utility functions for generating SQL statements and pg-promise ColumnSets
- * based on a structured schema definition.
- */
-
 /*
  * Copyright © 2024-present, Ian Silverstone
  *
@@ -14,10 +8,20 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
+/**
+ * @fileoverview
+ * Utility functions for generating SQL statements and pg-promise ColumnSets
+ * based on a structured schema definition.
+ */
+
+
+import SchemaDefinitionError from '../SchemaDefinitionError.js';
 import crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
 
 const columnSetCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
+// Cache for storing generated ColumnSets to avoid redundant computations
+// and improve performance
 /**
  * Creates a short MD5-based hash of the input string.
  *
@@ -80,7 +84,7 @@ function createTableSQL(schema) {
   if (constraints.foreignKeys) {
     for (const fk of constraints.foreignKeys) {
       if (typeof fk.references !== 'object') {
-        throw new Error(
+        throw new SchemaDefinitionError(
           `Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`
         );
       }
@@ -183,7 +187,7 @@ function addAuditFields(schema) {
 function createIndexesSQL(schema, unique = false, where = null) {
   // Ensure that index definitions are present in the schema
   if (!schema.constraints || !schema.constraints.indexes) {
-    throw new Error('No indexes defined in schema');
+    throw new SchemaDefinitionError('No indexes defined in schema');
   }
 
   const { indexes } = schema.constraints;
@@ -241,7 +245,7 @@ function createColumnSet(schema, pgp) {
     const message = hasAuditFields
       ? 'Cannot use create_at, created_by, updated_at, updated_by in your schema definition'
       : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
-    throw new Error(message);
+    throw new SchemaDefinitionError(message);
   }
 
   // Transform schema columns into ColumnSet configurations

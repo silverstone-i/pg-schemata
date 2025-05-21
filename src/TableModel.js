@@ -4,6 +4,7 @@ import pgPromise from 'pg-promise';
 const TableName = pgPromise({}).helpers.TableName;
 
 import QueryModel from './QueryModel.js';
+import SchemaDefinitionError from './SchemaDefinitionError.js';
 
 /*
  * Copyright © 2024-present, Ian Silverstone
@@ -46,12 +47,12 @@ class TableModel extends QueryModel {
 
   async insert(dto) {
     if (!isPlainObject(dto)) {
-      return Promise.reject(new Error('DTO must be a non-empty object'));
+      return Promise.reject(new SchemaDefinitionError('DTO must be a non-empty object'));
     }
     const safeDto = this.sanitizeDto(dto);
     if (Object.keys(safeDto).length === 0) {
       return Promise.reject(
-        new Error('DTO must contain at least one valid column')
+        new SchemaDefinitionError('DTO must contain at least one valid column')
       );
     }
     if (!safeDto.created_by) safeDto.created_by = 'system';
@@ -77,14 +78,14 @@ class TableModel extends QueryModel {
 
   async update(id, dto) {
     if (!isValidId(id)) {
-      return Promise.reject(new Error('Invalid ID format'));
+      return Promise.reject(new SchemaDefinitionError('Invalid ID format'));
     }
     if (
       typeof dto !== 'object' ||
       Array.isArray(dto) ||
       Object.keys(dto).length === 0
     ) {
-      return Promise.reject(new Error('DTO must be a non-empty object'));
+      return Promise.reject(new SchemaDefinitionError('DTO must be a non-empty object'));
     }
     const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
     if (!safeDto.updated_by) safeDto.updated_by = 'system';
@@ -202,13 +203,13 @@ class TableModel extends QueryModel {
         : false;
 
     if (!isNonEmpty(where)) {
-      throw new Error(
+      throw new SchemaDefinitionError(
         'WHERE clause must be a non-empty object or non-empty array'
       );
     }
 
     if (!isNonEmpty(updates)) {
-      throw new Error('UPDATE payload must be a non-empty object');
+      throw new SchemaDefinitionError('UPDATE payload must be a non-empty object');
     }
 
     const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
@@ -238,7 +239,7 @@ class TableModel extends QueryModel {
   // ---------------------------------------------------------------------------
   async bulkInsert(records) {
     if (!Array.isArray(records) || records.length === 0) {
-      throw new Error('Records must be a non-empty array');
+      throw new SchemaDefinitionError('Records must be a non-empty array');
     }
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
@@ -262,21 +263,21 @@ class TableModel extends QueryModel {
   async bulkUpdate(records) {
     const pk = this._schema.constraints?.primaryKey;
     if (!pk) {
-      throw new Error('Primary key must be defined in the schema');
+      throw new SchemaDefinitionError('Primary key must be defined in the schema');
     }
     if (!Array.isArray(records) || records.length === 0) {
-      throw new Error('Records must be a non-empty array');
+      throw new SchemaDefinitionError('Records must be a non-empty array');
     }
 
     const first = records[0];
     if (!first.id) {
-      throw new Error('Each record must include an "id" field');
+      throw new SchemaDefinitionError('Each record must include an "id" field');
     }
 
     const queries = records.map(dto => {
       const id = dto.id;
       if (!isValidId(id)) {
-        throw new Error(`Invalid ID in record: ${JSON.stringify(dto)}`);
+        throw new SchemaDefinitionError(`Invalid ID in record: ${JSON.stringify(dto)}`);
       }
       const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
       if (!safeDto.updated_by) safeDto.updated_by = 'system';
@@ -307,7 +308,7 @@ class TableModel extends QueryModel {
    */
   async importFromSpreadsheet(filePath, sheetIndex = 0) {
     if (typeof filePath !== 'string') {
-      throw new Error('File path must be a valid string');
+      throw new SchemaDefinitionError('File path must be a valid string');
     }
 
     const workbook = new ExcelJS.Workbook();
@@ -315,7 +316,7 @@ class TableModel extends QueryModel {
     const worksheet = workbook.worksheets[sheetIndex];
 
     if (!worksheet) {
-      throw new Error(
+      throw new SchemaDefinitionError(
         `Sheet index ${sheetIndex} is out of bounds. Found ${workbook.worksheets.length} sheets.`
       );
     }
@@ -336,7 +337,7 @@ class TableModel extends QueryModel {
     });
 
     if (!Array.isArray(rows) || rows.length === 0) {
-      throw new Error('Spreadsheet is empty or invalid format');
+      throw new SchemaDefinitionError('Spreadsheet is empty or invalid format');
     }
 
     const inserted = await this.bulkInsert(rows);

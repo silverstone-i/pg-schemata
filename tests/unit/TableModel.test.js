@@ -1,4 +1,5 @@
 import TableModel from '../../src/TableModel.js';
+import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 
 // ================================
 // Mocks
@@ -430,20 +431,20 @@ describe('TableModel (Unit)', () => {
         error: mockErrorLogger,
       });
 
-      const error = new Error('Something went wrong');
+      const error = new Error('Database operation failed');
 
       expect(() => loggerModel.handleDbError(error)).toThrow(
-        'Something went wrong'
+        'Database operation failed'
       );
       expect(mockErrorLogger).toHaveBeenCalledWith('Database error:', error);
     });
 
     test('should rethrow without logging if logger is absent', () => {
       const modelWithoutLogger = new TableModel(mockDb, mockPgp, mockSchema); // no logger
-      const error = new Error('Something went wrong');
+      const error = new Error('Database operation failed');
 
       expect(() => modelWithoutLogger.handleDbError(error)).toThrow(
-        'Something went wrong'
+        'Database operation failed'
       );
     });
   });

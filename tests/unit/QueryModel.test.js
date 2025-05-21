@@ -5,6 +5,8 @@ jest.mock('../../src/utils/schemaBuilder', () => ({
     update: {},
   })),
 }));
+
+import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import QueryModel from '../../src/QueryModel.js';
 
 const mockDb = {
