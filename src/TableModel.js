@@ -1,11 +1,5 @@
 'use strict';
 
-import pgPromise from 'pg-promise';
-const TableName = pgPromise({}).helpers.TableName;
-
-import QueryModel from './QueryModel.js';
-import SchemaDefinitionError from './SchemaDefinitionError.js';
-
 /*
  * Copyright © 2024-present, Ian Silverstone
  *
@@ -15,14 +9,22 @@ import SchemaDefinitionError from './SchemaDefinitionError.js';
  * Removal or modification of this copyright notice is prohibited.
  */
 
-/**
- * TableModel provides generic CRUD operations for a PostgreSQL table using pg-promise
- * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
- */
+import pgPromise from 'pg-promise';
+const TableName = pgPromise({}).helpers.TableName;
+
+import QueryModel from './QueryModel.js';
+import SchemaDefinitionError from './SchemaDefinitionError.js';
 
 import { createTableSQL } from './utils/schemaBuilder.js';
 import ExcelJS from 'exceljs';
 import { isValidId, isPlainObject } from './utils/validation.js';
+import { logMessage } from './utils/pg-util.js';
+
+
+/**
+ * TableModel provides generic CRUD operations for a PostgreSQL table using pg-promise
+ * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
+ */
 
 /**
  * Creates an instance of TableModel.
@@ -39,7 +41,14 @@ class TableModel extends QueryModel {
       return Promise.reject(new Error('Invalid ID format'));
     }
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
-    this.logQuery(query, [id]);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values: [id] }
+    });
     try {
       return await this.db.result(query, [id], r => r.rowCount);
     } catch (err) {
@@ -66,7 +75,14 @@ class TableModel extends QueryModel {
       error.cause = err;
       return Promise.reject(error);
     }
-    this.logQuery(query, []);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values: [] }
+    });
     try {
       return await this.db.one(query);
     } catch (err) {
@@ -100,7 +116,14 @@ class TableModel extends QueryModel {
       ' ' +
       condition +
       ' RETURNING *';
-    this.logQuery(query, [id]);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values: [id] }
+    });
     try {
       const result = await this.db.result(query, undefined, r => ({
         rowCount: r.rowCount,
@@ -166,7 +189,14 @@ class TableModel extends QueryModel {
     queryParts.push(`LIMIT $${values.length + 1}`);
     values.push(limit);
     const query = queryParts.join(' ');
-    this.logQuery(query, values);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values }
+    });
     const rows = await this.db.any(query, values);
     const nextCursor =
       rows.length > 0
@@ -184,7 +214,14 @@ class TableModel extends QueryModel {
   async deleteWhere(where) {
     const { clause, values } = this.buildWhereClause(where);
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    this.logQuery(query, values);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values }
+    });
     try {
       return await this.db.result(query, values, r => r.rowCount);
     } catch (err) {
@@ -226,7 +263,14 @@ class TableModel extends QueryModel {
     const { clause, values } = this.buildWhereClause(where);
 
     const query = `${setClause} WHERE ${clause}`;
-    this.logQuery(query, values);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values }
+    });
 
     try {
       const result = await this.db.result(query, values, r => r.rowCount);
@@ -243,6 +287,13 @@ class TableModel extends QueryModel {
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
+    logMessage({
+      logger: this.logger,
+      level: 'info',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: `Inserting ${records.length} records`
+    });
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
       if (!sanitized.created_by) sanitized.created_by = 'system';
@@ -254,7 +305,14 @@ class TableModel extends QueryModel {
     });
     const query = this.pgp.helpers.insert(safeRecords, cs);
 
-    this.logQuery(query, []);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values: [] }
+    });
     try {
       return await this.db.tx(t => t.result(query, [], r => r.rowCount));
     } catch (err) {
@@ -270,6 +328,13 @@ class TableModel extends QueryModel {
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
+    logMessage({
+      logger: this.logger,
+      level: 'info',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: `Updating ${records.length} records`
+    });
 
     const first = records[0];
     if (!first.id) {
@@ -292,7 +357,14 @@ class TableModel extends QueryModel {
     });
 
     const query = queries.join('; ');
-    this.logQuery(query, []);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values: [] }
+    });
     try {
       return await this.db.tx(t => {
         return t.batch(queries.map(q => t.result(q, [], r => r.rowCount)));
@@ -342,6 +414,14 @@ class TableModel extends QueryModel {
       throw new SchemaDefinitionError('Spreadsheet is empty or invalid format');
     }
 
+    logMessage({
+      logger: this.logger,
+      level: 'info',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: `Importing ${rows.length} records from spreadsheet`
+    });
+
     const inserted = await this.bulkInsert(rows);
     return { inserted };
   }
@@ -368,8 +448,22 @@ class TableModel extends QueryModel {
   }
 
   async truncate() {
+    logMessage({
+      logger: this.logger,
+      level: 'info',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Truncating table'
+    });
     const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
-    this.logQuery(query);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query }
+    });
     try {
       return await this.db.none(query);
     } catch (err) {
@@ -383,9 +477,23 @@ class TableModel extends QueryModel {
   }
 
   async createTable() {
+    logMessage({
+      logger: this.logger,
+      level: 'info',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Creating table from schema'
+    });
     try {
       const query = createTableSQL(this._schema);
-      this.logQuery(query);
+      logMessage({
+        logger: this.logger,
+        level: 'debug',
+        schema: this._schema.dbSchema,
+        table: this._schema.table,
+        message: 'Executing SQL',
+        data: { query }
+      });
       return await this.db.none(query);
     } catch (err) {
       this.handleDbError(err);

@@ -1,4 +1,5 @@
 'use strict';
+import { logMessage } from './pg-util.js';
 /*
  * Copyright © 2024-present, Ian Silverstone
  *
@@ -136,9 +137,14 @@ function createTableSQL(schema, logger = null) {
   );
   `.trim();
 
-  if (logger?.debug) {
-    logger.debug(`[${schemaName}.${table}] Generated CREATE TABLE SQL:\n${sql}`);
-  }
+  logMessage({
+    logger,
+    level: 'debug',
+    schema: schemaName,
+    table,
+    message: 'Generated CREATE TABLE SQL',
+    data: { sql }
+  });
 
   // if (table === 'costlines') {
   //   console.log('costlines sql', sql);
@@ -207,9 +213,14 @@ function createIndexesSQL(schema, unique = false, where = null, logger = null) {
     }"."${schema.table}" (${index.columns.join(', ')});`;
   });
 
-  if (logger?.debug) {
-    logger.debug(`[${schema.schemaName}.${schema.table}] Generated INDEX SQL:\n${indexSQL.join('\n')}`);
-  }
+  logMessage({
+    logger,
+    level: 'debug',
+    schema: schema.schemaName,
+    table: schema.table,
+    message: 'Generated INDEX SQL',
+    data: { sql: indexSQL.join('\n') }
+  });
 
   return indexSQL.join('\n');
 }
@@ -311,9 +322,14 @@ function createColumnSet(schema, pgp, logger = null) {
     cs.update = cs[schema.table];
   }
 
-  if (logger?.debug) {
-    logger.debug(`[${schema.dbSchema}.${schema.table}] Created ColumnSet with columns: ${columns.map(c => c.name).join(', ')}`);
-  }
+  logMessage({
+    logger,
+    level: 'debug',
+    schema: schema.dbSchema,
+    table: schema.table,
+    message: 'Created ColumnSet',
+    data: { columns: columns.map(c => c.name) }
+  });
 
   columnSetCache.set(cacheKey, cs);
 

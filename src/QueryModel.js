@@ -14,6 +14,7 @@ import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import DatabaseError from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
+import { logMessage } from './utils/pg-util.js';
 
 class QueryModel {
   constructor(db, pgp, schema, logger = null) {
@@ -43,14 +44,28 @@ class QueryModel {
 
   async findAll({ limit = 50, offset = 0 } = {}) {
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} ORDER BY id LIMIT $1 OFFSET $2`;
-    this.logQuery(query, [limit, offset]);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values: [limit, offset] }
+    });
     return this.db.any(query, [limit, offset]);
   }
 
   async findById(id) {
     if (!isValidId(id)) throw new Error('Invalid ID format');
     const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
-    this.logQuery(query, [id]);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values: [id] }
+    });
     return this.db.oneOrNone(query, [id]);
   }
 
@@ -102,7 +117,14 @@ class QueryModel {
     if (offset) queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
 
     const query = queryParts.join(' ');
-    this.logQuery(query, values);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values }
+    });
 
     const result = await this.db.any(query, values);
     return result;
@@ -114,7 +136,14 @@ class QueryModel {
     }
     const { clause, values } = this.buildWhereClause(conditions);
     const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${clause}) AS "exists"`;
-    this.logQuery(query, values);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values }
+    });
     try {
       const result = await this.db.one(query, values);
       return result.exists;
@@ -126,7 +155,14 @@ class QueryModel {
   async count(where) {
     const { clause, values } = this.buildWhereClause(where);
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    this.logQuery(query, values);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values }
+    });
     try {
       const result = await this.db.one(query, values);
       return parseInt(result.count, 10);
@@ -142,7 +178,14 @@ class QueryModel {
 
   async countAll() {
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
-    this.logQuery(query);
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query }
+    });
     try {
       const result = await this.db.one(query);
       return parseInt(result.count, 10);
@@ -153,14 +196,6 @@ class QueryModel {
 
   escapeName(name) {
     return this.pgp.as.name(name);
-  }
-
-  logQuery(query, values = []) {
-    if (this.logger?.debug) {
-      const msg = `[${this._schema.dbSchema}.${this._schema.table}] SQL: ${query}` +
-        (values.length ? ` | Params: ${JSON.stringify(values)}` : '');
-      this.logger.debug(msg);
-    }
   }
 
   get schema() {
