@@ -64,7 +64,9 @@ class DB {
             for (const repository of Object.keys(repositories)) {
               const RepoClass = repositories[repository];
               if (typeof RepoClass !== 'function') {
-                throw new TypeError(`Repository "${repository}" is not a valid constructor`);
+                throw new TypeError(
+                  `Repository "${repository}" is not a valid constructor`
+                );
               }
               obj[repository] = new RepoClass(obj, DB.pgp);
             }
@@ -74,6 +76,9 @@ class DB {
         DB.pgp = pgPromise(initOptions);
         // Create the database instance using the provided connection
         DB.db = DB.pgp(connection);
+
+        // Attach each model directly to callDb for optional use like callDb.vendors.setSchemaName(...)
+        DB.attachToCallDb();
       } catch (error) {
         throw error;
       }
@@ -81,10 +86,31 @@ class DB {
 
     return DB;
   }
+
+  static attachToCallDb() {
+    if (!DB.db) return;
+    for (const key of Object.keys(DB.db)) {
+      if (typeof DB.db[key]?.setSchemaName === 'function') {
+        callDb[key] = DB.db[key];
+      }
+    }
+  }
 }
 
-export const db = DB.db;
+function callDb(modelOrName, schemaName) {
+  const model =
+    typeof modelOrName === 'string' ? DB.db[modelOrName] : modelOrName;
+
+  if (!model || typeof model.setSchemaName !== 'function') {
+    throw new Error('callDb: provided model is not schema-aware');
+  }
+
+  return model.setSchemaName(schemaName);
+}
+
 export const pgp = DB.pgp;
+export const db = DB.db;
+export { DB, callDb };
 export default DB;
 
 // Export the singleton instances for use throughout the application

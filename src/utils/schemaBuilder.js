@@ -1,5 +1,4 @@
 'use strict';
-import { logMessage } from './pg-util.js';
 /*
  * Copyright © 2024-present, Ian Silverstone
  *
@@ -19,6 +18,7 @@ import { logMessage } from './pg-util.js';
 import SchemaDefinitionError from '../SchemaDefinitionError.js';
 import crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
+import { logMessage } from './pg-util.js';
 
 const columnSetCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
 // Cache for storing generated ColumnSets to avoid redundant computations

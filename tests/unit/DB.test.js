@@ -1,5 +1,5 @@
 // DB.test.js
-import DB from '../../src/DB'; // Adjust path
+import { DB, callDb } from '../../src/DB'; // Adjust path
 import pgPromise from 'pg-promise';
 
 jest.mock('pg-promise', () => {
@@ -95,5 +95,49 @@ describe('DB', () => {
     expect(() => {
       DB.init(connection, null);
     }).toThrow(Error);
+  });
+});
+
+
+class FakeSchemaRepo {
+  constructor(db, pgp) {
+    this.db = db;
+    this.pgp = pgp;
+  }
+  setSchemaName(name) {
+    this.schema = name;
+    return this;
+  }
+}
+
+describe('callDb attachment logic', () => {
+  beforeEach(() => {
+    DB.db = undefined;
+    DB.pgp = undefined;
+    pgPromise.mockClear();
+  });
+
+  test('should attach schema-aware repos to callDb', () => {
+    const connection = {};
+    const repositories = { foo: FakeSchemaRepo, bar: FakeRepo }; // bar has no setSchemaName
+
+    DB.init(connection, repositories);
+
+    expect(callDb.foo).toBeDefined();
+    expect(typeof callDb.foo.setSchemaName).toBe('function');
+    expect(callDb.foo).toBe(DB.db.foo);
+
+    expect(callDb.bar).toBeUndefined(); // bar does not have setSchemaName
+  });
+
+  test('callDb(<model>, <schema>) should return model instance with correct schema', () => {
+    const connection = {};
+    const repositories = { foo: FakeSchemaRepo };
+
+    DB.init(connection, repositories);
+
+    const instance = callDb(DB.db.foo, 'test_schema');
+    expect(instance).toBeInstanceOf(FakeSchemaRepo);
+    expect(instance.schema).toBe('test_schema');
   });
 });
