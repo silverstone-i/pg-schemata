@@ -9,21 +9,8 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-import { DB, callDb, db, pgp } from './DB.js';
-import TableModel from './TableModel.js';
-import QueryModel from './QueryModel.js';
-import * as schemaBuilder from './utils/schemaBuilder.js';
-import * as validation from './utils/validation.js';
-
-export { DB, TableModel, QueryModel, schemaBuilder, validation, callDb, db, pgp };
-
-export default {
-  DB,
-  TableModel,
-  QueryModel,
-  schemaBuilder,
-  validation,
-  callDb,
-  db,
-  pgp,
-};
+export * from './DB.js';
+export * from './TableModel.js';
+export * from './QueryModel.js';
+export * as schemaBuilder from './utils/schemaBuilder.js';
+export * as validation from './utils/validation.js';
