@@ -110,24 +110,11 @@ class FakeSchemaRepo {
   }
 }
 
-describe('callDb attachment logic', () => {
+describe('callDb logic', () => {
   beforeEach(() => {
     DB.db = undefined;
     DB.pgp = undefined;
     pgPromise.mockClear();
-  });
-
-  test('should attach schema-aware repos to callDb', () => {
-    const connection = {};
-    const repositories = { foo: FakeSchemaRepo, bar: FakeRepo }; // bar has no setSchemaName
-
-    DB.init(connection, repositories);
-
-    expect(callDb.foo).toBeDefined();
-    expect(typeof callDb.foo.setSchemaName).toBe('function');
-    expect(callDb.foo).toBe(DB.db.foo);
-
-    expect(callDb.bar).toBeUndefined(); // bar does not have setSchemaName
   });
 
   test('callDb(<model>, <schema>) should return model instance with correct schema', () => {

@@ -77,23 +77,12 @@ class DB {
         // Create the database instance using the provided connection
         DB.db = DB.pgp(connection);
 
-        // Attach each model directly to callDb for optional use like callDb.vendors.setSchemaName(...)
-        DB.attachToCallDb();
       } catch (error) {
         throw error;
       }
     }
 
     return DB;
-  }
-
-  static attachToCallDb() {
-    if (!DB.db) return;
-    for (const key of Object.keys(DB.db)) {
-      if (typeof DB.db[key]?.setSchemaName === 'function') {
-        callDb[key] = DB.db[key];
-      }
-    }
   }
 }
 
@@ -108,9 +97,12 @@ function callDb(modelOrName, schemaName) {
   return model.setSchemaName(schemaName);
 }
 
+// Export initialized pgp and db for advanced usage
 export const pgp = DB.pgp;
 export const db = DB.db;
-export { DB, callDb };
-export default DB;
 
-// Export the singleton instances for use throughout the application
+// Named exports for structured access
+export { DB, callDb };
+
+// Default export for convenience
+export default DB;
