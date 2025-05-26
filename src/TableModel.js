@@ -19,6 +19,7 @@ import { createTableSQL } from './utils/schemaBuilder.js';
 import ExcelJS from 'exceljs';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import { logMessage } from './utils/pg-util.js';
+import { join } from 'lodash';
 
 
 /**
@@ -372,6 +373,39 @@ class TableModel extends QueryModel {
     } catch (err) {
       this.handleDbError(err);
     }
+  }
+
+  /**
+   * Exports table data to an Excel spreadsheet.
+   * @param {string} filePath - Path to the .xlsx file to write.
+   * @param {Object} [where={}] - Optional filter for records.
+   * @returns {Promise<{exported: number, filePath: string}>}
+   */
+  async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
+    const { rows } = await this.findWhere(where, joinType, options);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(this.tableName);
+
+    if (!rows.length) {
+      worksheet.addRow(['No data found']);
+    } else {
+      worksheet.columns = Object.keys(rows[0]).map(key => ({ header: key, key }));
+      rows.forEach(row => {
+        worksheet.addRow(row);
+      });
+    }
+
+    await workbook.xlsx.writeFile(filePath);
+
+    logMessage({
+      logger: this.logger,
+      level: 'info',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: `Exported ${rows.length} records to ${filePath}`
+    });
+
+    return { exported: rows.length, filePath };
   }
 
   /**
