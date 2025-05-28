@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createTestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
 import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
@@ -20,17 +21,17 @@ describe('QueryModel Integration', () => {
     await teardown();
   });
 
-  test('should find a record by id', async () => {
+  it('should find a record by id', async () => {
     const found = await model.findById(inserted.id);
     expect(found).toMatchObject(inserted);
   });
 
-  test('should return all records with limit and offset', async () => {
+  it('should return all records with limit and offset', async () => {
     const result = await model.findAll({ limit: 10, offset: 0 });
     expect(Array.isArray(result)).toBe(true);
   });
 
-  test('should support findWhere with conditions', async () => {
+  it('should support findWhere with conditions', async () => {
     await model.insert({
       email: 'findwhere-1@example.com',
       created_by: 'System',
@@ -52,28 +53,28 @@ describe('QueryModel Integration', () => {
     expect(result.length).toBe(2);
   });
 
-  test('should check existence of record', async () => {
+  it('should check existence of record', async () => {
     const exists = await model.exists({ email: 'test@example.com' });
     expect(exists).toBe(true);
   });
 
-  test('should return false for non-existing record in exists()', async () => {
+  it('should return false for non-existing record in exists()', async () => {
     const exists = await model.exists({ email: 'nonexistent@test.com' });
     expect(exists).toBe(false);
   });
 
-  test('should return correct count for filtered records', async () => {
+  it('should return correct count for filtered records', async () => {
     const count = await model.count({ email: 'test@example.com' });
     expect(typeof count).toBe('number');
     expect(count).toBeGreaterThan(0);
   });
 
-  test('should return 0 for unmatched filter in count()', async () => {
+  it('should return 0 for unmatched filter in count()', async () => {
     const count = await model.count({ email: 'doesnotexist@example.com' });
     expect(count).toBe(0);
   });
 
-  test('should return correct count using $ilike operator in count()', async () => {
+  it('should return correct count using $ilike operator in count()', async () => {
     await model.insert({
       email: 'countilike1@example.com',
       created_by: 'System',
@@ -89,7 +90,7 @@ describe('QueryModel Integration', () => {
     expect(count).toBeGreaterThanOrEqual(1);
   });
 
-  test('should return correct count using nested $or condition in count()', async () => {
+  it('should return correct count using nested $or condition in count()', async () => {
     await model.insert({ email: 'orcount1@example.com', created_by: 'X', tenant_id: TENANT_ID });
     await model.insert({ email: 'orcount2@example.com', created_by: 'Y', tenant_id: TENANT_ID });
 
@@ -100,12 +101,12 @@ describe('QueryModel Integration', () => {
     expect(count).toBeGreaterThanOrEqual(2);
   });
 
-  test('should reload a record by id', async () => {
+  it('should reload a record by id', async () => {
     const reloaded = await model.reload(inserted.id);
     expect(reloaded.email).toBe('test@example.com');
   });
 
-  test('should support findAfterCursor with descending and columnWhitelist options', async () => {
+  it('should support findAfterCursor with descending and columnWhitelist options', async () => {
     const a = await model.insert({
       email: 'z@example.com',
       created_by: 'System',
@@ -133,11 +134,11 @@ describe('QueryModel Integration', () => {
     expect(Object.keys(rows.rows[0])).toEqual(['email']);
   });
 
-  test('should throw error for invalid findAfterCursor input', async () => {
+  it('should throw error for invalid findAfterCursor input', async () => {
     await expect(model.findAfterCursor('not-an-id')).rejects.toThrow();
   });
 
-  test('should support findWhere with filters using AND and ILIKE', async () => {
+  it('should support findWhere with filters using AND and ILIKE', async () => {
     await model.insert({
       email: 'findbyuser1@example.com',
       created_by: 'Admin',
@@ -161,7 +162,7 @@ describe('QueryModel Integration', () => {
     });
   });
 
-  test('should support findOneBy returning a single row', async () => {
+  it('should support findOneBy returning a single row', async () => {
     await model.insert({
       email: 'findoneby@example.com',
       created_by: 'UnitTest',
@@ -172,13 +173,13 @@ describe('QueryModel Integration', () => {
     expect(found.email).toBe('findoneby@example.com');
   });
 
-  test('should return null in findOneBy if no match is found', async () => {
+  it('should return null in findOneBy if no match is found', async () => {
     const found = await model.findOneBy([{ email: 'missinguser@example.com' }]);
     expect(found).toBeNull();
   });
 
-  test('should log and rethrow database errors', async () => {
-    const mockLogger = { error: jest.fn() };
+  it('should log and rethrow database errors', async () => {
+    const mockLogger = { error: vi.fn() };
     model.logger = mockLogger;
     const error = new Error('Database operation failed');
     expect(() => model.handleDbError(error)).toThrow('Database operation failed');
@@ -190,19 +191,19 @@ describe('QueryModel Integration', () => {
     );
   });
 
-  test('should throw on empty condition array in findWhere', async () => {
+  it('should throw on empty condition array in findWhere', async () => {
     await expect(model.findWhere([])).rejects.toThrow(
       'Conditions must be a non-empty array'
     );
   });
 
-  test('should throw on unsupported operator in findWhere', async () => {
+  it('should throw on unsupported operator in findWhere', async () => {
     await expect(
       model.findWhere([{ email: { likee: 'bad' } }])
     ).rejects.toThrow('Unsupported operator: likee');
   });
 
-  test('should support nested OR and AND conditions in findWhere', async () => {
+  it('should support nested OR and AND conditions in findWhere', async () => {
     await model.insert({ email: 'nested1@example.com', created_by: 'Admin', tenant_id: TENANT_ID });
     await model.insert({ email: 'nested2@example.com', created_by: 'System', tenant_id: TENANT_ID });
 
@@ -213,7 +214,7 @@ describe('QueryModel Integration', () => {
     expect(result.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('should support exists with multiple conditions', async () => {
+  it('should support exists with multiple conditions', async () => {
     const exists = await model.exists({
       email: 'test@example.com',
       created_by: 'Jill Lazarus',
@@ -221,14 +222,14 @@ describe('QueryModel Integration', () => {
     expect(exists).toBe(true);
   });
 
-  test('should return single record in findOneBy with multiple matches', async () => {
+  it('should return single record in findOneBy with multiple matches', async () => {
     await model.insert({ email: 'dupe@example.com', created_by: 'X', tenant_id: TENANT_ID });
     await model.insert({ email: 'dupe@example.com', created_by: 'Y', tenant_id: TENANT_ID });
     const one = await model.findOneBy([{ email: 'dupe@example.com' }]);
     expect(one).toBeDefined();
     expect(one.email).toBe('dupe@example.com');
   });
-  test('should return single result for duplicate OR conditions', async () => {
+  it('should return single result for duplicate OR conditions', async () => {
     await model.insert({
       email: 'redundant@example.com',
       created_by: 'System',
@@ -243,7 +244,7 @@ describe('QueryModel Integration', () => {
     expect(result[0].email).toBe('redundant@example.com');
   });
 
-  test('should return no results for conflicting AND conditions', async () => {
+  it('should return no results for conflicting AND conditions', async () => {
     await model.insert({
       email: 'conflict@example.com',
       created_by: 'TestUser',
@@ -257,7 +258,7 @@ describe('QueryModel Integration', () => {
     expect(result.length).toBe(0);
   });
 
-  test('should handle empty OR group gracefully', async () => {
+  it('should handle empty OR group gracefully', async () => {
     await model.insert({ email: 'emptyor@example.com', created_by: 'Admin', tenant_id: TENANT_ID });
 
     // Intentionally include an empty OR group
@@ -269,7 +270,7 @@ describe('QueryModel Integration', () => {
     expect(result[0].email).toBe('emptyor@example.com');
   });
 
-  test('should support nested AND inside OR conditions', async () => {
+  it('should support nested AND inside OR conditions', async () => {
     await model.insert({ email: 'x@example.com', created_by: 'A', tenant_id: TENANT_ID });
     await model.insert({ email: 'y@example.com', created_by: 'B', tenant_id: TENANT_ID });
 
@@ -284,7 +285,7 @@ describe('QueryModel Integration', () => {
     expect(result.length).toBe(2);
   });
 
-  test('should support null values in where clause', async () => {
+  it('should support null values in where clause', async () => {
     await model.insert({
       email: 'nulltest@example.com',
       created_by: 'Test',
@@ -299,7 +300,7 @@ describe('QueryModel Integration', () => {
     expect(result[0].email).toBe('nulltest@example.com');
   });
 
-  test('should distinguish case-sensitive values unless ILIKE is used', async () => {
+  it('should distinguish case-sensitive values unless ILIKE is used', async () => {
     await model.insert({
       email: 'CaseSensitive@Example.com',
       created_by: 'CaseTest',
@@ -318,7 +319,7 @@ describe('QueryModel Integration', () => {
     expect(resultIlike[0].email).toBe('CaseSensitive@Example.com');
   });
 
-  test('should support multiple levels of nested OR/AND', async () => {
+  it('should support multiple levels of nested OR/AND', async () => {
     await model.insert({ email: 'nesteddeep1@example.com', created_by: 'A', tenant_id: TENANT_ID });
     await model.insert({ email: 'nesteddeep2@example.com', created_by: 'B', tenant_id: TENANT_ID });
 
@@ -343,7 +344,7 @@ describe('QueryModel Integration', () => {
     expect(result.length).toBe(2);
   });
 
-  test('should support range with from and to syntax', async () => {
+  it('should support range with from and to syntax', async () => {
     const early = await model.insert({
       email: 'range1@example.com',
       created_by: 'System',
@@ -370,7 +371,7 @@ describe('QueryModel Integration', () => {
     expect(emails).toContain('range2@example.com');
   });
 
-  test('should support IN clause via array of values', async () => {
+  it('should support IN clause via array of values', async () => {
     await model.insert({ email: 'in1@example.com', created_by: 'User', tenant_id: TENANT_ID });
     await model.insert({ email: 'in2@example.com', created_by: 'User', tenant_id: TENANT_ID });
 
@@ -383,7 +384,7 @@ describe('QueryModel Integration', () => {
     expect(emails).toContain('in2@example.com');
   });
 
-  test('should support boolean conditions if present in schema', async () => {
+  it('should support boolean conditions if present in schema', async () => {
     // This will only pass if a boolean field like `is_active` is present in test schema
     const activeUser = await model.insert({
       email: 'bool1@example.com',
@@ -403,7 +404,7 @@ describe('QueryModel Integration', () => {
     expect(result.find(r => r.email === 'bool2@example.com')).toBeUndefined();
   });
 
-  test('should find multiple records by id using $in syntax', async () => {
+  it('should find multiple records by id using $in syntax', async () => {
     const user1 = await model.insert({
       email: 'multiin1@example.com',
       created_by: 'MultiTest',

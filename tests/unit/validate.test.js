@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { isValidId, validateUUID, isPlainObject } from '../../src/utils/validation'; 
 
 describe('isValidId', () => {

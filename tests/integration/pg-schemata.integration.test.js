@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTableSQL } from '../../src/utils/schemaBuilder.js';
 import TableModel from '../../src/TableModel.js';
 import DB from '../../src/DB.js';
@@ -25,16 +26,6 @@ class Users extends TableModel {
 const repositories = { users: Users };
 
 const { db, pgp } = DB.init(process.env.DATABASE_URL, repositories);
-
-// Test connection
-// db.connect()
-//   .then(obj => {
-//     console.log('Connected to Postgres database!');
-//     obj.done(); // success, release connection;
-//   })
-//   .catch(err => {
-//     console.error(err);
-//   });
 
 describe('pg-schemata integration', () => {
   beforeAll(async () => {

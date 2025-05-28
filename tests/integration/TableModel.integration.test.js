@@ -2,6 +2,7 @@
 // tests/integration/TableModel.integration.test.js
 // ===============================
 
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
 import path from 'path';
@@ -11,7 +12,7 @@ import { dirname } from 'path';
 import _ from 'lodash';
 
 const __filename = fileURLToPath(import.meta.url);
-// const __dirname = dirname(__filename);
+const __dirname = dirname(__filename);
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -26,7 +27,7 @@ describe('TableModel Integration', () => {
     await teardown();
   });
 
-  test('insert and retrieve user', async () => {
+  it('insert and retrieve user', async () => {
     inserted = await model.insert({
       email: 'test@example.com',
       created_by: 'Jill Lazarus',
@@ -36,7 +37,7 @@ describe('TableModel Integration', () => {
     expect(found.email).toBe('test@example.com');
   });
 
-  test('manual update for user email', async () => {
+  it('manual update for user email', async () => {
     const user = await model.insert({
       email: 'manual@test.com',
       created_by: 'Manual Tester',
@@ -56,7 +57,7 @@ describe('TableModel Integration', () => {
     expect(found.updated_by).toBe(updatedBy);
   });
 
-  test('delete user', async () => {
+  it('delete user', async () => {
     const user = await model.insert({
       email: 'delete@example.com',
       created_by: 'Jane Doe',
@@ -67,7 +68,7 @@ describe('TableModel Integration', () => {
     expect(shouldBeNull).toBeNull();
   });
 
-  test('updateWhere should update multiple users', async () => {
+  it('updateWhere should update multiple users', async () => {
     await model.insert({
       email: 'a@test.com',
       created_by: 'updateWhere',
@@ -86,7 +87,7 @@ describe('TableModel Integration', () => {
     expect(count).toBeGreaterThanOrEqual(2);
   });
 
-  test('updateWhere should apply $ilike operator', async () => {
+  it('updateWhere should apply $ilike operator', async () => {
     await model.insert({
       email: 'ilike1@example.com',
       created_by: 'test',
@@ -117,7 +118,7 @@ describe('TableModel Integration', () => {
     expect(updated.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('updateWhere should apply nested $or condition', async () => {
+  it('updateWhere should apply nested $or condition', async () => {
     await model.insert({
       email: 'or1@example.com',
       created_by: 'X',
@@ -139,7 +140,7 @@ describe('TableModel Integration', () => {
     expect(updated.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('updateWhere should apply OR join type with array of conditions', async () => {
+  it('updateWhere should apply OR join type with array of conditions', async () => {
     await model.insert({
       email: 'join1@example.com',
       created_by: 'Z',
@@ -162,19 +163,19 @@ describe('TableModel Integration', () => {
     expect(updated.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('updateWhere should throw if where clause is empty', async () => {
+  it('updateWhere should throw if where clause is empty', async () => {
     await expect(
       model.updateWhere({}, { updated_by: 'nobody' })
     ).rejects.toThrow('WHERE clause must be a non-empty object');
   });
 
-  test('updateWhere should throw if update payload is empty', async () => {
+  it('updateWhere should throw if update payload is empty', async () => {
     await expect(
       model.updateWhere({ created_by: 'anyone' }, {})
     ).rejects.toThrow('UPDATE payload must be a non-empty object');
   });
 
-  test('updateWhere should apply deeply nested OR/AND combinations', async () => {
+  it('updateWhere should apply deeply nested OR/AND combinations', async () => {
     await model.insert({
       email: 'nested1@example.com',
       created_by: 'admin',
@@ -234,7 +235,7 @@ describe('TableModel Integration', () => {
     expect(updated.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('deleteWhere should remove multiple users', async () => {
+  it('deleteWhere should remove multiple users', async () => {
     await model.insert({
       email: 'c@test.com',
       created_by: 'deleteWhere',
@@ -250,7 +251,7 @@ describe('TableModel Integration', () => {
     expect(count).toBe(2);
   });
 
-  test('deleteWhere should apply (field1 OR field2) AND field3 condition', async () => {
+  it('deleteWhere should apply (field1 OR field2) AND field3 condition', async () => {
     await model.insert({
       email: 'x@test.com',
       created_by: 'multi-delete',
@@ -281,7 +282,7 @@ describe('TableModel Integration', () => {
     expect(remaining.length).toBe(1);
   });
 
-  test('bulkInsert should insert multiple users correctly', async () => {
+  it('bulkInsert should insert multiple users correctly', async () => {
     const newUsers = [
       {
         email: 'bulk1@test.com',
@@ -314,7 +315,7 @@ describe('TableModel Integration', () => {
     ]);
   });
 
-  test('bulkUpdate should modify multiple users in one call', async () => {
+  it('bulkUpdate should modify multiple users in one call', async () => {
     const users = await Promise.all([
       model.insert({
         email: 'bu1@test.com',
@@ -341,7 +342,7 @@ describe('TableModel Integration', () => {
     expect(results.every(r => r.updated_by === 'updated-bulk')).toBe(true);
   });
 
-  test('bulkUpdate should apply updates based on id with mixed fields', async () => {
+  it('bulkUpdate should apply updates based on id with mixed fields', async () => {
     const users = await Promise.all([
       model.insert({
         email: 'bulkA@test.com',
@@ -372,7 +373,7 @@ describe('TableModel Integration', () => {
     expect(updated.map(u => u.notes).sort()).toEqual(['Note 1', 'Note 2']);
   });
 
-  test('importFromSpreadsheet should import records from an xlsx file', async () => {
+  it('importFromSpreadsheet should import records from an xlsx file', async () => {
     console.log('Importing from spreadsheet...', __dirname);
 
     const filePath = path.join(
@@ -393,7 +394,7 @@ describe('TableModel Integration', () => {
     expect(imported.length).toBe(result.inserted);
   });
 
-  test('importFromSpreadsheet should import records from sheet index 1', async () => {
+  it('importFromSpreadsheet should import records from sheet index 1', async () => {
     console.log('Importing from spreadsheet (sheet 1)...', __dirname);
 
     const filePath = path.join(
@@ -413,7 +414,7 @@ describe('TableModel Integration', () => {
     const imported = await model.findWhere([{ created_by: 'xlsx-importer' }]);
     expect(imported.length).toBeGreaterThanOrEqual(result.inserted);
   });
-  test('truncate should remove all records from the table', async () => {
+  it('truncate should remove all records from the table', async () => {
     // Insert some records
     await model.insert({
       email: 'truncate1@test.com',

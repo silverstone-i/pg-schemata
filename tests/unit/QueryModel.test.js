@@ -1,7 +1,9 @@
-jest.mock('../../src/utils/schemaBuilder', () => ({
-  addAuditFields: jest.fn(schema => schema),
-  createColumnSet: jest.fn(() => ({
-    insert: jest.fn(),
+import { describe, it, test, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../../src/utils/schemaBuilder', () => ({
+  addAuditFields: vi.fn(schema => schema),
+  createColumnSet: vi.fn(() => ({
+    insert: vi.fn(),
     update: {},
   })),
 }));
@@ -10,15 +12,15 @@ import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import QueryModel from '../../src/QueryModel.js';
 
 const mockDb = {
-  one: jest.fn(),
-  any: jest.fn(),
-  oneOrNone: jest.fn(),
+  one: vi.fn(),
+  any: vi.fn(),
+  oneOrNone: vi.fn(),
 };
 
 const mockPgp = {
   as: {
-    name: jest.fn(name => `"${name}"`),
-    format: jest.fn((query, values) => query.replace('$1', values[0])),
+    name: vi.fn(name => `"${name}"`),
+    format: vi.fn((query, values) => query.replace('$1', values[0])),
   },
 };
 
@@ -33,9 +35,9 @@ describe('QueryModel', () => {
   let model;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     model = new QueryModel(mockDb, mockPgp, mockSchema);
-    model.logQuery = jest.fn();
+    model.logQuery = vi.fn();
   });
 
   describe('Constructor Validation', () => {

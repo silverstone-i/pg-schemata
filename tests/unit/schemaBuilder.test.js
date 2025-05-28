@@ -21,9 +21,11 @@ import {
 import { LRUCache } from 'lru-cache';
 
 // Mock pg-promise and its helpers
-const mockExtend = jest.fn(columns => ({ extendedWith: columns }));
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const mockColumnSet = jest.fn((columns, options) => ({
+const mockExtend = vi.fn(columns => ({ extendedWith: columns }));
+
+const mockColumnSet = vi.fn((columns, options) => ({
   columns,
   options,
   extend: mockExtend,
