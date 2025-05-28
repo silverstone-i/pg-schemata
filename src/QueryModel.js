@@ -50,7 +50,7 @@ class QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values: [limit, offset] }
+      data: { query, values: [limit, offset] },
     });
     return this.db.any(query, [limit, offset]);
   }
@@ -64,7 +64,7 @@ class QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values: [id] }
+      data: { query, values: [id] },
     });
     return this.db.oneOrNone(query, [id]);
   }
@@ -123,7 +123,7 @@ class QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values }
+      data: { query, values },
     });
 
     const result = await this.db.any(query, values);
@@ -142,7 +142,7 @@ class QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values }
+      data: { query, values },
     });
     try {
       const result = await this.db.one(query, values);
@@ -161,7 +161,7 @@ class QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values }
+      data: { query, values },
     });
     try {
       const result = await this.db.one(query, values);
@@ -184,7 +184,7 @@ class QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query }
+      data: { query },
     });
     try {
       const result = await this.db.one(query);
@@ -212,7 +212,7 @@ class QueryModel {
     }
 
     this._schema.dbSchema = name;
-    
+
     this.cs = createColumnSet(this._schema, this.pgp);
     return this;
   }
@@ -275,11 +275,20 @@ class QueryModel {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
           if (val && typeof val === 'object') {
-            const supportedKeys = ['$like', '$ilike', '$from', '$to', '$in', '$eq'];
+            const supportedKeys = [
+              '$like',
+              '$ilike',
+              '$from',
+              '$to',
+              '$in',
+              '$eq',
+            ];
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
             if (unsupported.length > 0) {
-              throw new SchemaDefinitionError(`Unsupported operator: ${unsupported[0]}`);
+              throw new SchemaDefinitionError(
+                `Unsupported operator: ${unsupported[0]}`
+              );
             }
 
             if ('$like' in val) {
@@ -300,7 +309,9 @@ class QueryModel {
             }
             if ('$in' in val) {
               if (!Array.isArray(val['$in']) || val['$in'].length === 0) {
-                throw new SchemaDefinitionError(`$IN clause must be a non-empty array`);
+                throw new SchemaDefinitionError(
+                  `$IN clause must be a non-empty array`
+                );
               }
               const placeholders = val['$in']
                 .map(v => {
@@ -329,13 +340,18 @@ class QueryModel {
   }
   handleDbError(err) {
     if (this.logger?.error) {
-      this.logger.error(`[DB ERROR] (${this._schema.dbSchema}.${this._schema.table})`, {
-        message: err.message,
-        code: err.code,
-        detail: err.detail,
-        stack: err.stack,
-      });
+      this.logger.error(
+        `[DB ERROR] (${this._schema.dbSchema}.${this._schema.table})`,
+        {
+          message: err.message,
+          code: err.code,
+          detail: err.detail,
+          stack: err.stack,
+        }
+      );
     }
+
+    console.log('[DB ERROR]', err);
 
     switch (err.code) {
       case '23505':
@@ -350,7 +366,6 @@ class QueryModel {
         throw new DatabaseError('Database operation failed', err);
     }
   }
-
 }
 
 export default QueryModel;
