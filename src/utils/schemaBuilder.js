@@ -52,7 +52,23 @@ function createTableSQL(schema, logger = null) {
   const columnDefs = columns.map(col => {
     let def = `"${col.name}" ${col.type}`;
     if (col.notNull) def += ' NOT NULL';
-    if (col.default !== undefined) def += ` DEFAULT ${col.default}`;
+    if (col.default !== undefined) {
+      let defaultValue = col.default;
+      if (typeof defaultValue === 'string') {
+        const builtins = new Set(['now', 'current_timestamp']);
+
+        defaultValue = defaultValue.replace(
+          /\b([a-z_][a-z0-9_]*)\s*\(\)/gi,
+          (match, fnName) => {
+            if (builtins.has(fnName.toLowerCase()) || /\b\w+\.\w+\(\)/.test(match)) {
+              return match;
+            }
+            return `public.${fnName}()`;
+          }
+        );
+      }
+      def += ` DEFAULT ${defaultValue}`;
+    }
     return def;
   });
 
