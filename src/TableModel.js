@@ -19,7 +19,7 @@ import { createTableSQL } from './utils/schemaBuilder.js';
 import ExcelJS from 'exceljs';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import { logMessage } from './utils/pg-util.js';
-import { join } from 'lodash-es';
+import { join } from 'lodash';
 
 
 /**

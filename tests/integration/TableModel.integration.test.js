@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import _ from 'lodash-es';
+import _ from 'lodash';
 
 const __filename = fileURLToPath(import.meta.url);
 // const __dirname = dirname(__filename);

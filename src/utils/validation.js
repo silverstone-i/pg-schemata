@@ -1,6 +1,6 @@
 'use strict';
 
-import _isPlainObject from 'lodash-es/isPlainObject.js';
+import _isPlainObject from 'lodash/isPlainObject.js';
 
 /**
  * @fileoverview Utility validation functions for IDs and object types.

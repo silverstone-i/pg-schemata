@@ -9,7 +9,7 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-import cloneDeep from 'lodash-es/cloneDeep.js';
+import cloneDeep from 'lodash/cloneDeep.js';
 import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import DatabaseError from './DatabaseError.js';
