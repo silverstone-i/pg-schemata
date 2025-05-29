@@ -351,7 +351,7 @@ class QueryModel {
       );
     }
 
-    console.log('[DB ERROR]', err);
+    // console.log('[DB ERROR]', err);
 
     switch (err.code) {
       case '23505':

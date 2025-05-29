@@ -373,7 +373,7 @@ describe('TableModel Integration', () => {
   });
 
   test('importFromSpreadsheet should import records from an xlsx file', async () => {
-    console.log('Importing from spreadsheet...', __dirname);
+    // console.log('Importing from spreadsheet...', __dirname);
 
     const filePath = path.join(
       __dirname,
@@ -394,7 +394,7 @@ describe('TableModel Integration', () => {
   });
 
   test('importFromSpreadsheet should import records from sheet index 1', async () => {
-    console.log('Importing from spreadsheet (sheet 1)...', __dirname);
+    // console.log('Importing from spreadsheet (sheet 1)...', __dirname);
 
     const filePath = path.join(
       __dirname,

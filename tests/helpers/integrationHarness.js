@@ -29,7 +29,7 @@ export async function createTestContext(schema, seed = null) {
   const tableName = schemaCopy.table;
   const fullTableRef = `"${schemaCopy.dbSchema}"."${tableName}"`;
 
-  console.log(`🧪 Using schema: ${schemaCopy.dbSchema}`);
+  // console.log(`🧪 Using schema: ${schemaCopy.dbSchema}`);
   await db.none(`CREATE SCHEMA IF NOT EXISTS "${schemaCopy.dbSchema}"`);
   await db.none(createTableSQL(schemaCopy));
 
