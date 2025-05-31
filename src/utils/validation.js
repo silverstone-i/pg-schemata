@@ -9,7 +9,8 @@
 * Removal or modification of this copyright notice is prohibited.
 */
 
-import _isPlainObject from 'lodash/isPlainObject.js';
+import _ from 'lodash';
+const { isPlainObject } = _;
 
 /**
  * @fileoverview Utility validation functions for IDs and object types.
@@ -42,4 +43,4 @@ export function validateUUID(id) {
   return typeof id === 'string' && UUID_REGEX.test(id);
 }
 
-export const isPlainObject = _isPlainObject;
+export { isPlainObject };

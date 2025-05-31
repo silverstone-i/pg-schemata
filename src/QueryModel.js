@@ -14,7 +14,8 @@ import { isValidId, isPlainObject } from './utils/validation.js';
 import DatabaseError from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
 import { logMessage } from './utils/pg-util.js';
-import cloneDeep from 'lodash/cloneDeep.js';
+import _ from 'lodash';
+const { cloneDeep } = _;
 
 class QueryModel {
   constructor(db, pgp, schema, logger = null) {
