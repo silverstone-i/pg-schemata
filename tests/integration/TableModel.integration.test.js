@@ -5,13 +5,6 @@
 import { createTestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
 import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import _ from 'lodash';
-
-const __filename = fileURLToPath(import.meta.url);
-// const __dirname = dirname(__filename);
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000000';
 

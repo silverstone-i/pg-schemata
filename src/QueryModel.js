@@ -9,12 +9,12 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-import cloneDeep from 'lodash/cloneDeep.js';
 import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import DatabaseError from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
 import { logMessage } from './utils/pg-util.js';
+import cloneDeep from 'lodash/cloneDeep.js';
 
 class QueryModel {
   constructor(db, pgp, schema, logger = null) {
