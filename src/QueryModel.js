@@ -212,9 +212,11 @@ class QueryModel {
       throw new Error('Schema name must be a non-empty string');
     }
 
-    this._schema.dbSchema = name;
+    const clonedSchema = cloneDeep(this._schema);
+    clonedSchema.dbSchema = name;
+    this.cs = createColumnSet(clonedSchema, this.pgp);
+    this._schema = clonedSchema;
 
-    this.cs = createColumnSet(this._schema, this.pgp);
     return this;
   }
 

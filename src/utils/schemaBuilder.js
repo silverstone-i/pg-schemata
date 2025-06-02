@@ -60,7 +60,10 @@ function createTableSQL(schema, logger = null) {
         defaultValue = defaultValue.replace(
           /\b([a-z_][a-z0-9_]*)\s*\(\)/gi,
           (match, fnName) => {
-            if (builtins.has(fnName.toLowerCase()) || /\b\w+\.\w+\(\)/.test(match)) {
+            if (
+              builtins.has(fnName.toLowerCase()) ||
+              /\b\w+\.\w+\(\)/.test(match)
+            ) {
               return match;
             }
             return `public.${fnName}()`;
@@ -159,7 +162,7 @@ function createTableSQL(schema, logger = null) {
     schema: schemaName,
     table,
     message: 'Generated CREATE TABLE SQL',
-    data: { sql }
+    data: { sql },
   });
 
   // if (table === 'costlines') {
@@ -235,7 +238,7 @@ function createIndexesSQL(schema, unique = false, where = null, logger = null) {
     schema: schema.schemaName,
     table: schema.table,
     message: 'Generated INDEX SQL',
-    data: { sql: indexSQL.join('\n') }
+    data: { sql: indexSQL.join('\n') },
   });
 
   return indexSQL.join('\n');
@@ -265,6 +268,7 @@ function createColumnSet(schema, pgp, logger = null) {
   if (columnSetCache.has(cacheKey)) {
     return columnSetCache.get(cacheKey);
   }
+  validateColumnProps(schema.columns);
 
   // Define standard audit field names to exclude from base ColumnSet
   const auditFields = ['created_at', 'created_by', 'updated_at', 'updated_by'];
@@ -311,6 +315,24 @@ function createColumnSet(schema, pgp, logger = null) {
       return columnObject;
     })
     .filter(col => col !== null); // Remove nulls (skipped columns)
+/**
+ * Validates column property definitions to ensure expected types.
+ *
+ * @param {Array} columns - Array of column definitions from schema.
+ * @throws {SchemaDefinitionError} If invalid colProps are found.
+ */
+function validateColumnProps(columns) {
+  for (const col of columns) {
+    if (col.colProps) {
+      const { skip } = col.colProps;
+      if (typeof skip !== 'undefined' && typeof skip !== 'function') {
+        throw new SchemaDefinitionError(
+          `Invalid colProps.skip for column "${col.name}": expected function, got ${typeof skip}`
+        );
+      }
+    }
+  }
+}
 
   const cs = {};
 
@@ -344,7 +366,7 @@ function createColumnSet(schema, pgp, logger = null) {
     schema: schema.dbSchema,
     table: schema.table,
     message: 'Created ColumnSet',
-    data: { columns: columns.map(c => c.name) }
+    data: { columns: columns.map(c => c.name) },
   });
 
   columnSetCache.set(cacheKey, cs);
