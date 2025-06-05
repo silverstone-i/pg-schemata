@@ -191,10 +191,10 @@ describe('QueryModel Integration', () => {
     );
   });
 
-  it('should throw on empty condition array in findWhere', async () => {
-    await expect(model.findWhere([])).rejects.toThrow(
-      'Conditions must be a non-empty array'
-    );
+  it('should return all results when findWhere is called with an empty array', async () => {
+    const result = await model.findWhere([]);
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBeGreaterThan(0);
   });
 
   it('should throw on unsupported operator in findWhere', async () => {

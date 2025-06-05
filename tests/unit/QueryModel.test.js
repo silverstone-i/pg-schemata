@@ -186,7 +186,7 @@ describe('QueryModel', () => {
     });
 
     test('findById should return record', async () => {
-      mockDb.oneOrNone.mockResolvedValue({ id: 2 });
+      mockDb.any.mockResolvedValue([{ id: 2 }]);
       const result = await model.findById(2);
       expect(result).toEqual({ id: 2 });
     });
@@ -267,10 +267,10 @@ describe('QueryModel', () => {
       );
     });
 
-    test('findWhere should throw on empty condition array', async () => {
-      await expect(model.findWhere([])).rejects.toThrow(
-        'Conditions must be a non-empty array'
-      );
+    test('findWhere should return all when conditions array is empty', async () => {
+      mockDb.any.mockResolvedValue([{ id: 3 }]);
+      const result = await model.findWhere([]);
+      expect(result).toEqual([{ id: 3 }]);
     });
   });
 });
