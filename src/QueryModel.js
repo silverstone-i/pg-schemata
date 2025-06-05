@@ -44,30 +44,12 @@ class QueryModel {
   }
 
   async findAll({ limit = 50, offset = 0 } = {}) {
-    const query = `SELECT * FROM ${this.schemaName}.${this.tableName} ORDER BY id LIMIT $1 OFFSET $2`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values: [limit, offset] },
-    });
-    return this.db.any(query, [limit, offset]);
+    return this.findWhere([{ id: { $ne: null } }], 'AND', { limit, offset, orderBy: 'id' });
   }
 
   async findById(id) {
     if (!isValidId(id)) throw new Error('Invalid ID format');
-    const query = `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values: [id] },
-    });
-    return this.db.oneOrNone(query, [id]);
+    return this.findOneBy([{ id }]);
   }
 
   async findWhere(
@@ -81,8 +63,8 @@ class QueryModel {
       offset = null,
     } = {}
   ) {
-    if (!Array.isArray(conditions) || conditions.length === 0) {
-      throw new Error('Conditions must be a non-empty array');
+    if (!Array.isArray(conditions)) {
+      throw new Error('Conditions must be an array');
     }
 
     const table = `${this.schemaName}.${this.tableName}`;
@@ -93,14 +75,16 @@ class QueryModel {
     const values = [];
     const whereClauses = [];
 
-    const { clause, values: builtValues } = this.buildWhereClause(
-      conditions,
-      true,
-      [],
-      joinType
-    );
-    values.push(...builtValues);
-    whereClauses.push(`(${clause})`);
+    if (conditions.length > 0) {
+      const { clause, values: builtValues } = this.buildWhereClause(
+        conditions,
+        true,
+        [],
+        joinType
+      );
+      values.push(...builtValues);
+      whereClauses.push(`(${clause})`);
+    }
 
     if (Object.keys(filters).length) {
       whereClauses.push(this.buildCondition([filters], 'AND', values));
@@ -285,6 +269,7 @@ class QueryModel {
               '$to',
               '$in',
               '$eq',
+              '$ne',
             ];
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
@@ -327,6 +312,10 @@ class QueryModel {
             if ('$eq' in val) {
               values.push(val['$eq']);
               parts.push(`${col} = $${values.length}`);
+            }
+            if ('$ne' in val) {
+              values.push(val['$ne']);
+              parts.push(`${col} != $${values.length}`);
             }
           } else {
             if (val === null) {
