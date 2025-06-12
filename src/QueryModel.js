@@ -270,6 +270,9 @@ class QueryModel {
               '$in',
               '$eq',
               '$ne',
+              '$max',
+              '$min',
+              '$sum',
             ];
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
@@ -316,6 +319,15 @@ class QueryModel {
             if ('$ne' in val) {
               values.push(val['$ne']);
               parts.push(`${col} != $${values.length}`);
+            }
+            if ('$max' in val) {
+              parts.push(`${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName})`);
+            }
+            if ('$min' in val) {
+              parts.push(`${col} = (SELECT MIN(${col}) FROM ${this.schemaName}.${this.tableName})`);
+            }
+            if ('$sum' in val) {
+              parts.push(`${col} = (SELECT SUM(${col}) FROM ${this.schemaName}.${this.tableName})`);
             }
           } else {
             if (val === null) {
