@@ -68,9 +68,24 @@ class TableModel extends QueryModel {
       return Promise.reject(new SchemaDefinitionError('DTO must be a non-empty object'));
     }
     // Zod validation if available
-    if (this._schema.validators?.insert) {
-      this._schema.validators.insert.parse(dto);
+    try {
+      if (this._schema.validators?.insertValidator) {
+        this._schema.validators.insertValidator.parse(dto);
+      }
+    } catch (err) {
+      const error = new SchemaDefinitionError('DTO validation failed');
+
+      error.cause = err.errors || err;
+      this.logger?.error?.(error);
+      if (this.logger) {
+        this.logger.error(`DTO validation failed: ${error.message}`, { cause: error.cause });
+      }
+
+      // Return a rejected promise with the error
+      return Promise.reject(error);
     }
+
+    // Sanitize the DTO to include only valid columns
     const safeDto = this.sanitizeDto(dto);
     if (Object.keys(safeDto).length === 0) {
       return Promise.reject(new SchemaDefinitionError('DTO must contain at least one valid column'));
@@ -110,9 +125,21 @@ class TableModel extends QueryModel {
     if (typeof dto !== 'object' || Array.isArray(dto) || Object.keys(dto).length === 0) {
       return Promise.reject(new SchemaDefinitionError('DTO must be a non-empty object'));
     }
-    // Zod validation if available
-    if (this._schema.validators?.update) {
-      this._schema.validators.update.parse(dto);
+    try {
+      if (this._schema.validators?.updateValidator) {
+        this._schema.validators.updateValidator.parse(dto);
+      }
+    } catch (err) {
+      const error = new SchemaDefinitionError('DTO validation failed');
+
+      error.cause = err.errors || err;
+      this.logger?.error?.(error);
+      if (this.logger) {
+        this.logger.error(`DTO validation failed: ${error.message}`, { cause: error.cause });
+      }
+
+      // Return a rejected promise with the error
+      return Promise.reject(error);
     }
     const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
     if (!safeDto.updated_by) safeDto.updated_by = 'system';
@@ -239,9 +266,23 @@ class TableModel extends QueryModel {
       throw new SchemaDefinitionError('UPDATE payload must be a non-empty object');
     }
 
-    // Zod validation if available
-    if (this._schema.validators?.update) {
-      this._schema.validators.update.parse(updates);
+    try {
+      if (this._schema.validators?.updateValidator) {
+        this._schema.validators.updateValidator.parse(updates);
+      }
+    } catch (err) {
+      console.log('Update validation error:', err);
+      
+      const error = new SchemaDefinitionError('DTO validation failed');
+
+      error.cause = err.errors || err;
+      this.logger?.error?.(error);
+      if (this.logger) {
+        this.logger.error(`DTO validation failed: ${error.message}`, { cause: error.cause });
+      }
+
+      // Return a rejected promise with the error
+      return Promise.reject(error);
     }
 
     const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
