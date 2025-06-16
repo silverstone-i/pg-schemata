@@ -19,7 +19,7 @@ import { createTableSQL } from './utils/schemaBuilder.js';
 import ExcelJS from 'exceljs';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import { logMessage } from './utils/pg-util.js';
-
+import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 
 /**
  * TableModel provides generic CRUD operations for a PostgreSQL table using pg-promise
@@ -35,7 +35,14 @@ import { logMessage } from './utils/pg-util.js';
  * @param {Object} [logger] - Optional logger with debug and error methods.
  */
 class TableModel extends QueryModel {
+  constructor(db, pgp, schema, logger) {
+    super(db, pgp, schema, logger);
 
+    // Auto-generate Zod validators if not provided
+    if (!this._schema.validators) {
+      this._schema.validators = generateZodFromTableSchema(this._schema);
+    }
+  }
   async delete(id) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
@@ -47,7 +54,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values: [id] }
+      data: { query, values: [id] },
     });
     try {
       return await this.db.result(query, [id], r => r.rowCount);
@@ -60,11 +67,13 @@ class TableModel extends QueryModel {
     if (!isPlainObject(dto)) {
       return Promise.reject(new SchemaDefinitionError('DTO must be a non-empty object'));
     }
+    // Zod validation if available
+    if (this._schema.validators?.insert) {
+      this._schema.validators.insert.parse(dto);
+    }
     const safeDto = this.sanitizeDto(dto);
     if (Object.keys(safeDto).length === 0) {
-      return Promise.reject(
-        new SchemaDefinitionError('DTO must contain at least one valid column')
-      );
+      return Promise.reject(new SchemaDefinitionError('DTO must contain at least one valid column'));
     }
     if (!safeDto.created_by) safeDto.created_by = 'system';
     let query;
@@ -81,7 +90,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values: [] }
+      data: { query, values: [] },
     });
     try {
       return await this.db.one(query);
@@ -98,12 +107,12 @@ class TableModel extends QueryModel {
     if (!isValidId(id)) {
       return Promise.reject(new SchemaDefinitionError('Invalid ID format'));
     }
-    if (
-      typeof dto !== 'object' ||
-      Array.isArray(dto) ||
-      Object.keys(dto).length === 0
-    ) {
+    if (typeof dto !== 'object' || Array.isArray(dto) || Object.keys(dto).length === 0) {
       return Promise.reject(new SchemaDefinitionError('DTO must be a non-empty object'));
+    }
+    // Zod validation if available
+    if (this._schema.validators?.update) {
+      this._schema.validators.update.parse(dto);
     }
     const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
     if (!safeDto.updated_by) safeDto.updated_by = 'system';
@@ -122,7 +131,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values: [id] }
+      data: { query, values: [id] },
     });
     try {
       const result = await this.db.result(query, undefined, r => ({
@@ -139,25 +148,12 @@ class TableModel extends QueryModel {
   // 🟠 Query & Filtering
   // ---------------------------------------------------------------------------
 
-  async findAfterCursor(
-    cursor = {},
-    limit = 50,
-    orderBy = ['id'],
-    options = {}
-  ) {
-    const {
-      descending = false,
-      columnWhitelist = null,
-      filters = {},
-    } = options;
+  async findAfterCursor(cursor = {}, limit = 50, orderBy = ['id'], options = {}) {
+    const { descending = false, columnWhitelist = null, filters = {} } = options;
     const direction = descending ? 'DESC' : 'ASC';
     const table = `${this.schemaName}.${this.tableName}`;
-    const selectCols = columnWhitelist?.length
-      ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
-      : '*';
-    const escapedOrderCols = orderBy
-      .map(col => this.escapeName(col))
-      .join(', ');
+    const selectCols = columnWhitelist?.length ? columnWhitelist.map(col => this.escapeName(col)).join(', ') : '*';
+    const escapedOrderCols = orderBy.map(col => this.escapeName(col)).join(', ');
     const queryParts = [`SELECT ${selectCols} FROM ${table}`];
     const whereClauses = [];
     const values = [];
@@ -167,9 +163,7 @@ class TableModel extends QueryModel {
         return cursor[col];
       });
       const placeholders = cursorValues.map((_, i) => `$${i + 1}`).join(', ');
-      whereClauses.push(
-        `(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`
-      );
+      whereClauses.push(`(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`);
       values.push(...cursorValues);
     }
     if (Object.keys(filters).length) {
@@ -195,7 +189,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values }
+      data: { query, values },
     });
     const rows = await this.db.any(query, values);
     const nextCursor =
@@ -220,7 +214,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values }
+      data: { query, values },
     });
     try {
       return await this.db.result(query, values, r => r.rowCount);
@@ -235,20 +229,19 @@ class TableModel extends QueryModel {
 
   async updateWhere(where, updates) {
     const isNonEmpty = val =>
-      Array.isArray(val)
-        ? val.length > 0
-        : isPlainObject(val)
-        ? Object.keys(val).length > 0
-        : false;
+      Array.isArray(val) ? val.length > 0 : isPlainObject(val) ? Object.keys(val).length > 0 : false;
 
     if (!isNonEmpty(where)) {
-      throw new SchemaDefinitionError(
-        'WHERE clause must be a non-empty object or non-empty array'
-      );
+      throw new SchemaDefinitionError('WHERE clause must be a non-empty object or non-empty array');
     }
 
     if (!isNonEmpty(updates)) {
       throw new SchemaDefinitionError('UPDATE payload must be a non-empty object');
+    }
+
+    // Zod validation if available
+    if (this._schema.validators?.update) {
+      this._schema.validators.update.parse(updates);
     }
 
     const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
@@ -269,7 +262,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values }
+      data: { query, values },
     });
 
     try {
@@ -292,7 +285,7 @@ class TableModel extends QueryModel {
       level: 'info',
       schema: this._schema.dbSchema,
       table: this._schema.table,
-      message: `Inserting ${records.length} records`
+      message: `Inserting ${records.length} records`,
     });
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
@@ -311,7 +304,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values: [] }
+      data: { query, values: [] },
     });
     try {
       return await this.db.tx(t => t.result(query, [], r => r.rowCount));
@@ -333,7 +326,7 @@ class TableModel extends QueryModel {
       level: 'info',
       schema: this._schema.dbSchema,
       table: this._schema.table,
-      message: `Updating ${records.length} records`
+      message: `Updating ${records.length} records`,
     });
 
     const first = records[0];
@@ -363,7 +356,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values: [] }
+      data: { query, values: [] },
     });
     try {
       return await this.db.tx(t => {
@@ -401,7 +394,7 @@ class TableModel extends QueryModel {
       level: 'info',
       schema: this._schema.dbSchema,
       table: this._schema.table,
-      message: `Exported ${rows.length} records to ${filePath}`
+      message: `Exported ${rows.length} records to ${filePath}`,
     });
 
     return { exported: rows.length, filePath };
@@ -452,7 +445,7 @@ class TableModel extends QueryModel {
       level: 'info',
       schema: this._schema.dbSchema,
       table: this._schema.table,
-      message: `Importing ${rows.length} records from spreadsheet`
+      message: `Importing ${rows.length} records from spreadsheet`,
     });
 
     const inserted = await this.bulkInsert(rows);
@@ -464,9 +457,7 @@ class TableModel extends QueryModel {
   // ---------------------------------------------------------------------------
 
   sanitizeDto(dto, { includeImmutable = true } = {}) {
-    const validColumns = this._schema.columns
-      .filter(c => includeImmutable || !c.immutable)
-      .map(c => c.name);
+    const validColumns = this._schema.columns.filter(c => includeImmutable || !c.immutable).map(c => c.name);
     const sanitized = {};
     for (const key in dto) {
       if (validColumns.includes(key)) {
@@ -486,7 +477,7 @@ class TableModel extends QueryModel {
       level: 'info',
       schema: this._schema.dbSchema,
       table: this._schema.table,
-      message: 'Truncating table'
+      message: 'Truncating table',
     });
     const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
     logMessage({
@@ -495,7 +486,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query }
+      data: { query },
     });
     try {
       return await this.db.none(query);
@@ -515,7 +506,7 @@ class TableModel extends QueryModel {
       level: 'info',
       schema: this._schema.dbSchema,
       table: this._schema.table,
-      message: 'Creating table from schema'
+      message: 'Creating table from schema',
     });
     try {
       const query = createTableSQL(this._schema);
@@ -525,7 +516,7 @@ class TableModel extends QueryModel {
         schema: this._schema.dbSchema,
         table: this._schema.table,
         message: 'Executing SQL',
-        data: { query }
+        data: { query },
       });
       return await this.db.none(query);
     } catch (err) {

@@ -37,7 +37,8 @@
     "lodash": "^4.17.21",
     "lru-cache": "^11.1.0",
     "pg-promise": "^11.13.0",
-    "uninstall": "^0.0.0"
+    "uninstall": "^0.0.0",
+    "zod": "^3.25.63"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.1.4",
