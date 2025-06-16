@@ -9,7 +9,7 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-const { z } = require('zod');
+import { z } from 'zod';
 /**
  * Generates a Zod schema from a pg-schemata tableSchema object.
  * @param {Object} tableSchema - The pg-schemata tableSchema object containing columns.
@@ -30,7 +30,7 @@ function mapSqlTypeToZod(type) {
   } else if (/^boolean$/i.test(type)) {
     return z.boolean();
   } else if (/^(timestamp|date)$/i.test(type)) {
-    return z.date();
+    return z.coerce.date();
   } else if (/^jsonb$/i.test(type)) {
     return z.any();
   } else {
@@ -45,7 +45,12 @@ function generateZodFromTableSchema(tableSchema) {
 
   for (const column of tableSchema.columns) {
     const { name, type, notNull, default: defaultValue } = column;
-    const zodType = mapSqlTypeToZod(type);
+    let zodType = mapSqlTypeToZod(type);
+
+    // Enhance email fields
+    if (name === 'email' && zodType._def.typeName === 'ZodString') {
+      zodType = zodType.email();
+    }
 
     // baseValidator: required if notNull, else optional
     base[name] = notNull ? zodType : zodType.optional();
@@ -65,8 +70,10 @@ function generateZodFromTableSchema(tableSchema) {
   if (tableSchema.constraints && Array.isArray(tableSchema.constraints.checks)) {
     // Helper: parse char_length(field) > N and field IN ('A','B','C')
     for (const check of tableSchema.constraints.checks) {
+      const expr = typeof check === 'string' ? check : check.expression;
+
       // char_length(field) > N
-      let match = check.match(/char_length\((\w+)\)\s*>\s*(\d+)/i);
+      let match = expr.match(/char_length\((\w+)\)\s*>\s*(\d+)/i);
       if (match) {
         const field = match[1];
         const minLen = parseInt(match[2], 10) + 1;
@@ -84,7 +91,7 @@ function generateZodFromTableSchema(tableSchema) {
       }
 
       // field IN ('A', 'B', 'C')
-      match = check.match(/^(\w+)\s+IN\s*\(\s*([^)]+)\s*\)$/i);
+      match = expr.match(/^(\w+)\s+IN\s*\(\s*([^)]+)\s*\)$/i);
       if (match) {
         const field = match[1];
         // Parse enum values: split by comma, remove quotes and trim
