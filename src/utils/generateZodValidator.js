@@ -52,20 +52,20 @@ function generateZodFromTableSchema(tableSchema) {
       zodType = zodType.email();
     }
 
-    // baseValidator: required if notNull, else optional
-    base[name] = notNull ? zodType : zodType.optional();
+    // baseValidator: required if notNull, else optional + nullable
+    base[name] = notNull ? zodType : zodType.nullable().optional();
 
-    // insertValidator: required only if notNull and no default, else optional
+    // insertValidator: required only if notNull and no default, else optional + nullable
     if (notNull && typeof defaultValue === 'undefined') {
       insert[name] = zodType;
     } else {
-      insert[name] = zodType.optional();
+      insert[name] = zodType.nullable().optional();
     }
 
-    // updateValidator: always optional
-    update[name] = zodType.optional();
+    // updateValidator: always optional + nullable
+    update[name] = zodType.nullable().optional();
   }
-
+  
   // Enhance with check constraints if present
   if (tableSchema.constraints && Array.isArray(tableSchema.constraints.checks)) {
     // Helper: parse char_length(field) > N and field IN ('A','B','C')
@@ -101,14 +101,12 @@ function generateZodFromTableSchema(tableSchema) {
             .replace(/^'(.*)'$/, '$1')
             .replace(/^"(.*)"$/, '$1')
         );
-        if (base[field]) {
-          base[field] = z.enum(options);
-        }
-        if (insert[field]) {
-          insert[field] = z.enum(options);
-        }
-        if (update[field]) {
-          update[field] = z.enum(options).optional();
+        
+        if (Array.isArray(options) && options.length > 0) {
+          const enumZod = z.enum([...new Set(options)]);
+          if (base[field]) base[field] = enumZod;
+          if (insert[field]) insert[field] = enumZod;
+          if (update[field]) update[field] = enumZod.nullable().optional();
         }
         continue;
       }
