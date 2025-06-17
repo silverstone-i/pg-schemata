@@ -1,3 +1,41 @@
+import { z } from 'zod';
+// --- Zod schema validation test ---
+const testZodSchema = z.object({
+  email: z.string().email(),
+  phone: z.string(),
+  address: z.object({
+    street: z.string(),
+    city: z.string(),
+    state: z.string(),
+    zip: z.string(),
+  }),
+  contact_name: z.string(),
+  updated_at: z.date(),
+  updated_by: z.string(),
+});
+
+it('should fail Zod validation for string updated_at instead of Date', () => {
+  const input = {
+    email: 'admin@napsoft.com',
+    phone: '770-331-5555',
+    address: {
+      street: '123 NapSoft Lane',
+      city: 'Napville',
+      state: 'GA',
+      zip: '30224',
+    },
+    contact_name: 'nap soft',
+    updated_at: '2025-06-16T17:00:23.546Z', // invalid
+    updated_by: 'administrator',
+  };
+
+  const result = testZodSchema.safeParse(input);
+  expect(result.success).toBe(false);
+  expect(result.error.issues[0]).toMatchObject({
+    path: ['updated_at'],
+    expected: 'date',
+  });
+});
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createTestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
@@ -44,10 +82,7 @@ describe('QueryModel Integration', () => {
     });
 
     const result = await model.findWhere(
-      [
-        { email: 'findwhere-1@example.com' },
-        { email: 'findwhere-2@example.com' },
-      ],
+      [{ email: 'findwhere-1@example.com' }, { email: 'findwhere-2@example.com' }],
       'OR'
     );
     expect(result.length).toBe(2);
@@ -94,9 +129,7 @@ describe('QueryModel Integration', () => {
     await model.insert({ email: 'orcount1@example.com', created_by: 'X', tenant_id: TENANT_ID });
     await model.insert({ email: 'orcount2@example.com', created_by: 'Y', tenant_id: TENANT_ID });
 
-    const count = await model.count(
-      [{'$or': [{ created_by: 'X' }, { created_by: 'Y' }]}],
-);
+    const count = await model.count([{ $or: [{ created_by: 'X' }, { created_by: 'Y' }] }]);
 
     expect(count).toBeGreaterThanOrEqual(2);
   });
@@ -119,15 +152,10 @@ describe('QueryModel Integration', () => {
     });
     await model.insert({ email: 'x@example.com', created_by: 'System', tenant_id: TENANT_ID });
 
-    const rows = await model.findAfterCursor(
-      { created_at: b.created_at, id: b.id },
-      10,
-      ['created_at', 'id'],
-      {
-        descending: true,
-        columnWhitelist: ['email'],
-      }
-    );
+    const rows = await model.findAfterCursor({ created_at: b.created_at, id: b.id }, 10, ['created_at', 'id'], {
+      descending: true,
+      columnWhitelist: ['email'],
+    });
 
     expect(Array.isArray(rows.rows)).toBe(true);
     expect(rows.rows.length).toBeGreaterThan(0);
@@ -198,9 +226,7 @@ describe('QueryModel Integration', () => {
   });
 
   it('should throw on unsupported operator in findWhere', async () => {
-    await expect(
-      model.findWhere([{ email: { likee: 'bad' } }])
-    ).rejects.toThrow('Unsupported operator: likee');
+    await expect(model.findWhere([{ email: { likee: 'bad' } }])).rejects.toThrow('Unsupported operator: likee');
   });
 
   it('should support nested OR and AND conditions in findWhere', async () => {
@@ -251,10 +277,7 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const result = await model.findWhere(
-      [{ email: 'conflict@example.com' }, { email: 'notfound@example.com' }],
-      'AND'
-    );
+    const result = await model.findWhere([{ email: 'conflict@example.com' }, { email: 'notfound@example.com' }], 'AND');
     expect(result.length).toBe(0);
   });
 
@@ -262,10 +285,7 @@ describe('QueryModel Integration', () => {
     await model.insert({ email: 'emptyor@example.com', created_by: 'Admin', tenant_id: TENANT_ID });
 
     // Intentionally include an empty OR group
-    const result = await model.findWhere([
-      { $or: [] },
-      { email: 'emptyor@example.com' },
-    ]);
+    const result = await model.findWhere([{ $or: [] }, { email: 'emptyor@example.com' }]);
     expect(result.length).toBe(1);
     expect(result[0].email).toBe('emptyor@example.com');
   });
@@ -292,10 +312,7 @@ describe('QueryModel Integration', () => {
       notes: null,
       tenant_id: TENANT_ID,
     });
-    const result = await model.findWhere([
-      { email: 'nulltest@example.com' },
-      { notes: null },
-    ]);
+    const result = await model.findWhere([{ email: 'nulltest@example.com' }, { notes: null }]);
     expect(result.length).toBe(1);
     expect(result[0].email).toBe('nulltest@example.com');
   });
@@ -307,14 +324,10 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const resultExact = await model.findWhere([
-      { email: 'casesensitive@example.com' },
-    ]);
+    const resultExact = await model.findWhere([{ email: 'casesensitive@example.com' }]);
     expect(resultExact.length).toBe(0);
 
-    const resultIlike = await model.findWhere([
-      { email: { $ilike: 'casesensitive@example.com' } },
-    ]);
+    const resultIlike = await model.findWhere([{ email: { $ilike: 'casesensitive@example.com' } }]);
     expect(resultIlike.length).toBe(1);
     expect(resultIlike[0].email).toBe('CaseSensitive@Example.com');
   });
@@ -327,16 +340,10 @@ describe('QueryModel Integration', () => {
       {
         $or: [
           {
-            $and: [
-              { $or: [{ created_by: 'A' }] },
-              { email: 'nesteddeep1@example.com' },
-            ],
+            $and: [{ $or: [{ created_by: 'A' }] }, { email: 'nesteddeep1@example.com' }],
           },
           {
-            $and: [
-              { $or: [{ created_by: 'B' }] },
-              { email: 'nesteddeep2@example.com' },
-            ],
+            $and: [{ $or: [{ created_by: 'B' }] }, { email: 'nesteddeep2@example.com' }],
           },
         ],
       },
@@ -375,9 +382,7 @@ describe('QueryModel Integration', () => {
     await model.insert({ email: 'in1@example.com', created_by: 'User', tenant_id: TENANT_ID });
     await model.insert({ email: 'in2@example.com', created_by: 'User', tenant_id: TENANT_ID });
 
-    const result = await model.findWhere([
-      { email: { $in: ['in1@example.com', 'in2@example.com'] } },
-    ]);
+    const result = await model.findWhere([{ email: { $in: ['in1@example.com', 'in2@example.com'] } }]);
 
     const emails = result.map(r => r.email);
     expect(emails).toContain('in1@example.com');
@@ -416,9 +421,7 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const result = await model.findWhere([
-      { id: { $in: [user1.id, user2.id] } },
-    ]);
+    const result = await model.findWhere([{ id: { $in: [user1.id, user2.id] } }]);
 
     expect(result.length).toBe(2);
     const emails = result.map(r => r.email);
