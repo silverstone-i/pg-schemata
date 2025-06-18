@@ -37,7 +37,7 @@ class DB {
    */
   static pgp;
 
-  static init(connection, repositories) {
+  static init(connection, repositories, logger = null) {
     if (!DB.db) {
       // Only initialize once to enforce singleton pattern
       try {
@@ -68,7 +68,7 @@ class DB {
                   `Repository "${repository}" is not a valid constructor`
                 );
               }
-              obj[repository] = new RepoClass(obj, DB.pgp);
+              obj[repository] = new RepoClass(obj, DB.pgp, logger);
             }
           },
         };

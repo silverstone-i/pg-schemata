@@ -105,7 +105,7 @@ class TableModel extends QueryModel {
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query, values: [] },
+      data: { query },
     });
     try {
       return await this.db.one(query);
