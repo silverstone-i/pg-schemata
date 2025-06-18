@@ -1,6 +1,7 @@
 // DB.test.js
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { DB, callDb } from '../../src/DB'; // Adjust path
+import { DB } from '../../src/DB'; // Adjust path
+import { callDb } from '../../src/utils/callDB'; // Adjust path
 import pgPromise from 'pg-promise';
 
 vi.mock('pg-promise', () => {
