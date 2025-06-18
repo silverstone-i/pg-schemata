@@ -10,6 +10,8 @@
 
 /**
  * @fileoverview
+ * @private
+ *
  * Utility functions for generating SQL statements and pg-promise ColumnSets
  * based on a structured schema definition.
  */
@@ -32,9 +34,16 @@ const columnSetCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
 function createHash(input) {
   return crypto.createHash('md5').update(input).digest('hex').slice(0, 6);
 }
+
 /**
- * Generates a CREATE TABLE SQL statement based on a schema definition.
+ * @private
  *
+ * Generates a CREATE TABLE SQL statement based on a validated table schema definition.
+ *
+ * @param {TableSchema} schema - Structured schema definition.
+ * @param {Object|null} logger - Optional logger instance.
+ * @returns {string} SQL statement for creating the table.
+ * @throws {SchemaDefinitionError} If a foreign key reference is invalid.
  */
 function createTableSQL(schema, logger = null) {
   // Extract schema components: schema name, table name, columns, and constraints
@@ -166,8 +175,12 @@ function createTableSQL(schema, logger = null) {
 }
 
 /**
- * Appends standard audit fields to a schema's column list.
+ * @private
  *
+ * Appends standard audit fields to a table schema's column list if not already present.
+ *
+ * @param {TableSchema} schema - The table schema to modify.
+ * @returns {TableSchema} The updated schema with audit fields.
  */
 function addAuditFields(schema) {
   const { columns } = schema;
@@ -198,8 +211,16 @@ function addAuditFields(schema) {
 }
 
 /**
- * Generates CREATE INDEX statements based on schema-defined indexes.
+ * @private
  *
+ * Generates CREATE INDEX SQL statements based on declared index constraints.
+ *
+ * @param {TableSchema} schema - Structured schema object.
+ * @param {boolean} [unique=false] - Whether to treat all indexes as unique.
+ * @param {string|null} [where=null] - Optional WHERE clause for partial indexes.
+ * @param {Object|null} logger - Optional logger instance.
+ * @returns {string} One or more SQL CREATE INDEX statements.
+ * @throws {SchemaDefinitionError} If no indexes are defined in the schema.
  */
 function createIndexesSQL(schema, unique = false, where = null, logger = null) {
   // Ensure that index definitions are present in the schema
@@ -231,16 +252,27 @@ function createIndexesSQL(schema, unique = false, where = null, logger = null) {
 }
 
 /**
- * Normalizes SQL by removing excessive whitespace and trailing semicolons.
+ * @private
  *
+ * Cleans SQL strings by collapsing whitespace and removing trailing semicolons.
+ *
+ * @param {string} sql - Raw SQL string.
+ * @returns {string} Normalized SQL.
  */
 function normalizeSQL(sql) {
   return sql.replace(/\s+/g, ' ').replace(/;$/, '').trim();
 }
 
 /**
- * Creates pg-promise ColumnSet objects for insert and update operations.
+ * @private
  *
+ * Generates pg-promise ColumnSet definitions for insert and update operations.
+ *
+ * @param {TableSchema} schema - Parsed table schema.
+ * @param {Object} pgp - pg-promise instance.
+ * @param {Object|null} logger - Optional logger instance.
+ * @returns {Object} A ColumnSet object with insert/update variants.
+ * @throws {SchemaDefinitionError} If audit field state or colProps are invalid.
  */
 function createColumnSet(schema, pgp, logger = null) {
   // Check if the schema is already cached
@@ -296,8 +328,12 @@ function createColumnSet(schema, pgp, logger = null) {
     })
     .filter(col => col !== null); // Remove nulls (skipped columns)
 /**
- * Validates column property definitions to ensure expected types.
+ * @private
  *
+ * Validates column definitions to ensure colProps.skip is a function if provided.
+ *
+ * @param {Array<ColumnDefinition>} columns - Array of column definitions.
+ * @throws {SchemaDefinitionError} If colProps.skip is invalid.
  */
 function validateColumnProps(columns) {
   for (const col of columns) {

@@ -9,6 +9,35 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
+/**
+ * @private
+ *
+ * Example table schema demonstrating all supported features in pg-schemata.
+ *
+ * Top-level properties:
+ * - `dbSchema`: PostgreSQL schema name
+ * - `table`: name of the table
+ * - `hasAuditFields`: if true, adds created_at/updated_at/by fields automatically
+ * - `version`: optional version tag for tracking schema evolution
+ *
+ * ## 📌 Columns
+ * Each column is defined with:
+ * - `name` (string): column name
+ * - `type` (string): PostgreSQL data type (e.g. 'uuid', 'varchar(255)', 'jsonb')
+ * - `nullable` (boolean): whether NULL is allowed
+ * - `default` (string): default SQL expression
+ * - `immutable` (boolean): if true, excluded from updates
+ * - `colProps` (object): pg-promise column options such as `mod`, `skip`, `cnd`, etc.
+ *
+ * For `colProps` documentation, see: https://vitaly-t.github.io/pg-promise/helpers.Column.html
+ *
+ * ## 🔐 Constraints
+ * - `primaryKey`: array of column names
+ * - `unique`: array of unique constraint definitions (arrays of column names)
+ * - `foreignKeys[]`: each with `columns`, `references.table`, `references.column`, and `onDelete`
+ * - `checks[]`: SQL expressions enforcing conditions
+ * - `indexes[]`: regular indexes on one or more columns
+ */
 const tableSchema = {
   dbSchema: 'public',
   table: 'users',

@@ -20,21 +20,36 @@ import pgPromise from 'pg-promise';
  * 
  * Initializes the DB singleton with the given connection and repository classes.
  */
+/**
+ * DB is a singleton utility class that initializes and provides access
+ * to a configured pg-promise database instance. It also auto-attaches
+ * custom repositories to the DB object on first initialization.
+ *
+ * Use `DB.init(connection, repositories)` once at startup to initialize the DB.
+ * Then access `DB.db` and `DB.pgp` as needed throughout your application.
+ */
 class DB {
   /**
-   * 
-   * The pg-promise database instance, created on first init.
-   * This is set during the first call to DB.init and remains the same thereafter.
+   * @type {import('pg-promise').IDatabase<any>}
+   * The initialized pg-promise database instance.
    */
   static db;
 
   /**
-   * 
-   * The pg-promise root library instance, initialized with custom options.
-   * Used to configure database helpers and attach repositories.
+   * @type {import('pg-promise').IMain}
+   * The pg-promise root library instance.
    */
   static pgp;
 
+  /**
+   * Initializes the DB singleton if it hasn't been initialized yet.
+   *
+   * @param {object|string} connection - A pg-promise-compatible connection object or string.
+   * @param {Object<string, Function>} repositories - A map of repository names to their constructors.
+   * @param {object} [logger=null] - Optional logger passed to each repository.
+   * @returns {typeof DB} The initialized DB class (for chaining or access).
+   * @throws {Error} If connection or repositories are invalid.
+   */
   static init(connection, repositories, logger = null) {
     if (!DB.db) {
       // Only initialize once to enforce singleton pattern
@@ -84,23 +99,13 @@ class DB {
   }
 }
 
-function callDb(modelOrName, schemaName) {
-  const model =
-    typeof modelOrName === 'string' ? DB.db[modelOrName] : modelOrName;
-
-  if (!model || typeof model.setSchemaName !== 'function') {
-    throw new Error('callDb: provided model is not schema-aware');
-  }
-
-  return model.setSchemaName(schemaName);
-}
-
-// Export initialized pgp and db for advanced usage
+/** The initialized pg-promise instance. */
 export const pgp = DB.pgp;
+/** The initialized pg-promise database instance. */
 export const db = DB.db;
 
 // Named exports for structured access
-export { DB, callDb };
+export { DB };
 
 // Default export for convenience
 export default DB;

@@ -12,3 +12,7 @@
 export * from './DB.js';
 export * from './TableModel.js';
 export * from './QueryModel.js';
+export * from './utils/callDB.js';
+export * from './SchemaDefinitionError.js';
+export * from './schemaTypes.d.ts';
+export * from './DatabaseError.js';

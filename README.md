@@ -42,6 +42,14 @@ npm install pg-promise pg-schemata
 
 ## 📄 Basic Usage
 
+---
+
+## 🔎 Where Modifiers
+
+See the supported modifiers used in `findWhere`, `updateWhere`, and other conditional methods:
+
+➡️ [WHERE Clause Modifiers Reference](./docs/where-modifiers.md)
+
 ### 1. Define a Table Schema
 
 ```javascript
