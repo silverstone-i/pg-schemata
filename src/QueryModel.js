@@ -237,12 +237,6 @@ class QueryModel {
 
   /**
    * Builds a SQL WHERE clause from a list of conditions.
-   *
-   * @param {Array|Object} group - Array of condition objects or a single condition object.
-   * @param {string} joiner - Logical operator ('AND' | 'OR') to join top-level conditions.
-   *                          This does NOT override nested $or/$and operators inside condition objects.
-   * @param {Array} values - Accumulator for parameterized query values.
-   * @returns {string} - A SQL WHERE clause string.
    */
   buildCondition(group, joiner = 'AND', values = []) {
     const parts = [];

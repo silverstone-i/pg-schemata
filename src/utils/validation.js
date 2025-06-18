@@ -13,14 +13,13 @@ import _ from 'lodash';
 const { isPlainObject } = _;
 
 /**
- * @fileoverview Utility validation functions for IDs and object types.
+ * 
+ * Utility validation functions for IDs and object types.
  */
 
 /**
  * Checks if the provided ID is a valid finite number or a non-empty string.
  *
- * @param {*} id - The ID to validate.
- * @returns {boolean} True if the ID is a finite number or a non-empty string.
  */
 export function isValidId(id) {
   // Allow numeric IDs (finite numbers) or string IDs (non-empty when trimmed)
@@ -33,8 +32,6 @@ export function isValidId(id) {
 /**
  * Validates whether a string matches the UUID v1–v5 format.
  *
- * @param {*} id - The string to test as a UUID.
- * @returns {boolean} True if the string is a valid UUID.
  */
 export function validateUUID(id) {
   // Regular expression to match UUID versions 1 through 5

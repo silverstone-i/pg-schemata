@@ -29,10 +29,6 @@ import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 /**
  * Creates an instance of TableModel.
  *
- * @param {Object} db - Database instance created by pg-promise.
- * @param {Object} pgp - pg-promise root instance for helpers and formatting.
- * @param {Object} schema - JSON schema definition for the table.
- * @param {Object} [logger] - Optional logger with debug and error methods.
  */
 class TableModel extends QueryModel {
   constructor(db, pgp, schema, logger) {
@@ -410,10 +406,8 @@ class TableModel extends QueryModel {
 
   /**
    * Exports table data to an Excel spreadsheet.
-   * @param {string} filePath - Path to the .xlsx file to write.
-   * @param {Object} [where={}] - Optional filter for records.
-   * @returns {Promise<{exported: number, filePath: string}>}
-   */
+   * 
+  */
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
     const { rows } = await this.findWhere(where, joinType, options);
     const workbook = new ExcelJS.Workbook();
@@ -444,8 +438,7 @@ class TableModel extends QueryModel {
   /**
    * Imports data from an Excel spreadsheet and inserts it into the table.
    * You can specify the index of the sheet to import (default is 0).
-   * @param {string} filePath - Path to the .xlsx file to import.
-   * @param {number} [sheetIndex=0] - Index of the sheet to import.
+   * 
    */
   async importFromSpreadsheet(filePath, sheetIndex = 0) {
     if (typeof filePath !== 'string') {

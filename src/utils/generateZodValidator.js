@@ -12,8 +12,7 @@
 import { z } from 'zod';
 /**
  * Generates a Zod schema from a pg-schemata tableSchema object.
- * @param {Object} tableSchema - The pg-schemata tableSchema object containing columns.
- * @returns {z.ZodObject} - The generated Zod schema.
+ * 
  */
 function mapSqlTypeToZod(type) {
   if (/^varchar\((\d+)\)$/i.test(type)) {

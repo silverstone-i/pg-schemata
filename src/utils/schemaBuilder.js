@@ -35,13 +35,6 @@ function createHash(input) {
 /**
  * Generates a CREATE TABLE SQL statement based on a schema definition.
  *
- * @param {Object} schema - Schema definition object.
- * @param {string} schema.dbSchema - Schema name (defaults to 'public').
- * @param {string} schema.table - Table name.
- * @param {Array} schema.columns - Array of column definition objects.
- * @param {Object} [schema.constraints] - Constraints like primary key, foreign keys, and indexes.
- * @param {Object|null} logger - Optional logger for debug output.
- * @returns {string} SQL statement to create the table.
  */
 function createTableSQL(schema, logger = null) {
   // Extract schema components: schema name, table name, columns, and constraints
@@ -175,8 +168,6 @@ function createTableSQL(schema, logger = null) {
 /**
  * Appends standard audit fields to a schema's column list.
  *
- * @param {Object} schema - Schema definition to augment.
- * @returns {Object} Modified schema including audit fields.
  */
 function addAuditFields(schema) {
   const { columns } = schema;
@@ -209,11 +200,6 @@ function addAuditFields(schema) {
 /**
  * Generates CREATE INDEX statements based on schema-defined indexes.
  *
- * @param {Object} schema - Schema with defined indexes in the constraints.
- * @param {boolean} [unique] - If true, creates unique indexes.
- * @param {string|null} [where] - Optional WHERE clause for partial indexes.
- * @param {Object|null} logger - Optional logger for debug output.
- * @returns {string} SQL statements to create indexes.
  */
 function createIndexesSQL(schema, unique = false, where = null, logger = null) {
   // Ensure that index definitions are present in the schema
@@ -247,8 +233,6 @@ function createIndexesSQL(schema, unique = false, where = null, logger = null) {
 /**
  * Normalizes SQL by removing excessive whitespace and trailing semicolons.
  *
- * @param {string} sql - The SQL string to normalize.
- * @returns {string} The normalized SQL string.
  */
 function normalizeSQL(sql) {
   return sql.replace(/\s+/g, ' ').replace(/;$/, '').trim();
@@ -257,10 +241,6 @@ function normalizeSQL(sql) {
 /**
  * Creates pg-promise ColumnSet objects for insert and update operations.
  *
- * @param {Object} schema - Schema definition including columns and constraints.
- * @param {Object} pgp - pg-promise instance with helpers.
- * @param {Object|null} logger - Optional logger for debug output.
- * @returns {Object} ColumnSet configurations for insert and update.
  */
 function createColumnSet(schema, pgp, logger = null) {
   // Check if the schema is already cached
@@ -318,8 +298,6 @@ function createColumnSet(schema, pgp, logger = null) {
 /**
  * Validates column property definitions to ensure expected types.
  *
- * @param {Array} columns - Array of column definitions from schema.
- * @throws {SchemaDefinitionError} If invalid colProps are found.
  */
 function validateColumnProps(columns) {
   for (const col of columns) {
@@ -370,10 +348,6 @@ function validateColumnProps(columns) {
   });
 
   columnSetCache.set(cacheKey, cs);
-
-  // if (schema.table === 'clients') {
-  //   console.log('cs', cs);
-  // }
 
   return cs;
 }

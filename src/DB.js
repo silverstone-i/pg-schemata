@@ -17,21 +17,19 @@
 import pgPromise from 'pg-promise';
 
 /**
+ * 
  * Initializes the DB singleton with the given connection and repository classes.
- *
- * @param {string|Object} connection - Connection string or configuration object for pg-promise.
- * @param {Object} repositories - An object mapping repository names to constructor functions.
- *                                Each constructor must accept a db instance and a pgp instance.
- * @returns {DB} The DB class with `db` and `pgp` initialized.
  */
 class DB {
   /**
+   * 
    * The pg-promise database instance, created on first init.
    * This is set during the first call to DB.init and remains the same thereafter.
    */
   static db;
 
   /**
+   * 
    * The pg-promise root library instance, initialized with custom options.
    * Used to configure database helpers and attach repositories.
    */
