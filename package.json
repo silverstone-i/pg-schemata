@@ -4,6 +4,7 @@
   "description": "A lightweight Postgres-first ORM layer built on top of pg-promise",
   "main": "src/index.js",
   "type": "module",
+  "types": "src/schemaTypes.d.ts",
   "files": [
     "src",
     "README.md"
@@ -16,6 +17,8 @@
     "nodejs"
   ],
   "scripts": {
+    "docs": "documentation build src/index.js -f md -o docs/pg-schemata.md",
+    "docs:types": "documentation build src/schemaTypes.js -f md -o docs/schemaTypes.md",
     "lint": "eslint .",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",

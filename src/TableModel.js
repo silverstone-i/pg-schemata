@@ -22,18 +22,8 @@ import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 
 /**
- * TableModel provides generic CRUD operations for a PostgreSQL table using pg-promise
- * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
- */
-
-/**
- * Creates an instance of TableModel.
- *
- */
-
-/**
- * TableModel provides CRUD operations and structured logic for a single PostgreSQL table.
- * Extends QueryModel for filtering, pagination, and bulk operations.
+ * TableModel extends the read only operations in QueryModel to provide CRUD operations excel import, export
+ * operations along with filtering, pagination, and bulk operations for a single PostgreSQL table.
  */
 class TableModel extends QueryModel {
   constructor(db, pgp, schema, logger) {

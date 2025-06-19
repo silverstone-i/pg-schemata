@@ -27,7 +27,7 @@ const { cloneDeep } = _;
  * - Dynamic WHERE clause generation via `buildWhereClause` and `buildCondition`
  *
  * 🔍 Supports rich filter syntax with operators like `$like`, `$from`, `$eq`, `$in`, etc.
- * See [docs/where-modifiers.md](../docs/where-modifiers.md) for full reference.
+ * See [where-modifiers.md](where-modifiers.md) for full reference.
  *
  * Not intended to be instantiated directly.
  */
@@ -338,7 +338,7 @@ class QueryModel {
    * 🔁 Also supports nested boolean logic via `$and`, `$or`, `and`, `or`.
    *
    * 📘 See full documentation:
-   * [WHERE Clause Modifiers Reference](../docs/where-modifiers.md)
+   * [WHERE Clause Modifiers Reference](where-modifiers.md)
    *
    * @param {Array<Object>} group - Array of condition objects.
    * @param {string} joiner - Logical joiner ('AND' or 'OR') between conditions.

@@ -9,17 +9,8 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-/**
- * DB is a singleton that initializes and provides access to the pg-promise
- * database instance and attaches repository classes for your application.
- */
-
 import pgPromise from 'pg-promise';
 
-/**
- * 
- * Initializes the DB singleton with the given connection and repository classes.
- */
 /**
  * DB is a singleton utility class that initializes and provides access
  * to a configured pg-promise database instance. It also auto-attaches

@@ -35,4 +35,4 @@ This guide describes the supported modifiers that can be used in `findWhere`, `u
 - `QueryModel#buildCondition`
 - `QueryModel#findWhere`
 - `TableModel#updateWhere`
-- `docs/API.md`
+- [pg-schemata.md](pg-schemata.md)
