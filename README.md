@@ -130,6 +130,14 @@ async function example() {
 
 ---
 
+
+## 📘 Documentation
+
+Documentation is generated using [MkDocs](https://www.mkdocs.org/).  
+To contribute to or build the documentation site locally, follow the setup guide in [`docs/docs-setup.md`](./docs/docs-setup.md).
+
+---
+
 ## 📚 Why `pg-schemata`?
 
 - **Fast**: Minimal overhead on top of `pg-promise`.
