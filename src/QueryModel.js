@@ -17,6 +17,23 @@ import { logMessage } from './utils/pg-util.js';
 import _ from 'lodash';
 const { cloneDeep } = _;
 
+
+/**
+ * QueryModel provides reusable read-only query logic for PostgreSQL tables.
+ *
+ * Designed for models that require flexible query-building capabilities, either as a standalone
+ * read-only interface or to be extended for full CRUD functionality.
+ *
+ * It may be instantiated directly when only read-access is required.
+ *
+ * ✅ Features:
+ * - Dynamic WHERE clause generation via `buildWhereClause` and `buildCondition`
+ * - Query helpers: `findWhere`, `findAll`, `findOneBy`
+ * - Aggregations and checks: `count`, `countAll`, `exists`
+ * - Rich condition syntax with `$like`, `$from`, `$eq`, `$in`, `$and`, `$or`, etc.
+ *
+ * 📌 See [where-modifiers.md](where-modifiers.md) for full reference.
+ */
 class QueryModel {
   constructor(db, pgp, schema, logger = null) {
     if (!schema || typeof schema !== 'object') {
@@ -43,15 +60,44 @@ class QueryModel {
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
+  // ---------------------------------------------------------------------------
+  // 🟢 Basic Queries
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fetches all rows from the table with optional pagination.
+   * @param {Object} options - Query options.
+   * @param {number} [options.limit=50] - Maximum number of records to return.
+   * @param {number} [options.offset=0] - Number of records to skip.
+   * @returns {Promise<Object[]>} List of rows.
+   */
   async findAll({ limit = 50, offset = 0 } = {}) {
     return this.findWhere([{ id: { $ne: null } }], 'AND', { limit, offset, orderBy: 'id' });
   }
 
+  /**
+   * Finds a single row by its ID.
+   * @param {number|string} id - The primary key value.
+   * @returns {Promise<Object|null>} Matching row or null if not found.
+   * @throws {Error} If ID is invalid.
+   */
   async findById(id) {
     if (!isValidId(id)) throw new Error('Invalid ID format');
     return this.findOneBy([{ id }]);
   }
 
+  /**
+   * Finds rows matching conditions and optional filters.
+   * @param {Array<Object>} conditions - Array of condition objects.
+   * @param {string} joinType - Logical operator ('AND' or 'OR').
+   * @param {Object} options - Query options.
+   * @param {Array<string>} [options.columnWhitelist] - Columns to return.
+   * @param {Object} [options.filters] - Additional filter object.
+   * @param {string|Array<string>} [options.orderBy] - Sort columns.
+   * @param {number} [options.limit] - Limit results.
+   * @param {number} [options.offset] - Offset results.
+   * @returns {Promise<Object[]>} Matching rows.
+   */
   async findWhere(
     conditions = [],
     joinType = 'AND',
@@ -115,6 +161,27 @@ class QueryModel {
     return result;
   }
 
+  /**
+   * Finds the first row matching the given conditions.
+   * @param {Array<Object>} conditions - Condition list.
+   * @param {Object} [options] - Query options (same as findWhere).
+   * @returns {Promise<Object|null>} First matching row or null.
+   */
+  async findOneBy(conditions, options = {}) {
+    const results = await this.findWhere(conditions, 'AND', options);
+    return results[0] || null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 🟠 Query & Filtering
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Checks if any row exists matching the given conditions.
+   * @param {Object} conditions - Condition object.
+   * @returns {Promise<boolean>} True if a match is found.
+   * @throws {Error} If conditions are invalid.
+   */
   async exists(conditions) {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
@@ -137,6 +204,11 @@ class QueryModel {
     }
   }
 
+  /**
+   * Counts the number of rows matching a WHERE clause.
+   * @param {Object|Array<Object>} where - WHERE condition(s).
+   * @returns {Promise<number>} Number of matching rows.
+   */
   async count(where) {
     const { clause, values } = this.buildWhereClause(where);
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
@@ -156,11 +228,10 @@ class QueryModel {
     }
   }
 
-  async findOneBy(conditions, options = {}) {
-    const results = await this.findWhere(conditions, 'AND', options);
-    return results[0] || null;
-  }
-
+  /**
+   * Counts all rows in the table.
+   * @returns {Promise<number>} Total row count.
+   */
   async countAll() {
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
     logMessage({
@@ -179,6 +250,15 @@ class QueryModel {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // 🟣 Utilities
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Escapes a column or table name using pg-promise syntax.
+   * @param {string} name - Unescaped identifier.
+   * @returns {string} Escaped name.
+   */
   escapeName(name) {
     return this.pgp.as.name(name);
   }
@@ -191,6 +271,12 @@ class QueryModel {
     return this.escapeName(this._schema.dbSchema);
   }
 
+  /**
+   * Sets a new schema name and regenerates the column set.
+   * @param {string} name - The new schema name.
+   * @returns {QueryModel} The updated model instance.
+   * @throws {Error} If name is invalid.
+   */
   setSchemaName(name) {
     if (typeof name !== 'string' || !name.trim()) {
       throw new Error('Schema name must be a non-empty string');
@@ -208,6 +294,19 @@ class QueryModel {
     return this.escapeName(this._schema.table);
   }
 
+  // ---------------------------------------------------------------------------
+  // 🔴 Internals
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Builds a SQL WHERE clause from conditions.
+   * @param {Object|Array<Object>} where - Conditions object or array.
+   * @param {boolean} [requireNonEmpty=true] - Enforce non-empty input.
+   * @param {Array} [values=[]] - Array to accumulate parameter values.
+   * @param {string} [joinType='AND'] - Logical operator for combining.
+   * @returns {{ clause: string, values: Array }} Clause and parameter list.
+   * @throws {Error} If input is invalid or empty when required.
+   */
   buildWhereClause(
     where = {},
     requireNonEmpty = true,
@@ -236,13 +335,18 @@ class QueryModel {
   }
 
   /**
-   * Builds a SQL WHERE clause from a list of conditions.
+   * Builds a SQL fragment from a group of conditions, supporting nested logic and advanced operators.
    *
-   * @param {Array|Object} group - Array of condition objects or a single condition object.
-   * @param {string} joiner - Logical operator ('AND' | 'OR') to join top-level conditions.
-   *                          This does NOT override nested $or/$and operators inside condition objects.
-   * @param {Array} values - Accumulator for parameterized query values.
-   * @returns {string} - A SQL WHERE clause string.
+   * 🔍 Supports field-level modifiers like `$like`, `$from`, `$in`, etc.
+   * 🔁 Also supports nested boolean logic via `$and`, `$or`, `and`, `or`.
+   *
+   * 📘 See full documentation:
+   * [WHERE Clause Modifiers Reference](where-modifiers.md)
+   *
+   * @param {Array<Object>} group - Array of condition objects.
+   * @param {string} joiner - Logical joiner ('AND' or 'OR') between conditions.
+   * @param {Array} values - Parameter values to be populated.
+   * @returns {string} A SQL-safe WHERE fragment.
    */
   buildCondition(group, joiner = 'AND', values = []) {
     const parts = [];
@@ -342,6 +446,11 @@ class QueryModel {
     }
     return parts.join(` ${joiner} `);
   }
+  /**
+   * Handles known pg errors and logs them.
+   * @param {Error} err - The error thrown by pg-promise.
+   * @throws {DatabaseError} Translated database error.
+   */
   handleDbError(err) {
     if (this.logger?.error) {
       this.logger.error(
@@ -354,8 +463,6 @@ class QueryModel {
         }
       );
     }
-
-    // console.log('[DB ERROR]', err);
 
     switch (err.code) {
       case '23505':

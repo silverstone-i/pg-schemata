@@ -11,9 +11,18 @@
 
 import { z } from 'zod';
 /**
- * Generates a Zod schema from a pg-schemata tableSchema object.
- * @param {Object} tableSchema - The pg-schemata tableSchema object containing columns.
- * @returns {z.ZodObject} - The generated Zod schema.
+ * @private
+ *
+ * Generates a Zod schema validator from a tableSchema object used by pg-schemata.
+ * Produces base, insert, and update validators with support for PostgreSQL column types,
+ * nullable handling, and basic check constraint interpretation (e.g. char_length, IN()).
+ *
+ * Returns:
+ * - baseValidator: all fields (required if notNull)
+ * - insertValidator: only fields required at insert time
+ * - updateValidator: all fields optional
+ *
+ * Note: This function is used internally by TableModel to auto-generate validation schemas.
  */
 function mapSqlTypeToZod(type) {
   if (/^varchar\((\d+)\)$/i.test(type)) {

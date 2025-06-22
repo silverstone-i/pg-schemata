@@ -12,5 +12,6 @@
 export * from './DB.js';
 export * from './TableModel.js';
 export * from './QueryModel.js';
-export * as schemaBuilder from './utils/schemaBuilder.js';
-export * as validation from './utils/validation.js';
+export * from './utils/callDB.js';
+export * from './SchemaDefinitionError.js';
+export * from './DatabaseError.js';

@@ -42,6 +42,14 @@ npm install pg-promise pg-schemata
 
 ## 📄 Basic Usage
 
+---
+
+## 🔎 Where Modifiers
+
+See the supported modifiers used in `findWhere`, `updateWhere`, and other conditional methods:
+
+➡️ [WHERE Clause Modifiers Reference](./docs/where-modifiers.md)
+
 ### 1. Define a Table Schema
 
 ```javascript
@@ -119,6 +127,14 @@ async function example() {
 - Relationship handling (foreign key-aware querying and joins)
 - Declarative data validation (e.g. Zod/Joi integration)
 - Type-safe model generation
+
+---
+
+
+## 📘 Documentation
+
+Documentation is generated using [MkDocs](https://www.mkdocs.org/).  
+To contribute to or build the documentation site locally, follow the setup guide in [`docs/docs-setup.md`](./docs/docs-setup.md).
 
 ---
 

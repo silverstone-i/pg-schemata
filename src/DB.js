@@ -9,34 +9,40 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-/**
- * DB is a singleton that initializes and provides access to the pg-promise
- * database instance and attaches repository classes for your application.
- */
-
 import pgPromise from 'pg-promise';
 
 /**
- * Initializes the DB singleton with the given connection and repository classes.
+ * DB is a singleton utility class that initializes and provides access
+ * to a configured pg-promise database instance. It also auto-attaches
+ * custom repositories to the DB object on first initialization.
  *
- * @param {string|Object} connection - Connection string or configuration object for pg-promise.
- * @param {Object} repositories - An object mapping repository names to constructor functions.
- *                                Each constructor must accept a db instance and a pgp instance.
- * @returns {DB} The DB class with `db` and `pgp` initialized.
+ * Use `DB.init(connection, repositories)` once at startup to initialize the DB.
+ * Then access `DB.db` and `DB.pgp` as needed throughout your application.
  */
 class DB {
   /**
-   * The pg-promise database instance, created on first init.
-   * This is set during the first call to DB.init and remains the same thereafter.
+   * @private
+   * @type {import('pg-promise').IDatabase<any>}
+   * The initialized pg-promise database instance.
    */
   static db;
 
   /**
-   * The pg-promise root library instance, initialized with custom options.
-   * Used to configure database helpers and attach repositories.
+   * @private
+   * @type {import('pg-promise').IMain}
+   * The pg-promise root library instance.
    */
   static pgp;
 
+  /**
+   * Initializes the DB singleton if it hasn't been initialized yet.
+   *
+   * @param {object|string} connection - A pg-promise-compatible connection object or string.
+   * @param {Object<string, Function>} repositories - A map of repository names to their constructors.
+   * @param {object} [logger=null] - Optional logger passed to each repository.
+   * @returns {typeof DB} The initialized DB class (for chaining or access).
+   * @throws {Error} If connection or repositories are invalid.
+   */
   static init(connection, repositories, logger = null) {
     if (!DB.db) {
       // Only initialize once to enforce singleton pattern
@@ -47,12 +53,7 @@ class DB {
         }
 
         // Validate that a repositories object is provided
-        if (
-          !repositories ||
-          typeof repositories !== 'object' ||
-          Array.isArray(repositories) ||
-          repositories === null
-        ) {
+        if (!repositories || typeof repositories !== 'object' || Array.isArray(repositories) || repositories === null) {
           throw new Error();
         }
 
@@ -64,9 +65,7 @@ class DB {
             for (const repository of Object.keys(repositories)) {
               const RepoClass = repositories[repository];
               if (typeof RepoClass !== 'function') {
-                throw new TypeError(
-                  `Repository "${repository}" is not a valid constructor`
-                );
+                throw new TypeError(`Repository "${repository}" is not a valid constructor`);
               }
               obj[repository] = new RepoClass(obj, DB.pgp, logger);
             }
@@ -76,7 +75,6 @@ class DB {
         DB.pgp = pgPromise(initOptions);
         // Create the database instance using the provided connection
         DB.db = DB.pgp(connection);
-
       } catch (error) {
         throw error;
       }
@@ -86,23 +84,13 @@ class DB {
   }
 }
 
-function callDb(modelOrName, schemaName) {
-  const model =
-    typeof modelOrName === 'string' ? DB.db[modelOrName] : modelOrName;
-
-  if (!model || typeof model.setSchemaName !== 'function') {
-    throw new Error('callDb: provided model is not schema-aware');
-  }
-
-  return model.setSchemaName(schemaName);
-}
-
-// Export initialized pgp and db for advanced usage
+/** The initialized pg-promise instance. */
 export const pgp = DB.pgp;
+/** The initialized pg-promise database instance. */
 export const db = DB.db;
 
 // Named exports for structured access
-export { DB, callDb };
+export { DB };
 
 // Default export for convenience
 export default DB;

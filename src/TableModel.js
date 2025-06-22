@@ -11,10 +11,8 @@
 
 import pgPromise from 'pg-promise';
 const TableName = pgPromise({}).helpers.TableName;
-
 import QueryModel from './QueryModel.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
-
 import { createTableSQL } from './utils/schemaBuilder.js';
 import ExcelJS from 'exceljs';
 import { isValidId, isPlainObject } from './utils/validation.js';
@@ -22,17 +20,19 @@ import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 
 /**
- * TableModel provides generic CRUD operations for a PostgreSQL table using pg-promise
- * and a structured JSON schema. It supports pagination, filtering, and conditional querying.
- */
-
-/**
- * Creates an instance of TableModel.
+ * TableModel extends QueryModel to provide full read/write support for a PostgreSQL table.
  *
- * @param {Object} db - Database instance created by pg-promise.
- * @param {Object} pgp - pg-promise root instance for helpers and formatting.
- * @param {Object} schema - JSON schema definition for the table.
- * @param {Object} [logger] - Optional logger with debug and error methods.
+ * Adds create, update, and delete capabilities on top of the read-only features in QueryModel,
+ * along with support for spreadsheet import/export, validation, and conditional mutations.
+ *
+ * ✅ Features:
+ * - Full CRUD: `insert`, `update`, `delete`, `deleteWhere`, `updateWhere`
+ * - Cursor-based and paginated queries via `findAfterCursor`
+ * - Bulk operations: `bulkInsert`, `bulkUpdate`
+ * - Data import/export: `importFromSpreadsheet`, `exportToSpreadsheet`
+ * - Auto Zod schema validation and field sanitization
+ *
+ * This class is the standard entry point for interacting with a single table in pg-schemata.
  */
 class TableModel extends QueryModel {
   constructor(db, pgp, schema, logger) {
@@ -43,6 +43,12 @@ class TableModel extends QueryModel {
       this._schema.validators = generateZodFromTableSchema(this._schema);
     }
   }
+  /**
+   * Deletes a record by its ID.
+   * @param {string|number} id - Primary key of the row to delete.
+   * @returns {Promise<number>} Number of rows deleted.
+   * @throws {Error} If the ID is invalid or deletion fails.
+   */
   async delete(id) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
@@ -63,6 +69,12 @@ class TableModel extends QueryModel {
     }
   }
 
+  /**
+   * Inserts a single row into the table after validation and sanitization.
+   * @param {Object} dto - Data to insert.
+   * @returns {Promise<Object>} The inserted row.
+   * @throws {SchemaDefinitionError} If validation fails or DTO is invalid.
+   */
   async insert(dto) {
     if (!isPlainObject(dto)) {
       return Promise.reject(new SchemaDefinitionError('DTO must be a non-empty object'));
@@ -114,10 +126,22 @@ class TableModel extends QueryModel {
     }
   }
 
+  /**
+   * Reloads a single record by ID using findById.
+   * @param {string|number} id - Primary key value.
+   * @returns {Promise<Object|null>} The found record or null.
+   */
   async reload(id) {
     return this.findById(id);
   }
 
+  /**
+   * Updates a record by ID with new data.
+   * @param {string|number} id - Primary key value.
+   * @param {Object} dto - Updated values.
+   * @returns {Promise<Object|null>} Updated record or null if not found.
+   * @throws {SchemaDefinitionError} If ID or DTO is invalid.
+   */
   async update(id, dto) {
     if (!isValidId(id)) {
       return Promise.reject(new SchemaDefinitionError('Invalid ID format'));
@@ -175,6 +199,14 @@ class TableModel extends QueryModel {
   // 🟠 Query & Filtering
   // ---------------------------------------------------------------------------
 
+  /**
+   * Retrieves a paginated set of rows after a cursor position.
+   * @param {Object} cursor - Cursor values keyed by orderBy columns.
+   * @param {number} limit - Max number of rows to return.
+   * @param {Array<string>} orderBy - Columns used for pagination ordering.
+   * @param {Object} options - Extra filters and options.
+   * @returns {Promise<{rows: Object[], nextCursor: Object|null}>} Paginated result.
+   */
   async findAfterCursor(cursor = {}, limit = 50, orderBy = ['id'], options = {}) {
     const { descending = false, columnWhitelist = null, filters = {} } = options;
     const direction = descending ? 'DESC' : 'ASC';
@@ -232,6 +264,11 @@ class TableModel extends QueryModel {
   // ---------------------------------------------------------------------------
   // 🟤 Conditional Mutations
   // ---------------------------------------------------------------------------
+  /**
+   * Deletes rows matching a WHERE clause.
+   * @param {Object|Array} where - Filter criteria.
+   * @returns {Promise<number>} Number of rows deleted.
+   */
   async deleteWhere(where) {
     const { clause, values } = this.buildWhereClause(where);
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
@@ -250,10 +287,23 @@ class TableModel extends QueryModel {
     }
   }
 
+  /**
+   * Updates only the updated_by timestamp for a given row.
+   * @param {string|number} id - Primary key.
+   * @param {string} updatedBy - User performing the update.
+   * @returns {Promise<Object|null>} Updated row.
+   */
   async touch(id, updatedBy = 'system') {
     return this.update(id, { updated_by: updatedBy });
   }
 
+  /**
+   * Updates rows matching a WHERE clause.
+   * @param {Object|Array} where - Conditions.
+   * @param {Object} updates - Fields to update.
+   * @returns {Promise<number>} Number of rows updated.
+   * @throws {SchemaDefinitionError} If input is invalid.
+   */
   async updateWhere(where, updates) {
     const isNonEmpty = val =>
       Array.isArray(val) ? val.length > 0 : isPlainObject(val) ? Object.keys(val).length > 0 : false;
@@ -317,6 +367,12 @@ class TableModel extends QueryModel {
   // ---------------------------------------------------------------------------
   // 🔵 Bulk Operations
   // ---------------------------------------------------------------------------
+  /**
+   * Inserts many rows in a single batch operation.
+   * @param {Object[]} records - Rows to insert.
+   * @returns {Promise<number>} Number of rows inserted.
+   * @throws {SchemaDefinitionError} If records are invalid.
+   */
   async bulkInsert(records) {
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
@@ -354,6 +410,12 @@ class TableModel extends QueryModel {
     }
   }
 
+  /**
+   * Updates multiple rows using their primary keys.
+   * @param {Object[]} records - Each must include an ID field.
+   * @returns {Promise<number[]>} Array of row counts updated per query.
+   * @throws {SchemaDefinitionError} If input or IDs are invalid.
+   */
   async bulkUpdate(records) {
     const pk = this._schema.constraints?.primaryKey;
     if (!pk) {
@@ -409,9 +471,11 @@ class TableModel extends QueryModel {
   }
 
   /**
-   * Exports table data to an Excel spreadsheet.
-   * @param {string} filePath - Path to the .xlsx file to write.
-   * @param {Object} [where={}] - Optional filter for records.
+   * Exports table data to an Excel file based on filter criteria.
+   * @param {string} filePath - Destination .xlsx path.
+   * @param {Array} [where=[]] - Optional conditions.
+   * @param {string} [joinType='AND'] - Join type between conditions.
+   * @param {Object} [options={}] - Additional query options.
    * @returns {Promise<{exported: number, filePath: string}>}
    */
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
@@ -442,10 +506,11 @@ class TableModel extends QueryModel {
   }
 
   /**
-   * Imports data from an Excel spreadsheet and inserts it into the table.
-   * You can specify the index of the sheet to import (default is 0).
-   * @param {string} filePath - Path to the .xlsx file to import.
-   * @param {number} [sheetIndex=0] - Index of the sheet to import.
+   * Loads data from an Excel file and inserts it into the table.
+   * @param {string} filePath - Source .xlsx file path.
+   * @param {number} [sheetIndex=0] - Sheet index to load.
+   * @returns {Promise<{inserted: number}>}
+   * @throws {SchemaDefinitionError} If file format is invalid.
    */
   async importFromSpreadsheet(filePath, sheetIndex = 0) {
     if (typeof filePath !== 'string') {
@@ -497,6 +562,13 @@ class TableModel extends QueryModel {
   // 🟣 Utilities
   // ---------------------------------------------------------------------------
 
+  /**
+   * Returns a sanitized copy of the input, filtering out invalid or immutable columns.
+   * @param {Object} dto - Input object.
+   * @param {Object} [options]
+   * @param {boolean} [options.includeImmutable=true]
+   * @returns {Object} Sanitized DTO.
+   */
   sanitizeDto(dto, { includeImmutable = true } = {}) {
     const validColumns = this._schema.columns.filter(c => includeImmutable || !c.immutable).map(c => c.name);
     const sanitized = {};
@@ -508,10 +580,18 @@ class TableModel extends QueryModel {
     return sanitized;
   }
 
+  /**
+   * Sets a new schema name in the internal schema.
+   * @param {string} dbSchema - New schema name.
+   */
   setSchema(dbSchema) {
     this._schema.dbSchema = dbSchema;
   }
 
+  /**
+   * Truncates the table and resets its identity sequence.
+   * @returns {Promise<void>}
+   */
   async truncate() {
     logMessage({
       logger: this.logger,
@@ -536,11 +616,20 @@ class TableModel extends QueryModel {
     }
   }
 
+  /**
+   * Sets a new schema name and returns the current model instance.
+   * @param {string} dbSchema - New schema name.
+   * @returns {TableModel}
+   */
   withSchema(dbSchema) {
     this._schema.dbSchema = dbSchema;
     return this;
   }
 
+  /**
+   * Creates the table using the current schema definition.
+   * @returns {Promise<void>}
+   */
   async createTable() {
     logMessage({
       logger: this.logger,
