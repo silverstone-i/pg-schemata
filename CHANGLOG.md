@@ -70,7 +70,7 @@ All notable changes to **pg-schemata** will be documented in this file.
 - Added best practices, design overview, and WHERE clause usage examples
 - Improved JSDoc across DB, Model, and Schema utilities
 
-Latest commit: `9ef603f`
+Latest commit: `a732a4b`
 
 ---
 
