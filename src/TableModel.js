@@ -11,10 +11,8 @@
 
 import pgPromise from 'pg-promise';
 const TableName = pgPromise({}).helpers.TableName;
-
 import QueryModel from './QueryModel.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
-
 import { createTableSQL } from './utils/schemaBuilder.js';
 import ExcelJS from 'exceljs';
 import { isValidId, isPlainObject } from './utils/validation.js';
@@ -22,8 +20,19 @@ import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 
 /**
- * TableModel extends the read only operations in QueryModel to provide CRUD operations excel import, export
- * operations along with filtering, pagination, and bulk operations for a single PostgreSQL table.
+ * TableModel extends QueryModel to provide full read/write support for a PostgreSQL table.
+ *
+ * Adds create, update, and delete capabilities on top of the read-only features in QueryModel,
+ * along with support for spreadsheet import/export, validation, and conditional mutations.
+ *
+ * ✅ Features:
+ * - Full CRUD: `insert`, `update`, `delete`, `deleteWhere`, `updateWhere`
+ * - Cursor-based and paginated queries via `findAfterCursor`
+ * - Bulk operations: `bulkInsert`, `bulkUpdate`
+ * - Data import/export: `importFromSpreadsheet`, `exportToSpreadsheet`
+ * - Auto Zod schema validation and field sanitization
+ *
+ * This class is the standard entry point for interacting with a single table in pg-schemata.
  */
 class TableModel extends QueryModel {
   constructor(db, pgp, schema, logger) {

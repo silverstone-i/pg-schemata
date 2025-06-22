@@ -19,17 +19,20 @@ const { cloneDeep } = _;
 
 
 /**
- * QueryModel provides reusable query-building and execution logic for PostgreSQL tables.
+ * QueryModel provides reusable read-only query logic for PostgreSQL tables.
  *
- * Designed to be extended by table-specific models (e.g. TableModel), it enables:
- * - Filtered and paginated queries with `findWhere`, `findAll`, `findOneBy`
- * - Aggregation and existence checks with `count`, `countAll`, and `exists`
+ * Designed for models that require flexible query-building capabilities, either as a standalone
+ * read-only interface or to be extended for full CRUD functionality.
+ *
+ * It may be instantiated directly when only read-access is required.
+ *
+ * ✅ Features:
  * - Dynamic WHERE clause generation via `buildWhereClause` and `buildCondition`
+ * - Query helpers: `findWhere`, `findAll`, `findOneBy`
+ * - Aggregations and checks: `count`, `countAll`, `exists`
+ * - Rich condition syntax with `$like`, `$from`, `$eq`, `$in`, `$and`, `$or`, etc.
  *
- * 🔍 Supports rich filter syntax with operators like `$like`, `$from`, `$eq`, `$in`, etc.
- * See [where-modifiers.md](where-modifiers.md) for full reference.
- *
- * Not intended to be instantiated directly.
+ * 📌 See [where-modifiers.md](where-modifiers.md) for full reference.
  */
 class QueryModel {
   constructor(db, pgp, schema, logger = null) {
