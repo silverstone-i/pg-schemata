@@ -1,14 +1,24 @@
 'use strict';
 
-/**
- * @fileoverview Utility validation functions for IDs and object types.
- */
+/*
+* Copyright © 2024-present, Ian Silverstone
+*
+* See the LICENSE file at the top-level directory of this distribution
+* for licensing information.
+*
+* Removal or modification of this copyright notice is prohibited.
+*/
+
+import _ from 'lodash';
+const { isPlainObject } = _;
 
 /**
+ * @private
+ *
  * Checks if the provided ID is a valid finite number or a non-empty string.
  *
- * @param {*} id - The ID to validate.
- * @returns {boolean} True if the ID is a finite number or a non-empty string.
+ * @param {*} id - The value to check.
+ * @returns {boolean} True if id is a valid string or finite number.
  */
 export function isValidId(id) {
   // Allow numeric IDs (finite numbers) or string IDs (non-empty when trimmed)
@@ -19,10 +29,12 @@ export function isValidId(id) {
 }
 
 /**
+ * @private
+ *
  * Validates whether a string matches the UUID v1–v5 format.
  *
- * @param {*} id - The string to test as a UUID.
- * @returns {boolean} True if the string is a valid UUID.
+ * @param {string} id - The string to test as a UUID.
+ * @returns {boolean} True if the string matches a UUID pattern.
  */
 export function validateUUID(id) {
   // Regular expression to match UUID versions 1 through 5
@@ -32,15 +44,8 @@ export function validateUUID(id) {
 }
 
 /**
- * Determines if a value is a plain object (i.e., created by {} or Object.create(null)).
+ * @private
  *
- * @param {*} obj - The value to check.
- * @returns {boolean} True if the value is a plain object.
+ * Re-export of lodash's isPlainObject utility.
  */
-export function isPlainObject(obj) {
-  // Exclude null and non-object types early
-  if (obj === null || typeof obj !== 'object') return false;
-  const proto = Object.getPrototypeOf(obj);
-  // A plain object has prototype of Object.prototype or null
-  return proto === Object.prototype || proto === null;
-}
+export { isPlainObject };

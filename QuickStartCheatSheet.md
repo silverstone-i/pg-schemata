@@ -6,7 +6,9 @@
 
 ```javascript
 const pgp = require('pg-promise')();
-const db = pgp({ /* connection config */ });
+const db = pgp({
+  /* connection config */
+});
 ```
 
 ✅ One global connection pool for all tenants.
@@ -20,17 +22,28 @@ const userSchema = {
   schema: 'public',
   table: 'users',
   columns: [
-    { name: 'id', type: 'uuid', default: 'gen_random_uuid()', notNull: true, immutable: true },
+    {
+      name: 'id',
+      type: 'uuid',
+      default: 'gen_random_uuid()',
+      notNull: true,
+      immutable: true,
+    },
     { name: 'tenant_id', type: 'uuid', notNull: true, immutable: true },
     { name: 'email', type: 'text', notNull: true },
     { name: 'password', type: 'text', notNull: true },
-    { name: 'created_at', type: 'timestamp', default: 'now()', immutable: true }
+    {
+      name: 'created_at',
+      type: 'timestamp',
+      default: 'now()',
+      immutable: true,
+    },
   ],
   constraints: {
     primaryKey: ['id'],
     unique: [['tenant_id', 'email']],
-    indexes: [{ columns: ['email'] }]
-  }
+    indexes: [{ columns: ['email'] }],
+  },
 };
 ```
 
@@ -39,16 +52,16 @@ const userSchema = {
 ## 3. **Create a Model**
 
 ```javascript
-const BaseModel = require('pg-schemata').BaseModel;
+const TableModel = require('pg-schemata').TableModel;
 
-class User extends BaseModel {
+class User extends TableModel {
   constructor(db) {
     super(db, userSchema);
   }
 }
 ```
 
-✅ Inherit from `BaseModel` for automatic CRUD and schema switching.
+✅ Inherit from `TableModel` for automatic CRUD and schema switching.
 
 ---
 
@@ -102,13 +115,13 @@ await db.none(createTableSQL.replace('public', 'org_abc'));
 
 # 🧠 Quick Reference
 
-| Action | Method |
-|:-------|:-------|
-| Change tenant schema | `.setSchema('schemaName')` |
-| Chain schema + query | `.withSchema('schemaName').findById(id)` |
-| Insert safely | `pgp.helpers.insert(data, insertColumnSet)` |
-| Update safely | `pgp.helpers.update(data, updateColumnSet)` |
-| Cursor-based pagination | `.findWithCursor(afterId, limit)` |
+| Action                  | Method                                      |
+| :---------------------- | :------------------------------------------ |
+| Change tenant schema    | `.setSchema('schemaName')`                  |
+| Chain schema + query    | `.withSchema('schemaName').findById(id)`    |
+| Insert safely           | `pgp.helpers.insert(data, insertColumnSet)` |
+| Update safely           | `pgp.helpers.update(data, updateColumnSet)` |
+| Cursor-based pagination | `.findWithCursor(afterId, limit)`           |
 | Create schema if needed | `CREATE SCHEMA IF NOT EXISTS "schemaName";` |
 
 ---

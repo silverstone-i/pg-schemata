@@ -16,12 +16,16 @@ import {
   createIndexesSQL,
   normalizeSQL,
   createColumnSet,
+  columnSetCache,
 } from '../../src/utils/schemaBuilder';
+import { LRUCache } from 'lru-cache';
 
 // Mock pg-promise and its helpers
-const mockExtend = jest.fn(columns => ({ extendedWith: columns }));
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const mockColumnSet = jest.fn((columns, options) => ({
+const mockExtend = vi.fn(columns => ({ extendedWith: columns }));
+
+const mockColumnSet = vi.fn((columns, options) => ({
   columns,
   options,
   extend: mockExtend,
@@ -51,6 +55,7 @@ describe('Schema Utilities', () => {
 
       const sql = createTableSQL(schema);
 
+      expect(sql).toContain('CREATE SCHEMA IF NOT EXISTS "public"');
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).toContain('"id" serial NOT NULL');
       expect(sql).toContain('"name" varchar(255) NOT NULL');
@@ -75,7 +80,7 @@ describe('Schema Utilities', () => {
             {
               columns: ['user_id', 'tenant_id'],
               references: {
-                schema: 'public',
+                dbSchema: 'public',
                 table: 'users',
                 columns: ['id', 'tenant_id'], // <-- Added this
               },
@@ -181,7 +186,7 @@ describe('Schema Utilities', () => {
             {
               columns: ['user_id'],
               references: {
-                schema: 'public',
+                dbSchema: 'public',
                 table: 'users',
                 columns: ['id'],
               },
@@ -261,10 +266,15 @@ describe('Schema Utilities', () => {
 
     it('should handle schema without primary key in createColumnSet', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'products',
         columns: [
-          { name: 'name', type: 'varchar(255)' },
+          {
+            name: 'name',
+            type: 'varchar(255)',
+            nullable: true,
+            colProps: { skip: c => !c.exists },
+          },
           { name: 'price', type: 'numeric' },
         ],
         // ❌ No constraints.primaryKey
@@ -304,11 +314,12 @@ describe('Schema Utilities', () => {
     beforeEach(() => {
       mockColumnSet.mockClear();
       mockExtend.mockClear();
+      columnSetCache.clear(); // Clear the cache before each test
     });
 
     it('should create ColumnSet with insert and update extensions', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'users',
         columns: [
           { name: 'id', type: 'serial' },
@@ -342,7 +353,7 @@ describe('Schema Utilities', () => {
 
     it('should not extend insert and update if audit fields are missing', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'products',
         columns: [
           { name: 'id', type: 'serial' },
@@ -362,7 +373,7 @@ describe('Schema Utilities', () => {
 
     it('should handle columns with default values correctly', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial' },
@@ -382,11 +393,17 @@ describe('Schema Utilities', () => {
 
     it('should skip missing columns correctly', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial' },
-          { name: 'status', type: 'varchar(50)', default: 'pending' },
+          {
+            name: 'status',
+            type: 'varchar(50)',
+            default: 'pending',
+            nullable: true,
+            colProps: { skip: c => !c.exists },
+          },
         ],
         constraints: {
           primaryKey: ['id'],
@@ -404,10 +421,10 @@ describe('Schema Utilities', () => {
 
     it('should recognize primary key columns that are not serial or uuid with default', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'orders',
         columns: [
-          { name: 'id', type: 'int' },
+          { name: 'id', type: 'int', colProps: { cnd: true } },
           { name: 'status', type: 'varchar(50)' },
         ],
         constraints: {
@@ -416,7 +433,6 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-
       const idCol = columnSet.orders.columns.find(col => col.name === 'id');
 
       expect(idCol.cnd).toBe(true);
@@ -424,7 +440,7 @@ describe('Schema Utilities', () => {
 
     it('should skip columns with type uuid and is a primary key and has a default value in createColumnSet', () => {
       const schema = {
-        schema: 'public',
+        dbSchema: 'public',
         table: 'test_table',
         columns: [
           { name: 'id', type: 'uuid', default: 'uuid_generate_v4()' }, // Should be skipped
@@ -439,6 +455,69 @@ describe('Schema Utilities', () => {
       const columnNames = columnSet.test_table.columns.map(col => col.name);
       expect(columnNames).not.toContain('id'); // 'id' should NOT be there
       expect(columnNames).toContain('email'); // 'email' should be there
+    });
+
+    it('should apply colProps for pg-promise column configuration', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          {
+            name: 'address',
+            type: 'jsonb',
+            colProps: { mod: ':json', skip: c => !c.exists },
+          },
+          { name: 'email', type: 'varchar(255)' },
+        ],
+        constraints: {
+          primaryKey: ['email'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+      const addressCol = columnSet.users.columns.find(
+        col => col.name === 'address'
+      );
+
+      expect(addressCol.mod).toBe(':json');
+      expect(typeof addressCol.skip).toBe('function');
+      expect(addressCol.skip({ exists: false })).toBe(true);
+    });
+  });
+  // LRU Cache tests for columnSetCache
+  describe('columnSetCache (LRU)', () => {
+    beforeEach(() => {
+      columnSetCache.clear();
+    });
+
+    it('should store and retrieve a cached value', () => {
+      const key = 'test-key';
+      const value = { dummy: true };
+      columnSetCache.set(key, value);
+      expect(columnSetCache.get(key)).toEqual(value);
+    });
+
+    it('should evict the oldest entry when max size is exceeded', () => {
+      const maxEntries = 20000;
+      // Add max + 1 entries
+      for (let i = 0; i <= maxEntries; i++) {
+        columnSetCache.set(`key-${i}`, { value: i });
+      }
+      expect(columnSetCache.get('key-0')).toBeUndefined(); // key-0 should be evicted
+    });
+
+    // Use a dedicated LRUCache instance with a short TTL for this test
+
+    it('should expire items after TTL', done => {
+      const testCache = new LRUCache({ max: 10, ttl: 100 }); // 100ms TTL
+      const key = 'ttl-key';
+      const value = { dummy: 'expired' };
+      testCache.set(key, value);
+
+      setTimeout(() => {
+        expect(testCache.get(key)).toBeUndefined();
+        done();
+      }, 200); // Wait longer than TTL
     });
   });
 });

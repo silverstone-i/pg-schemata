@@ -15,12 +15,20 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD func
 
 ## ✨ Features
 
-- Schema-driven table configuration
-- Smart `ColumnSet` management for inserts/updates
-- Base CRUD operations out of the box
-- Cursor-based pagination (keyset pagination)
+- Schema-driven table configuration via plain JavaScript objects
+- Automatic `ColumnSet` generation for efficient pg-promise integration
+- Full CRUD operations, including:
+  - insert, update, delete
+  - updateWhere, deleteWhere with flexible conditions
+  - bulkInsert, bulkUpdate using transactions
+- Cursor-based pagination (keyset pagination) with column whitelisting
 - Multi-schema (PostgreSQL schemas) support
-- Extensible via simple class inheritance
+- Import data directly from spreadsheets (via selected sheet index)
+- Extensible via class inheritance
+- Auto-sanitization of DTOs with support for audit fields
+- Consistent development and production logging via `logMessage` utility
+- Typed error classes (`DatabaseError`, `SchemaDefinitionError`) for structured error handling
+- LRU caching of `ColumnSet` definitions for improved performance
 
 ---
 
@@ -34,6 +42,14 @@ npm install pg-promise pg-schemata
 
 ## 📄 Basic Usage
 
+---
+
+## 🔎 Where Modifiers
+
+See the supported modifiers used in `findWhere`, `updateWhere`, and other conditional methods:
+
+➡️ [WHERE Clause Modifiers Reference](./docs/where-modifiers.md)
+
 ### 1. Define a Table Schema
 
 ```javascript
@@ -45,8 +61,8 @@ const userSchema = {
     { name: 'id', type: 'serial', primaryKey: true },
     { name: 'email', type: 'text', unique: true },
     { name: 'password', type: 'text' },
-    { name: 'created_at', type: 'timestamp', default: 'now()' }
-  ]
+    { name: 'created_at', type: 'timestamp', default: 'now()' },
+  ],
 };
 
 module.exports = userSchema;
@@ -58,10 +74,10 @@ module.exports = userSchema;
 
 ```javascript
 // models/User.js
-const BaseModel = require('pg-schemata').BaseModel;
+const TableModel = require('pg-schemata').TableModel;
 const userSchema = require('../schemas/userSchema');
 
-class User extends BaseModel {
+class User extends TableModel {
   constructor(db) {
     super(db, userSchema);
   }
@@ -82,15 +98,20 @@ module.exports = User;
 ### 3. Perform Operations
 
 ```javascript
-const { db } = require('./db');  // your pg-promise database instance
+const { db } = require('./db'); // your pg-promise database instance
 const User = require('./models/User');
 
 const userModel = new User(db);
 
 async function example() {
-  const newUser = await userModel.create({ email: 'test@example.com', password: 'secret' });
+  const newUser = await userModel.create({
+    email: 'test@example.com',
+    password: 'secret',
+  });
   const user = await userModel.findById(newUser.id);
-  const updated = await userModel.update(newUser.id, { password: 'newpassword' });
+  const updated = await userModel.update(newUser.id, {
+    password: 'newpassword',
+  });
   const users = await userModel.findAll({ limit: 10 });
   const deleted = await userModel.delete(newUser.id);
 }
@@ -100,12 +121,20 @@ async function example() {
 
 ## 🛠️ Planned Enhancements
 
-- Soft deletes (optional)
-- Auto table creation from schema definition
-- Data validation before inserts/updates
-- Relationship handling (joins)
-- Dynamic query filters
-- Schema migration helper (diff schemas and generate DDL)
+- Soft delete support
+- Automatic table creation and migration from schema definitions
+- Schema differencing utility to generate DDL
+- Relationship handling (foreign key-aware querying and joins)
+- Declarative data validation (e.g. Zod/Joi integration)
+- Type-safe model generation
+
+---
+
+
+## 📘 Documentation
+
+Documentation is generated using [MkDocs](https://www.mkdocs.org/).  
+To contribute to or build the documentation site locally, follow the setup guide in [`docs/docs-setup.md`](./docs/docs-setup.md).
 
 ---
 
@@ -123,6 +152,7 @@ async function example() {
 - Node.js >= 14
 - PostgreSQL >= 12
 - [`pg-promise`](https://github.com/vitaly-t/pg-promise)
+- [`lru-cache`](https://www.npmjs.com/package/lru-cache) (installed automatically)
 
 ---
 
