@@ -32,7 +32,7 @@ This guide describes the supported modifiers that can be used in `findWhere`, `u
 
 ## 🔗 See Also
 
-- `QueryModel#buildCondition`
-- `QueryModel#findWhere`
-- `TableModel#updateWhere`
+- [QueryModel.buildCondition](pg-schemata.md#buildcondition)
+- [QueryModel.findWhere](pg-schemata.md#findWhere)
+- [TableModel.updateWhere](pg-schemata.md#updateWhere)
 - [pg-schemata.md](pg-schemata.md)
