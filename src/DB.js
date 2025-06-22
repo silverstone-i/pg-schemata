@@ -21,12 +21,14 @@ import pgPromise from 'pg-promise';
  */
 class DB {
   /**
+   * @private
    * @type {import('pg-promise').IDatabase<any>}
    * The initialized pg-promise database instance.
    */
   static db;
 
   /**
+   * @private
    * @type {import('pg-promise').IMain}
    * The pg-promise root library instance.
    */
@@ -51,12 +53,7 @@ class DB {
         }
 
         // Validate that a repositories object is provided
-        if (
-          !repositories ||
-          typeof repositories !== 'object' ||
-          Array.isArray(repositories) ||
-          repositories === null
-        ) {
+        if (!repositories || typeof repositories !== 'object' || Array.isArray(repositories) || repositories === null) {
           throw new Error();
         }
 
@@ -68,9 +65,7 @@ class DB {
             for (const repository of Object.keys(repositories)) {
               const RepoClass = repositories[repository];
               if (typeof RepoClass !== 'function') {
-                throw new TypeError(
-                  `Repository "${repository}" is not a valid constructor`
-                );
+                throw new TypeError(`Repository "${repository}" is not a valid constructor`);
               }
               obj[repository] = new RepoClass(obj, DB.pgp, logger);
             }
@@ -80,7 +75,6 @@ class DB {
         DB.pgp = pgPromise(initOptions);
         // Create the database instance using the provided connection
         DB.db = DB.pgp(connection);
-
       } catch (error) {
         throw error;
       }
