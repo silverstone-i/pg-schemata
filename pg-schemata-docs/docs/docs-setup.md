@@ -1,8 +1,9 @@
 ---
-hide: true
+hide:
+  - navigation
+  - toc
 title: Internal Docs Setup
 ---
-
 # 🛠 Documentation Site Setup
 
 This guide outlines how to generate, sanitize, build, and publish the documentation site for `pg-schemata`.
