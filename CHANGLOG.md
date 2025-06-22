@@ -1,14 +1,19 @@
-
-
 # 📦 Changelog
 
 All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [v0.2.0-beta.1] - 2025-06-22
 
 ### 🚀 Features
+- Implemented `callDb` with schema-aware access to db methods
+- Added `exportToSpreadsheet` method to TableModel
+- Added Zod validation support to TableModel and schema generator
+- Added ZodError handling to TableModel
+- Enhanced DB initialization with optional logger and improved logging format
+- Enhanced `findWhere` to support aggregation functions (MAX, MIN, SUM)
+- Exported `db` and `pgp` from index for external usage
 - Implement `logMessage` utility for consistent logging across QueryModel and TableModel (`9ef603f`)
 - Introduce `DatabaseError` and `SchemaDefinitionError` classes for better error handling (`660d3ac`)
 - Add `setSchemaName` method and improve error handling in `QueryModel` (`e55760d`)
@@ -23,6 +28,13 @@ All notable changes to **pg-schemata** will be documented in this file.
 - Spreadsheet-driven testing and import using structured test files
 
 ### 🛠 Refactors
+- Improved logging format in QueryModel
+- Removed `attachToCallDb` and related tests
+- Streamlined index exports
+- Refactored `findAll` and `findById` to reuse `findWhere`
+- Added column property validation in schemaBuilder
+- Consolidated and replaced lodash usage
+- Migrated from Jest to Vitest with cleaner test output
 - Enhance `logQuery` to include parameters and improve error logging format (`5d08f35`)
 - Rename `schema` to `dbSchema` in `schemaBuilder` for consistency (`c7dcd40`)
 - Remove internal error handling method from `TableModel` to streamline code (`dd40395`)
@@ -33,7 +45,14 @@ All notable changes to **pg-schemata** will be documented in this file.
 - Replaced custom `isPlainObject` with lodash implementation
 - Rewrote test harness for tenant-awareness and reusable structure
 
+### 🐛 Fixes
+- Fixed date coercion bug in Zod validation
+- Improved default value handling in `createTableSQL`
+
 ### 🧪 Tests
+- Added unit tests for Zod schema generation
+- Added integration tests for `updated_at` Zod coercion
+- Adapted tests for updated `findWhere` behavior
 - Add unit tests for `columnSetCache` in `schemaBuilder` (`aae5c68`)
 - Clear columnSet cache and update schema properties in tests (`5b83d7e`)
 
@@ -46,6 +65,7 @@ All notable changes to **pg-schemata** will be documented in this file.
 - Improved integration test structure and database teardown logic
 
 ### 📚 Documentation
+- Merged docs branch (squashed)
 - Update README with enhanced features and spreadsheet import support (`ee4a01a`)
 - Added best practices, design overview, and WHERE clause usage examples
 - Improved JSDoc across DB, Model, and Schema utilities
