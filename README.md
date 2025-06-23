@@ -40,6 +40,10 @@ npm install pg-promise pg-schemata
 
 ---
 
+[📘 Documentation](https://silverstone-i.github.io/pg-schemata/)
+
+---
+
 ## 📄 Basic Usage
 
 ---
