@@ -1,7 +1,7 @@
 # pg-schemata
 
 [![npm version](https://img.shields.io/npm/v/pg-schemata.svg)](https://www.npmjs.com/package/pg-schemata)
-[![build status](https://img.shields.io/github/actions/workflow/status/your-username/pg-schemata/ci.yml?branch=main)](https://github.com/your-username/pg-schemata/actions)
+[![build status](https://img.shields.io/github/actions/workflow/status/silverstone-i/pg-schemata/ci.yml?branch=main)](https://github.com/silverstone-i/pg-schemata/actions)
 [![license](https://img.shields.io/npm/l/pg-schemata.svg)](LICENSE)
 [![postgresql](https://img.shields.io/badge/PostgreSQL-✔️-blue)](https://www.postgresql.org/)
 [![node](https://img.shields.io/badge/node-%3E%3D14.0.0-brightgreen)](https://nodejs.org/)
