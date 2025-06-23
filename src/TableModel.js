@@ -581,14 +581,6 @@ class TableModel extends QueryModel {
   }
 
   /**
-   * Sets a new schema name in the internal schema.
-   * @param {string} dbSchema - New schema name.
-   */
-  setSchema(dbSchema) {
-    this._schema.dbSchema = dbSchema;
-  }
-
-  /**
    * Truncates the table and resets its identity sequence.
    * @returns {Promise<void>}
    */
@@ -614,16 +606,6 @@ class TableModel extends QueryModel {
     } catch (err) {
       this.handleDbError(err);
     }
-  }
-
-  /**
-   * Sets a new schema name and returns the current model instance.
-   * @param {string} dbSchema - New schema name.
-   * @returns {TableModel}
-   */
-  withSchema(dbSchema) {
-    this._schema.dbSchema = dbSchema;
-    return this;
   }
 
   /**
