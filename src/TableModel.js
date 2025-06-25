@@ -322,7 +322,7 @@ class TableModel extends QueryModel {
       }
     } catch (err) {
       console.log('Update validation error:', err);
-      
+
       const error = new SchemaDefinitionError('DTO validation failed');
 
       error.cause = err.errors || err;
@@ -384,6 +384,12 @@ class TableModel extends QueryModel {
       table: this._schema.table,
       message: `Inserting ${records.length} records`,
     });
+
+    // Validate each record against the insert validator
+    if (this._schema.validators?.insertValidator) {
+      this.validateDto(records, this._schema.validators.insertValidator, 'Insert DTO');
+    }
+    // Ensure all records are plain objects
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
       if (!sanitized.created_by) sanitized.created_by = 'system';
@@ -431,6 +437,11 @@ class TableModel extends QueryModel {
       table: this._schema.table,
       message: `Updating ${records.length} records`,
     });
+
+    // Validate each record against the update validator
+    if (this._schema.validators?.updateValidator) {
+      this.validateDto(records, this._schema.validators.updateValidator, 'Update DTO');
+    }
 
     const first = records[0];
     if (!first.id) {
@@ -561,6 +572,24 @@ class TableModel extends QueryModel {
   // ---------------------------------------------------------------------------
   // 🟣 Utilities
   // ---------------------------------------------------------------------------
+
+  validateDto(data, validator, type = 'DTO') {
+    try {
+      if (Array.isArray(data)) {
+        validator.array().parse(data);
+      } else {
+        validator.parse(data);
+      }
+    } catch (err) {
+      const error = new SchemaDefinitionError(`${type} validation failed`);
+      error.cause = err.errors || err;
+      this.logger?.error?.(error);
+      if (this.logger) {
+        this.logger.error(`${type} validation failed: ${error.message}`, { cause: error.cause });
+      }
+      throw error;
+    }
+  }
 
   /**
    * Returns a sanitized copy of the input, filtering out invalid or immutable columns.
