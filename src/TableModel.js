@@ -573,6 +573,14 @@ class TableModel extends QueryModel {
   // 🟣 Utilities
   // ---------------------------------------------------------------------------
 
+  /**
+   * Validates a single DTO or an array of DTOs using a Zod validator.
+   *
+   * @param {Object|Object[]} data - The DTO or array of DTOs to validate.
+   * @param {import('zod').ZodTypeAny} validator - A Zod schema used for validation.
+   * @param {string} [type='DTO'] - Optional label used in error messages.
+   * @throws {SchemaDefinitionError} If validation fails. The `.cause` property contains Zod error details.
+   */
   validateDto(data, validator, type = 'DTO') {
     try {
       if (Array.isArray(data)) {
