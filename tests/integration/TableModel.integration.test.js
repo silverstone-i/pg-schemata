@@ -365,6 +365,38 @@ describe('TableModel Integration', () => {
     expect(updated.map(u => u.notes).sort()).toEqual(['Note 1', 'Note 2']);
   });
 
+  test('bulkInsert should fail validation for invalid records', async () => {
+    const badRecords = [
+      { created_by: 'bad-user', tenant_id: TENANT_ID }, // missing email
+      { email: 12345, created_by: 'bad-user', tenant_id: TENANT_ID }, // invalid email
+    ];
+
+    await expect(model.bulkInsert(badRecords)).rejects.toThrow(/Insert DTO validation failed/);
+  });
+
+  test('bulkUpdate should fail validation for invalid records', async () => {
+    const user = await model.insert({
+      email: 'valid@example.com',
+      created_by: 'for-bad-update',
+      tenant_id: TENANT_ID,
+    });
+
+    const badUpdates = [
+      {
+        id: user.id,
+        updated_by: 999, // invalid type
+        tenant_id: TENANT_ID,
+      },
+      {
+        id: user.id,
+        updated_at: 'not-a-date', // invalid format
+        tenant_id: TENANT_ID,
+      },
+    ];
+
+    await expect(model.bulkUpdate(badUpdates)).rejects.toThrow(/Update DTO validation failed/);
+  });
+
   test('importFromSpreadsheet should import records from an xlsx file', async () => {
     // console.log('Importing from spreadsheet...', __dirname);
 
