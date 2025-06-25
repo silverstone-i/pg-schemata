@@ -77,6 +77,7 @@
  * @property {string} dbSchema - PostgreSQL schema name (e.g., 'public').
  * @property {string} table - Table name.
  * @property {boolean} [hasAuditFields] - Whether to include created_at/updated_at/by fields.
+ * @property {boolean} [softDelete] - If true, adds an delete_at field for soft deletes.
  * @property {string} [version] - Optional schema version string.
  * @property {Array<ColumnDefinition>} columns - List of column definitions.
  * @property {Constraints} [constraints] - Table-level constraints.

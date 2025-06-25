@@ -9,8 +9,6 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-import pgPromise from 'pg-promise';
-const TableName = pgPromise({}).helpers.TableName;
 import QueryModel from './QueryModel.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
 import { createTableSQL } from './utils/schemaBuilder.js';
@@ -53,7 +51,8 @@ class TableModel extends QueryModel {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
     }
-    const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1`;
+    const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
+    const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1${softCheck}`;
     logMessage({
       logger: this.logger,
       level: 'debug',
@@ -129,10 +128,12 @@ class TableModel extends QueryModel {
   /**
    * Reloads a single record by ID using findById.
    * @param {string|number} id - Primary key value.
+   * @param {Object} [options] - Optional flags.
+   * @param {boolean} [options.includeDeactivated=false] - Whether to include soft-deleted records.
    * @returns {Promise<Object|null>} The found record or null.
    */
-  async reload(id) {
-    return this.findById(id);
+  async reload(id, { includeDeactivated = false } = {}) {
+    return this.findById(id, { includeDeactivated });
   }
 
   /**
@@ -167,7 +168,8 @@ class TableModel extends QueryModel {
     }
     const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
     if (!safeDto.updated_by) safeDto.updated_by = 'system';
-    const condition = this.pgp.as.format('WHERE id = $1', [id]);
+    const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
+    const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
     const query =
       this.pgp.helpers.update(safeDto, this.cs.update, {
         schema: this.schema.dbSchema,
@@ -270,7 +272,12 @@ class TableModel extends QueryModel {
    * @returns {Promise<number>} Number of rows deleted.
    */
   async deleteWhere(where) {
-    const { clause, values } = this.buildWhereClause(where);
+    let { clause, values } = this.buildWhereClause(where);
+    if (this._schema.softDelete) {
+      const softCheck = 'deactivated_at IS NULL';
+      const prefix = clause ? `${clause} AND ` : '';
+      clause = `${prefix}${softCheck}`;
+    }
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     logMessage({
       logger: this.logger,
@@ -294,6 +301,7 @@ class TableModel extends QueryModel {
    * @returns {Promise<Object|null>} Updated row.
    */
   async touch(id, updatedBy = 'system') {
+    // Route through update(), which already applies soft delete check
     return this.update(id, { updated_by: updatedBy });
   }
 
@@ -344,7 +352,12 @@ class TableModel extends QueryModel {
 
     const setClause = this.pgp.helpers.update(safeUpdates, updateCs);
 
-    const { clause, values } = this.buildWhereClause(where);
+    let { clause, values } = this.buildWhereClause(where);
+    if (this._schema.softDelete) {
+      const softCheck = 'deactivated_at IS NULL';
+      const prefix = clause ? `${clause} AND ` : '';
+      clause = `${prefix}${softCheck}`;
+    }
 
     const query = `${setClause} WHERE ${clause}`;
     logMessage({
@@ -395,6 +408,15 @@ class TableModel extends QueryModel {
       if (!sanitized.created_by) sanitized.created_by = 'system';
       return sanitized;
     });
+
+    // Block insertion if deactivated_at is present and softDelete is enabled
+    if (this._schema.softDelete) {
+      for (const record of safeRecords) {
+        if ('deactivated_at' in record) {
+          throw new SchemaDefinitionError('Cannot insert records with deactivated_at when softDelete is enabled');
+        }
+      }
+    }
 
     const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
@@ -456,7 +478,8 @@ class TableModel extends QueryModel {
       const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
       if (!safeDto.updated_by) safeDto.updated_by = 'system';
       delete safeDto.id;
-      const condition = this.pgp.as.format('WHERE id = $1', [id]);
+      const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
+      const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
       const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeDto), {
         table: { table: this._schema.table, schema: this._schema.dbSchema },
       });
@@ -490,7 +513,8 @@ class TableModel extends QueryModel {
    * @returns {Promise<{exported: number, filePath: string}>}
    */
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
-    const { rows } = await this.findWhere(where, joinType, options);
+    const { includeDeactivated, ...rest } = options;
+    const { rows } = await this.findWhere(where, joinType, { ...rest, includeDeactivated });
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(this.tableName);
 
@@ -565,8 +589,93 @@ class TableModel extends QueryModel {
       message: `Importing ${rows.length} records from spreadsheet`,
     });
 
+    // If softDelete is enabled, strip deactivated_at from rows before bulkInsert
+    if (this._schema.softDelete) {
+      for (const row of rows) {
+        delete row.deactivated_at;
+      }
+    }
+
     const inserted = await this.bulkInsert(rows);
     return { inserted };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 🔻 Soft Delete Management
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Soft deletes records matching a WHERE clause by setting deactivated_at = NOW().
+   * @param {Object|Array} where - Filter criteria.
+   * @returns {Promise<number>} Number of rows updated.
+   */
+  async removeWhere(where) {
+    let { clause, values } = this.buildWhereClause(where);
+    if (this._schema.softDelete) {
+      const softCheck = 'deactivated_at IS NULL';
+      const prefix = clause ? `${clause} AND ` : '';
+      clause = `${prefix}${softCheck}`;
+    }
+    const query = `UPDATE ${this.schemaName}.${this.tableName} SET deactivated_at = NOW() WHERE ${clause}`;
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values },
+    });
+    return this.db.result(query, values, r => r.rowCount);
+  }
+
+  /**
+   * Restores previously soft-deleted records by setting deactivated_at = NULL.
+   * @param {Object|Array} where - Filter criteria.
+   * @returns {Promise<number>} Number of rows updated.
+   */
+  async restoreWhere(where) {
+    const { clause, values } = this.buildWhereClause(where);
+    const query = `UPDATE ${this.schemaName}.${this.tableName} SET deactivated_at = NULL WHERE ${clause}`;
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values },
+    });
+    return this.db.result(query, values, r => r.rowCount);
+  }
+
+  /**
+   * Permanently deletes soft-deleted records that match a given condition.
+   * Useful for scheduled cleanup of records older than a threshold.
+   * @param {Object|Array<Object>} where - Filter conditions.
+   * @returns {Promise<Object>} pg-promise result.
+   */
+  async purgeSoftDeleteWhere(where = []) {
+    const normalized = Array.isArray(where) ? where : [where];
+    const { clause, values } = this.buildWhereClause([...normalized, { deactivated_at: { $ne: null } }]);
+    const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
+    logMessage({
+      logger: this.logger,
+      level: 'debug',
+      schema: this._schema.dbSchema,
+      table: this._schema.table,
+      message: 'Executing SQL',
+      data: { query, values },
+    });
+    return this.db.result(query, values);
+  }
+
+  /**
+   * Permanently deletes a soft-deleted row by ID.
+   * @param {string|number} id - Primary key value.
+   * @returns {Promise<Object>} pg-promise result.
+   */
+  async purgeSoftDeleteById(id) {
+    if (!isValidId(id)) throw new Error('Invalid ID format');
+    return this.purgeSoftDeleteWhere([{ id }]);
   }
 
   // ---------------------------------------------------------------------------

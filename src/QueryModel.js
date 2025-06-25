@@ -63,6 +63,30 @@ class QueryModel {
   // ---------------------------------------------------------------------------
   // 🟢 Basic Queries
   // ---------------------------------------------------------------------------
+  /**
+   * Finds only soft-deleted records.
+   * @param {Array<Object>} conditions - Optional extra conditions.
+   * @param {string} joinType - Logical joiner ('AND' or 'OR').
+   * @param {Object} options - Query options.
+   * @returns {Promise<Object[]>} Soft-deleted rows.
+   */
+  async findSoftDeleted(conditions = [], joinType = 'AND', options = {}) {
+    return this.findWhere(
+      [...conditions, { deactivated_at: { $ne: null } }],
+      joinType,
+      options
+    );
+  }
+
+  /**
+   * Checks if a specific record is soft-deleted.
+   * @param {number|string} id - The primary key value.
+   * @returns {Promise<boolean>} True if the record is soft-deleted, false otherwise.
+   */
+  async isSoftDeleted(id) {
+    if (!isValidId(id)) throw new Error('Invalid ID format');
+    return this.exists({ id, deactivated_at: { $ne: null } }, { includeDeactivated: true });
+  }
 
   /**
    * Fetches all rows from the table with optional pagination.
@@ -87,6 +111,17 @@ class QueryModel {
   }
 
   /**
+   * Finds a single row by its ID, including soft-deleted records.
+   * @param {number|string} id - The primary key value.
+   * @returns {Promise<Object|null>} Matching row or null if not found.
+   * @throws {Error} If ID is invalid.
+   */
+  async findByIdIncludingDeactivated(id) {
+    if (!isValidId(id)) throw new Error('Invalid ID format');
+    return this.findOneBy([{ id }], { includeDeactivated: true });
+  }
+
+  /**
    * Finds rows matching conditions and optional filters.
    * @param {Array<Object>} conditions - Array of condition objects.
    * @param {string} joinType - Logical operator ('AND' or 'OR').
@@ -107,6 +142,7 @@ class QueryModel {
       orderBy = null,
       limit = null,
       offset = null,
+      includeDeactivated = false,
     } = {}
   ) {
     if (!Array.isArray(conditions)) {
@@ -126,7 +162,8 @@ class QueryModel {
         conditions,
         true,
         [],
-        joinType
+        joinType,
+        options.includeDeactivated === true
       );
       values.push(...builtValues);
       whereClauses.push(`(${clause})`);
@@ -179,14 +216,21 @@ class QueryModel {
   /**
    * Checks if any row exists matching the given conditions.
    * @param {Object} conditions - Condition object.
+   * @param {Object} [options] - Query options.
    * @returns {Promise<boolean>} True if a match is found.
    * @throws {Error} If conditions are invalid.
    */
-  async exists(conditions) {
+  async exists(conditions, options = {}) {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
     }
-    const { clause, values } = this.buildWhereClause(conditions);
+    const { clause, values } = this.buildWhereClause(
+      conditions,
+      true,
+      [],
+      'AND',
+      options.includeDeactivated === true
+    );
     const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${clause}) AS "exists"`;
     logMessage({
       logger: this.logger,
@@ -207,10 +251,17 @@ class QueryModel {
   /**
    * Counts the number of rows matching a WHERE clause.
    * @param {Object|Array<Object>} where - WHERE condition(s).
+   * @param {Object} [options] - Query options.
    * @returns {Promise<number>} Number of matching rows.
    */
-  async count(where) {
-    const { clause, values } = this.buildWhereClause(where);
+  async count(where, options = {}) {
+    const { clause, values } = this.buildWhereClause(
+      where,
+      true,
+      [],
+      'AND',
+      options.includeDeactivated === true
+    );
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     logMessage({
       logger: this.logger,
@@ -233,17 +284,28 @@ class QueryModel {
    * @returns {Promise<number>} Total row count.
    */
   async countAll() {
-    const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
+    let query;
+    let values = [];
+
+    if (this._schema.softDelete) {
+      const where = [];
+      const built = this.buildWhereClause(where, false, values, 'AND', false);
+      query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${built.clause}`;
+      values = built.values;
+    } else {
+      query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
+    }
+
     logMessage({
       logger: this.logger,
       level: 'debug',
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
-      data: { query },
+      data: { query, values },
     });
     try {
-      const result = await this.db.one(query);
+      const result = await this.db.one(query, values);
       return parseInt(result.count, 10);
     } catch (err) {
       this.handleDbError(err);
@@ -304,6 +366,7 @@ class QueryModel {
    * @param {boolean} [requireNonEmpty=true] - Enforce non-empty input.
    * @param {Array} [values=[]] - Array to accumulate parameter values.
    * @param {string} [joinType='AND'] - Logical operator for combining.
+   * @param {boolean} [includeDeactivated=false] - Include soft-deleted records if true.
    * @returns {{ clause: string, values: Array }} Clause and parameter list.
    * @throws {Error} If input is invalid or empty when required.
    */
@@ -311,27 +374,34 @@ class QueryModel {
     where = {},
     requireNonEmpty = true,
     values = [],
-    joinType = 'AND'
+    joinType = 'AND',
+    includeDeactivated = false
   ) {
     const isValidArray = Array.isArray(where);
     const isValidObject = isPlainObject(where);
 
+    let clause;
     if (isValidArray) {
       if (requireNonEmpty && where.length === 0) {
         throw new Error('WHERE clause must be a non-empty array');
       }
-      return { clause: this.buildCondition(where, joinType, values), values };
-    }
-
-    if (isValidObject) {
+      clause = this.buildCondition(where, joinType, values);
+    } else if (isValidObject) {
       const isEmptyObject = Object.keys(where).length === 0;
       if (requireNonEmpty && isEmptyObject) {
         throw new Error('WHERE clause must be a non-empty object');
       }
-      return { clause: this.buildCondition([where], joinType, values), values };
+      clause = this.buildCondition([where], joinType, values);
+    } else {
+      throw new Error('WHERE clause must be an array or plain object');
     }
 
-    throw new Error('WHERE clause must be an array or plain object');
+    // Refactored logic for soft delete handling
+    if (this._schema.softDelete && !includeDeactivated) {
+      clause += clause ? ' AND deactivated_at IS NULL' : 'deactivated_at IS NULL';
+    }
+
+    return { clause, values };
   }
 
   /**
