@@ -4,6 +4,23 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
+Latest commit: `b781c0d`
+
+---
+
+## [v0.2.0-beta.2] - 2025-06-25
+
+### 🚀 Features
+- Add Zod-based validation for `insert` and `update` DTOs in `TableModel`
+
+### 🧪 Tests
+- Add validation tests for `bulkInsert` and `bulkUpdate` methods
+
+### 📚 Documentation
+- Document `validateDto` method in `TableModel` for DTO validation
+
+---
+
 ## [v0.2.0-beta.1] - 2025-06-22
 
 ### 🚀 Features
@@ -69,8 +86,6 @@ All notable changes to **pg-schemata** will be documented in this file.
 - Update README with enhanced features and spreadsheet import support (`ee4a01a`)
 - Added best practices, design overview, and WHERE clause usage examples
 - Improved JSDoc across DB, Model, and Schema utilities
-
-Latest commit: `a732a4b`
 
 ---
 
