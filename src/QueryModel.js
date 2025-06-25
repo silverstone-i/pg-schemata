@@ -163,7 +163,7 @@ class QueryModel {
         true,
         [],
         joinType,
-        options.includeDeactivated === true
+        includeDeactivated === true
       );
       values.push(...builtValues);
       whereClauses.push(`(${clause})`);

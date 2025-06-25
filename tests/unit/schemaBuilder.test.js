@@ -1,5 +1,6 @@
 'use strict';
 
+import { has } from 'lodash';
 /*
  * Copyright © 2024-present, Ian Silverstone
  *
@@ -206,8 +207,10 @@ describe('Schema Utilities', () => {
 
   describe('addAuditFields', () => {
     it('should add audit fields to the schema columns', () => {
-      const schema = { columns: [] };
+      const schema = { hasAuditFields: true, columns: [] };
       const updatedSchema = addAuditFields(schema);
+      console.log('Updated Schema:', updatedSchema);
+      
 
       expect(updatedSchema.columns).toEqual(
         expect.arrayContaining([
@@ -321,6 +324,7 @@ describe('Schema Utilities', () => {
       const schema = {
         dbSchema: 'public',
         table: 'users',
+        hasAuditFields: true,
         columns: [
           { name: 'id', type: 'serial' },
           { name: 'name', type: 'varchar(255)' },

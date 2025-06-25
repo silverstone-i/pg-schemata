@@ -163,7 +163,7 @@ function createTableSQL(schema, logger = null) {
  */
 function addAuditFields(schema) {
   const { columns } = schema;
-  if (schema.hasAuditFields) {
+  if (schema?.hasAuditFields) {
     const auditFields = [
       {
         name: 'created_at',
@@ -188,7 +188,7 @@ function addAuditFields(schema) {
     }
   }
 
-  if (schema.softDelete) {
+  if (schema?.softDelete) {
     const hasDeactivatedAt = columns.some(col => col.name === 'deactivated_at');
     if (!hasDeactivatedAt) {
       columns.push({
