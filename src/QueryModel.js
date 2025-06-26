@@ -448,6 +448,7 @@ class QueryModel {
               '$min',
               '$sum',
               '$not',
+              '$is',
             ];
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
@@ -501,6 +502,14 @@ class QueryModel {
                 parts.push(`${col} IS NOT NULL`);
               } else {
                 throw new SchemaDefinitionError(`$not only supports null for now`);
+              }
+            }
+            // Handle $is
+            if ('$is' in val) {
+              if (val['$is'] === null) {
+                parts.push(`${col} IS NULL`);
+              } else {
+                throw new SchemaDefinitionError(`$is only supports null for now`);
               }
             }
             if ('$max' in val) {
