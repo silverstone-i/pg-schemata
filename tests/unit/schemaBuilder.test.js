@@ -209,8 +209,6 @@ describe('Schema Utilities', () => {
     it('should add audit fields to the schema columns', () => {
       const schema = { hasAuditFields: true, columns: [] };
       const updatedSchema = addAuditFields(schema);
-      console.log('Updated Schema:', updatedSchema);
-      
 
       expect(updatedSchema.columns).toEqual(
         expect.arrayContaining([
