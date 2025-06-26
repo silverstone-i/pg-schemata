@@ -167,7 +167,7 @@ function addAuditFields(schema) {
     const auditFields = [
       {
         name: 'created_at',
-        type: 'timestamp',
+        type: 'timestampz',
         default: 'now()',
         immutable: true,
       },
@@ -177,7 +177,7 @@ function addAuditFields(schema) {
         default: `'system'`,
         immutable: true,
       },
-      { name: 'updated_at', type: 'timestamp', default: 'now()' },
+      { name: 'updated_at', type: 'timestampz', default: 'now()' },
       { name: 'updated_by', type: 'varchar(50)', default: `'system'` },
     ];
 
@@ -193,7 +193,7 @@ function addAuditFields(schema) {
     if (!hasDeactivatedAt) {
       columns.push({
         name: 'deactivated_at',
-        type: 'timestamp',
+        type: 'timestampz',
         nullable: true,
       });
     }
