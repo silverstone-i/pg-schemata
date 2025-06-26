@@ -447,6 +447,7 @@ class QueryModel {
               '$max',
               '$min',
               '$sum',
+              '$not',
             ];
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
@@ -493,6 +494,14 @@ class QueryModel {
             if ('$ne' in val) {
               values.push(val['$ne']);
               parts.push(`${col} != $${values.length}`);
+            }
+            // Handle $not
+            if ('$not' in val) {
+              if (val['$not'] === null) {
+                parts.push(`${col} IS NOT NULL`);
+              } else {
+                throw new SchemaDefinitionError(`$not only supports null for now`);
+              }
             }
             if ('$max' in val) {
               parts.push(`${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName})`);

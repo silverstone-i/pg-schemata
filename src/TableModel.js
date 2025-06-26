@@ -634,7 +634,7 @@ class TableModel extends QueryModel {
    * @returns {Promise<number>} Number of rows updated.
    */
   async restoreWhere(where) {
-    const { clause, values } = this.buildWhereClause(where);
+    const { clause, values } = this.buildWhereClause(where, true, [], 'AND', true);
     const query = `UPDATE ${this.schemaName}.${this.tableName} SET deactivated_at = NULL WHERE ${clause}`;
     logMessage({
       logger: this.logger,
@@ -655,7 +655,13 @@ class TableModel extends QueryModel {
    */
   async purgeSoftDeleteWhere(where = []) {
     const normalized = Array.isArray(where) ? where : [where];
-    const { clause, values } = this.buildWhereClause([...normalized, { deactivated_at: { $ne: null } }]);
+    const { clause, values } = this.buildWhereClause(
+      [...normalized, { deactivated_at: { $not: null } }],
+      true,
+      [],
+      'AND',
+      true
+    );
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     logMessage({
       logger: this.logger,
@@ -665,6 +671,7 @@ class TableModel extends QueryModel {
       message: 'Executing SQL',
       data: { query, values },
     });
+    // Debug statement for integration test troubleshooting
     return this.db.result(query, values);
   }
 
