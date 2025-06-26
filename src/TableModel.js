@@ -309,10 +309,13 @@ class TableModel extends QueryModel {
    * Updates rows matching a WHERE clause.
    * @param {Object|Array} where - Conditions.
    * @param {Object} updates - Fields to update.
+   * @param {Object} [options={}] - Additional options (e.g., includeDeactivated).
    * @returns {Promise<number>} Number of rows updated.
    * @throws {SchemaDefinitionError} If input is invalid.
    */
-  async updateWhere(where, updates) {
+  async updateWhere(where, updates, options = {}) {
+    const { includeDeactivated = false } = options;
+
     const isNonEmpty = val =>
       Array.isArray(val) ? val.length > 0 : isPlainObject(val) ? Object.keys(val).length > 0 : false;
 
@@ -329,8 +332,6 @@ class TableModel extends QueryModel {
         this._schema.validators.updateValidator.parse(updates);
       }
     } catch (err) {
-      console.log('Update validation error:', err);
-
       const error = new SchemaDefinitionError('DTO validation failed');
 
       error.cause = err.errors || err;
@@ -352,17 +353,13 @@ class TableModel extends QueryModel {
 
     const setClause = this.pgp.helpers.update(safeUpdates, updateCs);
 
-    let { clause, values } = this.buildWhereClause(where);
-    if (this._schema.softDelete) {
-      const softCheck = 'deactivated_at IS NULL';
-      const prefix = clause ? `${clause} AND ` : '';
-      clause = `${prefix}${softCheck}`;
-    }
+    let { clause, values } = this.buildWhereClause(where, true, [], 'AND', includeDeactivated);
 
     const query = `${setClause} WHERE ${clause}`;
+
     logMessage({
       logger: this.logger,
-      level: 'debug',
+      level: 'info',
       schema: this._schema.dbSchema,
       table: this._schema.table,
       message: 'Executing SQL',
