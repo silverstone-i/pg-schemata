@@ -4,7 +4,7 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `d0b5f26`
+Latest commit: `fb9149b`
 
 ---
 
