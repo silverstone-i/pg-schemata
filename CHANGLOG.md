@@ -4,13 +4,15 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `b781c0d`
+Latest commit: `d0b5f26`
 
 ---
 
-## [v0.2.0-beta.2] - 2025-06-25
+## next version
 
 ### 🚀 Features
+- Add support for $is and $not operator in query conditions
+- Implement soft delete functionality across models with related methods
 - Add Zod-based validation for `insert` and `update` DTOs in `TableModel`
 
 ### 🧪 Tests
