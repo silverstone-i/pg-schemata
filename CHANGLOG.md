@@ -4,7 +4,7 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `fb9149b`
+Latest commit: `8f55d13`
 
 ---
 
@@ -21,6 +21,8 @@ Latest commit: `fb9149b`
 ### 📚 Documentation
 - Document `validateDto` method in `TableModel` for DTO validation
 
+### 🐛 Fixes
+- Corrected type timestampz to correct postgres type timestamptz
 ---
 
 ## [v0.2.0-beta.1] - 2025-06-22
