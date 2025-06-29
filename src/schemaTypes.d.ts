@@ -84,6 +84,7 @@ export interface Constraints {
  * @property {string} dbSchema - PostgreSQL schema name (e.g., 'public').
  * @property {string} table - Table name.
  * @property {boolean} [hasAuditFields] - Whether to include created_at/updated_at/by fields.
+ * @property {boolean} [softDelete] - Whether to use a soft delete strategy.
  * @property {string} [version] - Optional schema version string.
  * @property {Array<ColumnDefinition>} columns - List of column definitions.
  * @property {Constraints} [constraints] - Table-level constraints.
@@ -92,10 +93,11 @@ export interface TableSchema {
   dbSchema: string;
   table: string;
   hasAuditFields?: boolean;
+  softDelete?: boolean;
   version?: string;
   columns: ColumnDefinition[];
   constraints?: Constraints;
 }
 
 // Dummy export to force typedef symbols to register
-export const _ = {};
+export {};
