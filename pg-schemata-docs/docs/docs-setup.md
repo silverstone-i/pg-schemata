@@ -4,6 +4,7 @@ hide:
   - toc
 title: Internal Docs Setup
 ---
+
 # 🛠 Documentation Site Setup
 
 This guide outlines how to generate, sanitize, build, and publish the documentation site for `pg-schemata`.
@@ -47,7 +48,7 @@ Use the following script from `package.json` to generate both documentation file
 
 ```json
 "scripts": {
-  "docs": "documentation build src/index.js -f md -o pg-schemata-docs/documentation/pg-schemata.md && documentation build src/schemaTypes.js -f md -o pg-schemata-docs/documentation/schemaTypes.md && node ./pg-schemata-docs/sanitizeToc.js"
+    "docs": "documentation build src/index.js -f md -o pg-schemata-docs/documentation/pg-schemata.md && documentation build src/schemaTypes.d.ts -f md -o pg-schemata-docs/documentation/schemaTypes.md && node ./pg-schemata-docs/sanitizeToc.js",
 }
 ```
 
@@ -63,46 +64,34 @@ This generates both documentation files and sanitizes the output using the `sani
 
 ## 🐍 Python & MkDocs Setup
 
-1. **Install Python (via Homebrew)**  
+1. **Install Python (via Homebrew)**
+
    ```bash
    brew install python
    ```
 
-2. **Create Virtual Environment**  
+2. **Create Virtual Environment**
+
    ```bash
    python3 -m venv venv
    ```
 
-3. **Activate Environment**  
+3. **Activate Environment**
+
    ```bash
    source venv/bin/activate
    ```
 
-4. **Install MkDocs and Plugins**  
+4. **Install MkDocs and Plugins**
    ```bash
    pip install mkdocs mkdocs-material mkdocs-material-extensions==1.3.1
    ```
 
 ---
 
-## 🧼 Sanitize Markdown Files
-
-Run this script to sanitize and format documentation output:
-
-```bash
-node sanitizeDocs.js
-```
-
-This script:
-- Inserts frontmatter
-- Escapes MDX-sensitive syntax
-- Normalizes formatting
-
----
-
 ## 🛠 Build & Preview MkDocs Site
 
-From inside the `docs-site/` folder:
+From inside the `pg-schemata-docs/` folder (run source venv/bin/activate first if python is already setup):
 
 ```bash
 mkdocs serve
