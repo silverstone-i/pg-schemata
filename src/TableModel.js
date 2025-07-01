@@ -762,7 +762,7 @@ class TableModel extends QueryModel {
    * Creates the table using the current schema definition.
    * @returns {Promise<void>}
    */
-  async createTable() {
+  async createTable() {    
     logMessage({
       logger: this.logger,
       level: 'info',
@@ -772,14 +772,6 @@ class TableModel extends QueryModel {
     });
     try {
       const query = createTableSQL(this._schema);
-      logMessage({
-        logger: this.logger,
-        level: 'debug',
-        schema: this._schema.dbSchema,
-        table: this._schema.table,
-        message: 'Executing SQL',
-        data: { query },
-      });
       return await this.db.none(query);
     } catch (err) {
       this.handleDbError(err);

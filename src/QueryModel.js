@@ -53,7 +53,7 @@ class QueryModel {
 
     this.db = db;
     this.pgp = pgp;
-    this.logger = logger;
+    this.logger = logger;    
     this._schema = cloneDeep(
       schema.hasAuditFields ? addAuditFields(schema) : schema
     );
