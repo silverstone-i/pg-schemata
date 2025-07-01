@@ -32,9 +32,7 @@ export default defineConfig({
         'src/index.js',
         'tests/**',
         'src/tableSchema.js',
-        'src/schemaTypes.js',
         'src/schemaTypes.d.ts',
-        'src/schemaTypes.js',
         'src/types-ref.js',
         'src/utils/ddlGenerator.js',
         
