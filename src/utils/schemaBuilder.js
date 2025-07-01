@@ -51,6 +51,13 @@ function createTableSQL(schema, logger = null) {
 
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
+    // Support for generated columns
+    if (col.generated && col.expression) {
+      let def = `"${col.name}" ${col.type} GENERATED ${col.generated.toUpperCase()} AS (${col.expression})${
+        col.stored ? ' STORED' : ''
+      }`;
+      return def;
+    }
     let def = `"${col.name}" ${col.type}`;
     if (col.notNull) def += ' NOT NULL';
     if (col.default !== undefined) {

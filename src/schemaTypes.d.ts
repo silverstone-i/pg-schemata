@@ -13,6 +13,9 @@
  *
  * @property {string} name - The name of the column.
  * @property {string} type - PostgreSQL data type (e.g., 'text', 'uuid', 'integer', 'varchar', 'jsonb').
+ * @property {'always'|'by default'} [generated] - Marks the column as a generated column.
+ * @property {string} [expression] - SQL expression used for the generated column.
+ * @property {boolean} [stored] - Whether the generated column should be stored.
  * @property {boolean} [nullable] - Whether the column accepts null values. Defaults to true.
  * @property {*} [default] - Default value for the column. Can be a literal or SQL expression.
  * @property {boolean} [immutable] - If true, the column cannot be updated after creation. Defaults to false.
@@ -26,6 +29,9 @@
 export interface ColumnDefinition {
   name: string;
   type: string;
+  generated?: 'always' | 'by default';  
+  expression?: string;                  
+  stored?: boolean;                     
   nullable?: boolean;
   default?: any;
   immutable?: boolean;
