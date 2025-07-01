@@ -23,7 +23,7 @@ export interface ColumnDefinition {
   generated?: 'always' | 'by default';
   expression?: string;
   stored?: boolean;
-  nullable?: boolean;
+  notNull?: boolean;
   default?: any;
   immutable?: boolean;
   colProps?: {
