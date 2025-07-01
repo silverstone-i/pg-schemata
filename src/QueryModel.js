@@ -185,15 +185,7 @@ class QueryModel {
     if (offset) queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
 
     const query = queryParts.join(' ');
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
-
+    
     const result = await this.db.any(query, values);
     return result;
   }
@@ -232,14 +224,6 @@ class QueryModel {
       options.includeDeactivated === true
     );
     const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${clause}) AS "exists"`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
     try {
       const result = await this.db.one(query, values);
       return result.exists;
@@ -263,14 +247,6 @@ class QueryModel {
       options.includeDeactivated === true
     );
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
     try {
       const result = await this.db.one(query, values);
       return parseInt(result.count, 10);
@@ -295,15 +271,6 @@ class QueryModel {
     } else {
       query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
     }
-
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
     try {
       const result = await this.db.one(query, values);
       return parseInt(result.count, 10);

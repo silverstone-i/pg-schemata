@@ -53,14 +53,6 @@ class TableModel extends QueryModel {
     }
     const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1${softCheck}`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values: [id] },
-    });
     try {
       return await this.db.result(query, [id], r => r.rowCount);
     } catch (err) {
@@ -110,14 +102,6 @@ class TableModel extends QueryModel {
       error.cause = err;
       return Promise.reject(error);
     }
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query },
-    });
     try {
       return await this.db.one(query);
     } catch (err) {
@@ -178,14 +162,6 @@ class TableModel extends QueryModel {
       ' ' +
       condition +
       ' RETURNING *';
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values: [id] },
-    });
     try {
       const result = await this.db.result(query, undefined, r => ({
         rowCount: r.rowCount,
@@ -244,14 +220,6 @@ class TableModel extends QueryModel {
     queryParts.push(`LIMIT $${values.length + 1}`);
     values.push(limit);
     const query = queryParts.join(' ');
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
     const rows = await this.db.any(query, values);
     const nextCursor =
       rows.length > 0
@@ -279,14 +247,6 @@ class TableModel extends QueryModel {
       clause = `${prefix}${softCheck}`;
     }
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
     try {
       return await this.db.result(query, values, r => r.rowCount);
     } catch (err) {
@@ -356,16 +316,6 @@ class TableModel extends QueryModel {
     let { clause, values } = this.buildWhereClause(where, true, [], 'AND', includeDeactivated);
 
     const query = `${setClause} WHERE ${clause}`;
-
-    logMessage({
-      logger: this.logger,
-      level: 'info',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
-
     try {
       const result = await this.db.result(query, values, r => r.rowCount);
       return result;
@@ -387,13 +337,6 @@ class TableModel extends QueryModel {
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
-    logMessage({
-      logger: this.logger,
-      level: 'info',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: `Inserting ${records.length} records`,
-    });
 
     // Validate each record against the insert validator
     if (this._schema.validators?.insertValidator) {
@@ -419,15 +362,6 @@ class TableModel extends QueryModel {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
     const query = this.pgp.helpers.insert(safeRecords, cs);
-
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values: [] },
-    });
     try {
       return await this.db.tx(t => t.result(query, [], r => r.rowCount));
     } catch (err) {
@@ -449,13 +383,6 @@ class TableModel extends QueryModel {
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
-    logMessage({
-      logger: this.logger,
-      level: 'info',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: `Updating ${records.length} records`,
-    });
 
     // Validate each record against the update validator
     if (this._schema.validators?.updateValidator) {
@@ -484,14 +411,6 @@ class TableModel extends QueryModel {
     });
 
     const query = queries.join('; ');
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values: [] },
-    });
     try {
       return await this.db.tx(t => {
         return t.batch(queries.map(q => t.result(q, [], r => r.rowCount)));
@@ -614,14 +533,6 @@ class TableModel extends QueryModel {
       clause = `${prefix}${softCheck}`;
     }
     const query = `UPDATE ${this.schemaName}.${this.tableName} SET deactivated_at = NOW() WHERE ${clause}`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
     return this.db.result(query, values, r => r.rowCount);
   }
 
@@ -633,14 +544,6 @@ class TableModel extends QueryModel {
   async restoreWhere(where) {
     const { clause, values } = this.buildWhereClause(where, true, [], 'AND', true);
     const query = `UPDATE ${this.schemaName}.${this.tableName} SET deactivated_at = NULL WHERE ${clause}`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
     return this.db.result(query, values, r => r.rowCount);
   }
 
@@ -660,15 +563,6 @@ class TableModel extends QueryModel {
       true
     );
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query, values },
-    });
-    // Debug statement for integration test troubleshooting
     return this.db.result(query, values);
   }
 
@@ -743,14 +637,6 @@ class TableModel extends QueryModel {
       message: 'Truncating table',
     });
     const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
-    logMessage({
-      logger: this.logger,
-      level: 'debug',
-      schema: this._schema.dbSchema,
-      table: this._schema.table,
-      message: 'Executing SQL',
-      data: { query },
-    });
     try {
       return await this.db.none(query);
     } catch (err) {
