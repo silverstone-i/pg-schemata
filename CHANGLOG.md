@@ -4,25 +4,33 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `8f55d13`
+Latest commit: `5d14e44`
 
 ---
 
 ## next version
 
 ### 🚀 Features
+- Add support for generated columns in `createTableSQL` function
 - Add support for $is and $not operator in query conditions
 - Implement soft delete functionality across models with related methods
 - Add Zod-based validation for `insert` and `update` DTOs in `TableModel`
 
 ### 🧪 Tests
+- Add test for `CREATE TABLE` SQL with generated columns
 - Add validation tests for `bulkInsert` and `bulkUpdate` methods
+
+### 🐛 Fixes
+- Remove unnecessary debug logging from `QueryModel`, `TableModel`, and `createTable` method
+- Correct export for `TableSchema` to support TypeScript ambient context
+- Correct file extension for `schemaTypes` in docs script
+- Corrected type timestampz to correct postgres type timestamptz
+
+### 🧹 Chores
+- Remove duplicate entry for `schemaTypes.js` in coverage exclude list
 
 ### 📚 Documentation
 - Document `validateDto` method in `TableModel` for DTO validation
-
-### 🐛 Fixes
-- Corrected type timestampz to correct postgres type timestamptz
 ---
 
 ## [v0.2.0-beta.1] - 2025-06-22
