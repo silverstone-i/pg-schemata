@@ -18,7 +18,7 @@
     "nodejs"
   ],
   "scripts": {
-    "docs": "documentation build src/index.js -f md -o pg-schemata-docs/documentation/pg-schemata.md && documentation build src/schemaTypes.js -f md -o pg-schemata-docs/documentation/schemaTypes.md && node ./pg-schemata-docs/sanitizeToc.js",
+    "docs": "documentation build src/index.js -f md -o pg-schemata-docs/documentation/pg-schemata.md && documentation build src/schemaTypes.d.ts -f md -o pg-schemata-docs/documentation/schemaTypes.md && node ./pg-schemata-docs/sanitizeToc.js",
     "lint": "eslint .",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
