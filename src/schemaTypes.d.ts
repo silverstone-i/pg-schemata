@@ -7,7 +7,7 @@
  * @property {'always'|'by default'} [generated] - Marks the column as a generated column.
  * @property {string} [expression] - SQL expression used for the generated column.
  * @property {boolean} [stored] - Whether the generated column should be stored.
- * @property {boolean} [nullable] - Whether the column accepts null values. Defaults to true.
+ * @property {boolean} [notNull] - Whether the column accepts null values. Defaults to false.
  * @property {*} [default] - Default value for the column. Can be a literal or SQL expression.
  * @property {boolean} [immutable] - If true, the column cannot be updated after creation. Defaults to false.
  * @property {Object} [colProps] - pg-promise column helper modifiers.
@@ -20,9 +20,9 @@
 export interface ColumnDefinition {
   name: string;
   type: string;
-  generated?: 'always' | 'by default';  
-  expression?: string;                  
-  stored?: boolean;                     
+  generated?: 'always' | 'by default';
+  expression?: string;
+  stored?: boolean;
   nullable?: boolean;
   default?: any;
   immutable?: boolean;
