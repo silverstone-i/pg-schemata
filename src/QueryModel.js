@@ -460,8 +460,12 @@ class QueryModel {
               parts.push(`${col} = $${values.length}`);
             }
             if ('$ne' in val) {
-              values.push(val['$ne']);
-              parts.push(`${col} != $${values.length}`);
+              if (val['$ne'] === null) {
+                parts.push(`${col} IS NOT NULL`);
+              } else {
+                values.push(val['$ne']);
+                parts.push(`${col} != $${values.length}`);
+              }
             }
             // Handle $not
             if ('$not' in val) {
