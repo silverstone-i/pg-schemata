@@ -42,7 +42,7 @@ describe('QueryModel - soft delete support', () => {
 
     expect(mockDb.any).toHaveBeenCalled();
     const sql = mockDb.any.mock.calls[0][0];
-    expect(sql).toContain('"deactivated_at" !=');
+    expect(sql).toMatch(/"deactivated_at"\s+IS\s+NOT\s+NULL/);
     expect(result).toEqual([{ id: 1 }]);
   });
 
@@ -53,7 +53,7 @@ describe('QueryModel - soft delete support', () => {
 
     expect(mockDb.one).toHaveBeenCalled();
     const sql = mockDb.one.mock.calls[0][0];
-    expect(sql).toContain('"deactivated_at" !=');
+    expect(sql).toMatch(/"deactivated_at"\s+IS\s+NOT\s+NULL/);
     expect(sql).toContain('"id" =');
     expect(result).toBe(true);
   });
