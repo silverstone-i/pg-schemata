@@ -54,7 +54,7 @@ function generateZodFromTableSchema(tableSchema) {
 
   for (const column of tableSchema.columns) {
     const { name, type, notNull, default: defaultValue } = column;
-    let zodType = mapSqlTypeToZod(type);
+    let zodType = column.colProps?.validator || mapSqlTypeToZod(type);
 
     // Enhance email fields
     if (name === 'email' && zodType._def.typeName === 'ZodString') {

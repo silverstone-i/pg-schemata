@@ -10,12 +10,13 @@
  * @property {boolean} [notNull] - Whether the column accepts null values. Defaults to false.
  * @property {*} [default] - Default value for the column. Can be a literal or SQL expression.
  * @property {boolean} [immutable] - If true, the column cannot be updated after creation. Defaults to false.
- * @property {Object} [colProps] - pg-promise column helper modifiers.
- * @property {string} [colProps.mod] - Format modifier.
+ * @property {Object} [colProps] - Extended column behavior modifiers.
+ * @property {string} [colProps.mod] - pg-promise format modifier.
  * @property {(col: any) => boolean} [colProps.skip] - Conditionally skip this column in insert/update.
  * @property {boolean} [colProps.cnd] - Use in conditional update clause.
  * @property {(dto: any) => any} [colProps.init] - Function to initialize the value dynamically.
  * @property {string} [colProps.def] - Override default value.
+ * @property {*} [colProps.validator] - Custom Zod validator for this column.
  */
 export interface ColumnDefinition {
   name: string;
@@ -32,6 +33,7 @@ export interface ColumnDefinition {
     cnd?: boolean;
     init?: (dto: any) => any;
     def?: string;
+    validator?: any;
   };
 }
 
