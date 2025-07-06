@@ -458,12 +458,15 @@ class TableModel extends QueryModel {
 
   /**
    * Loads data from an Excel file and inserts it into the table.
+   * Each row can be transformed using an optional callback before insertion.
+   *
    * @param {string} filePath - Source .xlsx file path.
    * @param {number} [sheetIndex=0] - Sheet index to load.
-   * @returns {Promise<{inserted: number}>}
-   * @throws {SchemaDefinitionError} If file format is invalid.
+   * @param {(row: Object) => Object} [callbackFn=null] - Optional function to transform each row before insert.
+   * @returns {Promise<{inserted: number}>} Number of rows inserted.
+   * @throws {SchemaDefinitionError} If file format is invalid or spreadsheet is empty.
    */
-  async importFromSpreadsheet(filePath, sheetIndex = 0) {
+  async importFromSpreadsheet(filePath, sheetIndex = 0, callbackFn = null) {
     if (typeof filePath !== 'string') {
       throw new SchemaDefinitionError('File path must be a valid string');
     }
@@ -490,6 +493,9 @@ class TableModel extends QueryModel {
           obj[header] = values[i + 1];
         });
         rows.push(obj);
+        if (typeof callbackFn === 'function') {
+          rows[rows.length - 1] = callbackFn(rows[rows.length - 1]);
+        }
       }
     });
 
@@ -648,7 +654,7 @@ class TableModel extends QueryModel {
    * Creates the table using the current schema definition.
    * @returns {Promise<void>}
    */
-  async createTable() {    
+  async createTable() {
     logMessage({
       logger: this.logger,
       level: 'info',

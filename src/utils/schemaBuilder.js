@@ -305,9 +305,11 @@ function createColumnSet(schema, pgp, logger = null) {
         return null;
       }
 
+      // Exclude 'validator' from col.colProps when building columnObject
+      const { validator, ...colPropsWithoutValidator } = col.colProps || {};
       const columnObject = {
         name: col.name,
-        ...(col.colProps || {}),
+        ...colPropsWithoutValidator,
         def: col.hasOwnProperty('default') ? col.default : col.colProps?.def ?? undefined,
       };
 
