@@ -71,6 +71,13 @@ function createTableSQL(schema, logger = null) {
           }
           return `public.${fnName}()`;
         });
+
+        // Quote unquoted, non-function, non-numeric strings
+        const isSQLFunction = /\b\w+\(.*\)/.test(defaultValue);
+        const isNumeric = /^-?\d+(\.\d+)?$/.test(defaultValue);
+        if (!isSQLFunction && !isNumeric && !/^'.*'$/.test(defaultValue)) {
+          defaultValue = `'${defaultValue}'`;
+        }
       }
       def += ` DEFAULT ${defaultValue}`;
     }
