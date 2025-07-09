@@ -53,9 +53,7 @@ function createTableSQL(schema, logger = null) {
   const columnDefs = columns.map(col => {
     // Support for generated columns
     if (col.generated && col.expression) {
-      let def = `"${col.name}" ${col.type} GENERATED ${col.generated.toUpperCase()} AS (${col.expression})${
-        col.stored ? ' STORED' : ''
-      }`;
+      let def = `"${col.name}" ${col.type} GENERATED ${col.generated.toUpperCase()} AS (${col.expression})${col.stored ? ' STORED' : ''}`;
       return def;
     }
     let def = `"${col.name}" ${col.type}`;
@@ -108,9 +106,7 @@ function createTableSQL(schema, logger = null) {
   if (constraints.foreignKeys) {
     for (const fk of constraints.foreignKeys) {
       if (typeof fk.references !== 'object') {
-        throw new SchemaDefinitionError(
-          `Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`
-        );
+        throw new SchemaDefinitionError(`Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`);
       }
 
       const hash = createHash(table + fk.references.table + fk.columns.join('_'));
@@ -163,7 +159,6 @@ function createTableSQL(schema, logger = null) {
   // if (table === 'costlines') {
   //   console.log('costlines sql', sql);
   // }
-
   return sql;
 }
 
@@ -238,9 +233,7 @@ function createIndexesSQL(schema, unique = false, where = null, logger = null) {
 
   const indexSQL = indexes.map(index => {
     const indexName = `${unique ? 'uidx' : 'idx'}_${schema.table}_${index.columns.join('_')}`.toLowerCase();
-    return `CREATE INDEX IF NOT EXISTS "${indexName}" ON "${schema.schemaName}"."${schema.table}" (${index.columns.join(
-      ', '
-    )});`;
+    return `CREATE INDEX IF NOT EXISTS "${indexName}" ON "${schema.schemaName}"."${schema.table}" (${index.columns.join(', ')});`;
   });
 
   logMessage({
@@ -336,9 +329,7 @@ function createColumnSet(schema, pgp, logger = null) {
       if (col.colProps) {
         const { skip } = col.colProps;
         if (typeof skip !== 'undefined' && typeof skip !== 'function') {
-          throw new SchemaDefinitionError(
-            `Invalid colProps.skip for column "${col.name}": expected function, got ${typeof skip}`
-          );
+          throw new SchemaDefinitionError(`Invalid colProps.skip for column "${col.name}": expected function, got ${typeof skip}`);
         }
       }
     }
