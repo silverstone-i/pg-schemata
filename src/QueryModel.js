@@ -131,6 +131,7 @@ class QueryModel {
    * @param {string|Array<string>} [options.orderBy] - Sort columns.
    * @param {number} [options.limit] - Limit results.
    * @param {number} [options.offset] - Offset results.
+   * @param {boolean} [options.includeDeactivated=false] - Include soft-deleted records when true.
    * @returns {Promise<Object[]>} Matching rows.
    */
   async findWhere(
