@@ -186,49 +186,55 @@ class TableModel extends QueryModel {
    * @returns {Promise<{rows: Object[], nextCursor: Object|null}>} Paginated result.
    */
   async findAfterCursor(cursor = {}, limit = 50, orderBy = ['id'], options = {}) {
-    const { descending = false, columnWhitelist = null, filters = {} } = options;
-    const direction = descending ? 'DESC' : 'ASC';
-    const table = `${this.schemaName}.${this.tableName}`;
-    const selectCols = columnWhitelist?.length ? columnWhitelist.map(col => this.escapeName(col)).join(', ') : '*';
-    const escapedOrderCols = orderBy.map(col => this.escapeName(col)).join(', ');
-    const queryParts = [`SELECT ${selectCols} FROM ${table}`];
-    const whereClauses = [];
-    const values = [];
-    if (Object.keys(cursor).length > 0) {
-      const cursorValues = orderBy.map(col => {
-        if (!(col in cursor)) throw new Error(`Missing cursor for ${col}`);
-        return cursor[col];
-      });
-      const placeholders = cursorValues.map((_, i) => `$${i + 1}`).join(', ');
-      whereClauses.push(`(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`);
-      values.push(...cursorValues);
-    }
-    if (Object.keys(filters).length) {
-      if (filters.and || filters.or) {
-        const top = filters.and
-          ? this.buildCondition(filters.and, 'AND', values)
-          : this.buildCondition(filters.or, 'OR', values);
-        whereClauses.push(top);
-      } else {
-        whereClauses.push(this.buildCondition([filters], 'AND', values));
+    try {
+      const { descending = false, columnWhitelist = null, filters = {} } = options;
+      const direction = descending ? 'DESC' : 'ASC';
+      const table = `${this.schemaName}.${this.tableName}`;
+      const selectCols = columnWhitelist?.length ? columnWhitelist.map(col => this.escapeName(col)).join(', ') : '*';
+      const escapedOrderCols = orderBy.map(col => this.escapeName(col)).join(', ');
+      const queryParts = [`SELECT ${selectCols} FROM ${table}`];
+      const whereClauses = [];
+      const values = [];
+      if (Object.keys(cursor).length > 0) {
+        const cursorValues = orderBy.map(col => {
+          if (!(col in cursor)) throw new Error(`Missing cursor for ${col}`);
+          return cursor[col];
+        });
+        const placeholders = cursorValues.map((_, i) => `$${i + 1}`).join(', ');
+        whereClauses.push(`(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`);
+        values.push(...cursorValues);
       }
+
+      if (Object.keys(filters).length) {
+        if (filters.and || filters.or) {
+          const top = filters.and ? this.buildCondition(filters.and, 'AND', values) : this.buildCondition(filters.or, 'OR', values);
+          whereClauses.push(top);
+        } else {
+          whereClauses.push(this.buildCondition([filters], 'AND', values));
+        }
+      }
+      if (whereClauses.length) {
+        queryParts.push('WHERE', whereClauses.join(' AND '));
+      }
+      queryParts.push(`ORDER BY ${escapedOrderCols} ${direction}`);
+      queryParts.push(`LIMIT $${values.length + 1}`);
+      values.push(limit);
+      const query = queryParts.join(' ');
+
+      // Execute the query
+      const rows = await this.db.any(query, values);
+      const nextCursor =
+        rows.length > 0
+          ? orderBy.reduce((acc, col) => {
+              acc[col] = rows[rows.length - 1][col];
+              return acc;
+            }, {})
+          : null;
+      return { rows, nextCursor };
+    } catch (err) {
+      console.error('Error occurred while finding after cursor:', err);
+      throw err;
     }
-    if (whereClauses.length) {
-      queryParts.push('WHERE', whereClauses.join(' AND '));
-    }
-    queryParts.push(`ORDER BY ${escapedOrderCols} ${direction}`);
-    queryParts.push(`LIMIT $${values.length + 1}`);
-    values.push(limit);
-    const query = queryParts.join(' ');
-    const rows = await this.db.any(query, values);
-    const nextCursor =
-      rows.length > 0
-        ? orderBy.reduce((acc, col) => {
-            acc[col] = rows[rows.length - 1][col];
-            return acc;
-          }, {})
-        : null;
-    return { rows, nextCursor };
   }
 
   // ---------------------------------------------------------------------------
@@ -276,8 +282,7 @@ class TableModel extends QueryModel {
   async updateWhere(where, updates, options = {}) {
     const { includeDeactivated = false } = options;
 
-    const isNonEmpty = val =>
-      Array.isArray(val) ? val.length > 0 : isPlainObject(val) ? Object.keys(val).length > 0 : false;
+    const isNonEmpty = val => (Array.isArray(val) ? val.length > 0 : isPlainObject(val) ? Object.keys(val).length > 0 : false);
 
     if (!isNonEmpty(where)) {
       throw new SchemaDefinitionError('WHERE clause must be a non-empty object or non-empty array');
@@ -476,9 +481,7 @@ class TableModel extends QueryModel {
     const worksheet = workbook.worksheets[sheetIndex];
 
     if (!worksheet) {
-      throw new SchemaDefinitionError(
-        `Sheet index ${sheetIndex} is out of bounds. Found ${workbook.worksheets.length} sheets.`
-      );
+      throw new SchemaDefinitionError(`Sheet index ${sheetIndex} is out of bounds. Found ${workbook.worksheets.length} sheets.`);
     }
 
     const rows = [];
@@ -561,13 +564,7 @@ class TableModel extends QueryModel {
    */
   async purgeSoftDeleteWhere(where = []) {
     const normalized = Array.isArray(where) ? where : [where];
-    const { clause, values } = this.buildWhereClause(
-      [...normalized, { deactivated_at: { $not: null } }],
-      true,
-      [],
-      'AND',
-      true
-    );
+    const { clause, values } = this.buildWhereClause([...normalized, { deactivated_at: { $not: null } }], true, [], 'AND', true);
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     return this.db.result(query, values);
   }
