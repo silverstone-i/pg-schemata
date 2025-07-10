@@ -182,12 +182,17 @@ class TableModel extends QueryModel {
    * @param {Object} cursor - Cursor values keyed by orderBy columns.
    * @param {number} limit - Max number of rows to return.
    * @param {Array<string>} orderBy - Columns used for pagination ordering.
-   * @param {Object} options - Extra filters and options.
+   * @param {Object} options - Query options.
+   * @param {Array<string>} [options.columnWhitelist] - Columns to return.
+   * @param {Object} [options.filters] - Additional filter object.
+   * @param {string|Array<string>} [options.orderBy] - Sort columns.
+   * @param {number} [options.limit] - Limit results.
+   * @param {boolean} [options.includeDeactivated=false] - Include soft-deleted records when true.
    * @returns {Promise<{rows: Object[], nextCursor: Object|null}>} Paginated result.
    */
   async findAfterCursor(cursor = {}, limit = 50, orderBy = ['id'], options = {}) {
     try {
-      const { descending = false, columnWhitelist = null, filters = {} } = options;
+      const { descending = false, columnWhitelist = null, filters = {}, includeDeactivated = false } = options;
       const direction = descending ? 'DESC' : 'ASC';
       const table = `${this.schemaName}.${this.tableName}`;
       const selectCols = columnWhitelist?.length ? columnWhitelist.map(col => this.escapeName(col)).join(', ') : '*';
@@ -212,6 +217,9 @@ class TableModel extends QueryModel {
         } else {
           whereClauses.push(this.buildCondition([filters], 'AND', values));
         }
+      }
+      if (this._schema.softDelete && !includeDeactivated) {
+        whereClauses.push('deactivated_at IS NULL');
       }
       if (whereClauses.length) {
         queryParts.push('WHERE', whereClauses.join(' AND '));
