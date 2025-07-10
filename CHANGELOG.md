@@ -4,7 +4,7 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `fbb45c3`
+Latest commit: `2796113`
 
 ---
 
@@ -18,6 +18,8 @@ Latest commit: `fbb45c3`
 - Add support for $is and $not operator in query conditions
 - Implement soft delete functionality across models with related methods
 - Add Zod-based validation for `insert` and `update` DTOs in `TableModel`
+- Add `countWhere` method to `QueryModel` for counting rows with specified conditions
+- Enhance `generateZodFromTableSchema` to conditionally set optional enum fields in `insertValidator`
 
 ### 🐛 Fixes
 - Update soft delete tests to assert `deactivated_at IS NOT NULL` instead of `!=`
@@ -30,6 +32,8 @@ Latest commit: `fbb45c3`
 - Standardized handling of `$and`, `$or`, and condition operator normalization
 - Fixed default value quoting and schema property access in DDL generation
 - Improved integration test structure and database teardown logic
+- Streamline SQL generation by removing unnecessary line breaks and improving error messages
+- Fix issue in `createTableSQL` to quote unquoted string default values
 
 ### 📚 Documentation
 - Refactor and clarify schema types and JSDoc comments
