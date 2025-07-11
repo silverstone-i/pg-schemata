@@ -185,8 +185,6 @@ class TableModel extends QueryModel {
    * @param {Object} options - Query options.
    * @param {Array<string>} [options.columnWhitelist] - Columns to return.
    * @param {Object} [options.filters] - Additional filter object.
-   * @param {string|Array<string>} [options.orderBy] - Sort columns.
-   * @param {number} [options.limit] - Limit results.
    * @param {boolean} [options.includeDeactivated=false] - Include soft-deleted records when true.
    * @returns {Promise<{rows: Object[], nextCursor: Object|null}>} Paginated result.
    */
