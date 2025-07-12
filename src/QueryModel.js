@@ -74,7 +74,7 @@ class QueryModel {
     return this.findWhere(
       [...conditions, { deactivated_at: { $ne: null } }],
       joinType,
-      options
+      { ...options, includeDeactivated: true }
     );
   }
 
@@ -234,48 +234,44 @@ class QueryModel {
   }
 
   /**
-   * Counts rows matching the specified conditions.
-   * @param {Array<Object>} conditions - Array of condition objects.
-   * @param {string} [joinType='AND'] - Logical operator to join conditions.
-   * @param {boolean} [includeDeactivated=false] - Whether to include soft-deleted records.
-   * @returns {Promise<number>} Number of matching rows.
-   */
-  async countWhere(conditions = [], joinType = 'AND', includeDeactivated = false) {
-    if (!Array.isArray(conditions)) {
-      throw new Error('Conditions must be an array');
-    }
-
-    const { clause, values } = this.buildWhereClause(
-      conditions,
-      true,
-      [],
-      joinType,
-      includeDeactivated === true
-    );
-    const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    try {
-      const result = await this.db.one(query, values);
-      return parseInt(result.count, 10);
-    } catch (err) {
-      this.handleDbError(err);
-    }
-  }
-
-  /**
    * Counts the number of rows matching a WHERE clause.
-   * @param {Object|Array<Object>} where - WHERE condition(s).
-   * @param {Object} [options] - Query options.
+   * @param {Array<Object>} conditions - Array of condition objects.
+   * @param {string} joinType - Logical joiner ('AND' or 'OR').
+   * @param {Object} options - Query options.
+   * @param {Object} [options.filters] - Additional filter object.
+   * @param {boolean} [options.includeDeactivated=false] - Include soft-deleted records when true.
    * @returns {Promise<number>} Number of matching rows.
    */
-  async count(where, options = {}) {
-    const { clause, values } = this.buildWhereClause(
-      where,
-      true,
-      [],
-      'AND',
-      options.includeDeactivated === true
-    );
-    const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
+  async countWhere(
+    conditions = [],
+    joinType = 'AND',
+    {
+      filters = {},
+      includeDeactivated = false,
+    } = {}
+  ) {
+    const values = [];
+    const whereClauses = [];
+
+    if (conditions.length > 0) {
+      const { clause, values: builtValues } = this.buildWhereClause(
+        conditions,
+        true,
+        [],
+        joinType,
+        includeDeactivated
+      );
+      values.push(...builtValues);
+      whereClauses.push(`(${clause})`);
+    }
+
+    if (Object.keys(filters).length) {
+      whereClauses.push(this.buildCondition([filters], 'AND', values));
+    }
+
+    const whereStr = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} ${whereStr}`;
+
     try {
       const result = await this.db.one(query, values);
       return parseInt(result.count, 10);
@@ -286,22 +282,17 @@ class QueryModel {
 
   /**
    * Counts all rows in the table.
+   * @param {Object} [options] - Query options.
+   * @param {boolean} [options.includeDeactivated=false] - Include soft-deleted records when true.
    * @returns {Promise<number>} Total row count.
    */
-  async countAll() {
-    let query;
-    let values = [];
-
-    if (this._schema.softDelete) {
-      const where = [];
-      const built = this.buildWhereClause(where, false, values, 'AND', false);
-      query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} WHERE ${built.clause}`;
-      values = built.values;
-    } else {
-      query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
+  async countAll({ includeDeactivated = false } = {}) {
+    let query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName}`;
+    if (this._schema.softDelete && !includeDeactivated) {
+      query += ` WHERE deactivated_at IS NULL`;
     }
     try {
-      const result = await this.db.one(query, values);
+      const result = await this.db.one(query);
       return parseInt(result.count, 10);
     } catch (err) {
       this.handleDbError(err);
