@@ -339,28 +339,32 @@ class TableModel extends QueryModel {
   // 🔵 Bulk Operations
   // ---------------------------------------------------------------------------
   /**
-   * Inserts many rows in a single batch operation.
+   * Inserts many rows in a single batch operation, with optional RETURNING support.
    * @param {Object[]} records - Rows to insert.
-   * @returns {Promise<number>} Number of rows inserted.
-   * @throws {SchemaDefinitionError} If records are invalid.
+   * @param {Array<string>|null} [returning=null] - Optional array of columns to return.
+   * @returns {Promise<number|Object[]>} Number of rows inserted, or array of rows if returning specified.
+   * @throws {SchemaDefinitionError} If records or returning are invalid.
    */
-  async bulkInsert(records) {
+  async bulkInsert(records, returning = null) {
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
 
-    // Validate each record against the insert validator
+    if (returning !== null && !Array.isArray(returning)) {
+      throw new SchemaDefinitionError('Expected returning to be an array of column names');
+    }
+
+    // Validate records
     if (this._schema.validators?.insertValidator) {
       this.validateDto(records, this._schema.validators.insertValidator, 'Insert DTO');
     }
-    // Ensure all records are plain objects
+
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
       if (!sanitized.created_by) sanitized.created_by = 'system';
       return sanitized;
     });
 
-    // Block insertion if deactivated_at is present and softDelete is enabled
     if (this._schema.softDelete) {
       for (const record of safeRecords) {
         if ('deactivated_at' in record) {
@@ -372,9 +376,15 @@ class TableModel extends QueryModel {
     const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
-    const query = this.pgp.helpers.insert(safeRecords, cs);
+
+    const query = this.pgp.helpers.insert(safeRecords, cs)
+      + (returning ? ` RETURNING ${returning.join(', ')}` : '');
+
     try {
-      return await this.db.tx(t => t.result(query, [], r => r.rowCount));
+      if (returning) {
+        return await this.db.any(query); // return array of rows
+      }
+      return await this.db.tx(t => t.result(query, [], r => r.rowCount)); // return row count
     } catch (err) {
       this.handleDbError(err);
     }
@@ -383,10 +393,11 @@ class TableModel extends QueryModel {
   /**
    * Updates multiple rows using their primary keys.
    * @param {Object[]} records - Each must include an ID field.
-   * @returns {Promise<number[]>} Array of row counts updated per query.
+   * @param {Array<string>|null} [returning=null] - Optional array of columns to return.
+   * @returns {Promise<Array>} Array of row counts or updated rows per query.
    * @throws {SchemaDefinitionError} If input or IDs are invalid.
    */
-  async bulkUpdate(records) {
+  async bulkUpdate(records, returning = null) {
     const pk = this._schema.constraints?.primaryKey;
     if (!pk) {
       throw new SchemaDefinitionError('Primary key must be defined in the schema');
@@ -395,14 +406,12 @@ class TableModel extends QueryModel {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
 
-    // Validate each record against the update validator
-    if (this._schema.validators?.updateValidator) {
-      this.validateDto(records, this._schema.validators.updateValidator, 'Update DTO');
+    if (returning !== null && !Array.isArray(returning)) {
+      throw new SchemaDefinitionError('Expected returning to be an array of column names');
     }
 
-    const first = records[0];
-    if (!first.id) {
-      throw new SchemaDefinitionError('Each record must include an "id" field');
+    if (this._schema.validators?.updateValidator) {
+      this.validateDto(records, this._schema.validators.updateValidator, 'Update DTO');
     }
 
     const queries = records.map(dto => {
@@ -418,14 +427,23 @@ class TableModel extends QueryModel {
       const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeDto), {
         table: { table: this._schema.table, schema: this._schema.dbSchema },
       });
-      return this.pgp.helpers.update(safeDto, updateCs) + ' ' + condition;
+      const returningClause = returning ? ` RETURNING ${returning.join(', ')}` : '';
+      return {
+        query: this.pgp.helpers.update(safeDto, updateCs) + ' ' + condition + returningClause,
+        id,
+      };
     });
 
-    const query = queries.join('; ');
     try {
-      return await this.db.tx(t => {
-        return t.batch(queries.map(q => t.result(q, [], r => r.rowCount)));
-      });
+      return await this.db.tx(t =>
+        t.batch(
+          queries.map(q =>
+            returning
+              ? t.any(q.query, [q.id]) // return updated rows
+              : t.result(q.query, [q.id], r => r.rowCount) // return row count
+          )
+        )
+      );
     } catch (err) {
       this.handleDbError(err);
     }
@@ -492,21 +510,24 @@ class TableModel extends QueryModel {
 
     const rows = [];
     let headers = [];
-    worksheet.eachRow((row, rowNumber) => {
+
+    for (let rowNumber = 1; rowNumber <= worksheet.rowCount; rowNumber++) {
+      const row = worksheet.getRow(rowNumber);
       const values = row.values;
+
       if (rowNumber === 1) {
         headers = values.slice(1); // skip the empty 0 index
-      } else {
-        const obj = {};
-        headers.forEach((header, i) => {
-          obj[header] = values[i + 1];
-        });
-        rows.push(obj);
-        if (typeof callbackFn === 'function') {
-          rows[rows.length - 1] = callbackFn(rows[rows.length - 1]);
-        }
+        continue;
       }
-    });
+
+      const obj = {};
+      headers.forEach((header, i) => {
+        obj[header] = values[i + 1];
+      });
+
+      const transformed = callbackFn ? await callbackFn(obj) : obj;
+      rows.push(transformed);
+    }
 
     if (!Array.isArray(rows) || rows.length === 0) {
       throw new SchemaDefinitionError('Spreadsheet is empty or invalid format');
@@ -527,7 +548,11 @@ class TableModel extends QueryModel {
       }
     }
 
+    console.log('Rows to insert:', rows[0]);
+
     const inserted = await this.bulkInsert(rows);
+    console.log('Inserted rows:', inserted);
+    
     return { inserted };
   }
 
