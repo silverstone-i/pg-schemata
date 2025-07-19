@@ -342,10 +342,12 @@ class TableModel extends QueryModel {
    * Inserts many rows in a single batch operation, with optional RETURNING support.
    * @param {Object[]} records - Rows to insert.
    * @param {Array<string>|null} [returning=null] - Optional array of columns to return.
+   * @param {Object} [options={}] - Optional options object. { tx }
    * @returns {Promise<number|Object[]>} Number of rows inserted, or array of rows if returning specified.
    * @throws {SchemaDefinitionError} If records or returning are invalid.
    */
-  async bulkInsert(records, returning = null) {
+  async bulkInsert(records, returning = null, options = {}) {
+    const { tx = null } = options;
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
@@ -381,10 +383,19 @@ class TableModel extends QueryModel {
       + (returning ? ` RETURNING ${returning.join(', ')}` : '');
 
     try {
-      if (returning) {
-        return await this.db.any(query); // return array of rows
+      if (tx) {
+        if (returning) {
+          return await tx.any(query);
+        }
+        return await tx.result(query, [], r => r.rowCount);
+      } else {
+        return await this.db.tx(async t => {
+          if (returning) {
+            return await t.any(query);
+          }
+          return await t.result(query, [], r => r.rowCount);
+        });
       }
-      return await this.db.tx(t => t.result(query, [], r => r.rowCount)); // return row count
     } catch (err) {
       this.handleDbError(err);
     }
@@ -394,10 +405,12 @@ class TableModel extends QueryModel {
    * Updates multiple rows using their primary keys.
    * @param {Object[]} records - Each must include an ID field.
    * @param {Array<string>|null} [returning=null] - Optional array of columns to return.
+   * @param {Object} [options={}] - Optional options object. { tx }
    * @returns {Promise<Array>} Array of row counts or updated rows per query.
    * @throws {SchemaDefinitionError} If input or IDs are invalid.
    */
-  async bulkUpdate(records, returning = null) {
+  async bulkUpdate(records, returning = null, options = {}) {
+    const { tx = null } = options;
     const pk = this._schema.constraints?.primaryKey;
     if (!pk) {
       throw new SchemaDefinitionError('Primary key must be defined in the schema');
@@ -435,15 +448,25 @@ class TableModel extends QueryModel {
     });
 
     try {
-      return await this.db.tx(t =>
-        t.batch(
+      if (tx) {
+        return await tx.batch(
           queries.map(q =>
             returning
-              ? t.any(q.query, [q.id]) // return updated rows
-              : t.result(q.query, [q.id], r => r.rowCount) // return row count
+              ? tx.any(q.query, [q.id])
+              : tx.result(q.query, [q.id], r => r.rowCount)
           )
-        )
-      );
+        );
+      } else {
+        return await this.db.tx(async t =>
+          t.batch(
+            queries.map(q =>
+              returning
+                ? t.any(q.query, [q.id])
+                : t.result(q.query, [q.id], r => r.rowCount)
+            )
+          )
+        );
+      }
     } catch (err) {
       this.handleDbError(err);
     }
