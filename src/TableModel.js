@@ -342,12 +342,11 @@ class TableModel extends QueryModel {
    * Inserts many rows in a single batch operation, with optional RETURNING support.
    * @param {Object[]} records - Rows to insert.
    * @param {Array<string>|null} [returning=null] - Optional array of columns to return.
-   * @param {Object} [options={}] - Optional options object. { tx }
    * @returns {Promise<number|Object[]>} Number of rows inserted, or array of rows if returning specified.
    * @throws {SchemaDefinitionError} If records or returning are invalid.
    */
-  async bulkInsert(records, returning = null, options = {}) {
-    const { tx = null } = options;
+  async bulkInsert(records, returning = null) {
+    const tx = this.tx ?? null;
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
@@ -380,7 +379,9 @@ class TableModel extends QueryModel {
     });
 
     const query = this.pgp.helpers.insert(safeRecords, cs)
-      + (returning ? ` RETURNING ${returning.join(', ')}` : '');
+      + (Array.isArray(returning) && returning.length > 0
+        ? ` RETURNING ${returning.join(', ')}`
+        : '');
 
     try {
       if (tx) {
@@ -405,12 +406,11 @@ class TableModel extends QueryModel {
    * Updates multiple rows using their primary keys.
    * @param {Object[]} records - Each must include an ID field.
    * @param {Array<string>|null} [returning=null] - Optional array of columns to return.
-   * @param {Object} [options={}] - Optional options object. { tx }
    * @returns {Promise<Array>} Array of row counts or updated rows per query.
    * @throws {SchemaDefinitionError} If input or IDs are invalid.
    */
-  async bulkUpdate(records, returning = null, options = {}) {
-    const { tx = null } = options;
+  async bulkUpdate(records, returning = null) {
+    const tx = this.tx ?? null;
     const pk = this._schema.constraints?.primaryKey;
     if (!pk) {
       throw new SchemaDefinitionError('Primary key must be defined in the schema');
