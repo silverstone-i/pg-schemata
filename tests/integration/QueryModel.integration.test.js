@@ -99,13 +99,13 @@ describe('QueryModel Integration', () => {
   });
 
   it('should return correct count for filtered records', async () => {
-    const count = await model.count({ email: 'test@example.com' });
+    const count = await model.countWhere([{ email: 'test@example.com' }]);
     expect(typeof count).toBe('number');
     expect(count).toBeGreaterThan(0);
   });
 
   it('should return 0 for unmatched filter in count()', async () => {
-    const count = await model.count({ email: 'doesnotexist@example.com' });
+    const count = await model.countWhere([{ email: 'doesnotexist@example.com' }]);
     expect(count).toBe(0);
   });
 
@@ -116,7 +116,7 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const count = await model.count([
+    const count = await model.countWhere([
       {
         email: { $ilike: '%countilike1%' },
       },
@@ -129,7 +129,7 @@ describe('QueryModel Integration', () => {
     await model.insert({ email: 'orcount1@example.com', created_by: 'X', tenant_id: TENANT_ID });
     await model.insert({ email: 'orcount2@example.com', created_by: 'Y', tenant_id: TENANT_ID });
 
-    const count = await model.count([{ $or: [{ created_by: 'X' }, { created_by: 'Y' }] }]);
+    const count = await model.countWhere([{ $or: [{ created_by: 'X' }, { created_by: 'Y' }] }]);
 
     expect(count).toBeGreaterThanOrEqual(2);
   });
