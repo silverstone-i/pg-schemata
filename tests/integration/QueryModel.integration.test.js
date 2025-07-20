@@ -81,10 +81,7 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const result = await model.findWhere(
-      [{ email: 'findwhere-1@example.com' }, { email: 'findwhere-2@example.com' }],
-      'OR'
-    );
+    const result = await model.findWhere([{ email: 'findwhere-1@example.com' }, { email: 'findwhere-2@example.com' }], 'OR');
     expect(result.length).toBe(2);
   });
 
@@ -233,10 +230,7 @@ describe('QueryModel Integration', () => {
     await model.insert({ email: 'nested1@example.com', created_by: 'Admin', tenant_id: TENANT_ID });
     await model.insert({ email: 'nested2@example.com', created_by: 'System', tenant_id: TENANT_ID });
 
-    const result = await model.findWhere([
-      { $or: [{ created_by: 'Admin' }, { created_by: 'System' }] },
-      { email: { $ilike: '%nested%' } },
-    ]);
+    const result = await model.findWhere([{ $or: [{ created_by: 'Admin' }, { created_by: 'System' }] }, { email: { $ilike: '%nested%' } }]);
     expect(result.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -262,10 +256,7 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const result = await model.findWhere(
-      [{ email: 'redundant@example.com' }, { email: 'redundant@example.com' }],
-      'OR'
-    );
+    const result = await model.findWhere([{ email: 'redundant@example.com' }, { email: 'redundant@example.com' }], 'OR');
     expect(result.length).toBe(1);
     expect(result[0].email).toBe('redundant@example.com');
   });
@@ -296,10 +287,7 @@ describe('QueryModel Integration', () => {
 
     const result = await model.findWhere([
       {
-        $or: [
-          { $and: [{ created_by: 'A' }, { email: 'x@example.com' }] },
-          { $and: [{ created_by: 'B' }, { email: 'y@example.com' }] },
-        ],
+        $or: [{ $and: [{ created_by: 'A' }, { email: 'x@example.com' }] }, { $and: [{ created_by: 'B' }, { email: 'y@example.com' }] }],
       },
     ]);
     expect(result.length).toBe(2);

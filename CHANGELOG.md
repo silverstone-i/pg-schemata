@@ -4,13 +4,14 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `2796113`
+Latest commit: `2f8f583`
 
 ---
 
 ## next version
 
 ### 🚀 Features
+
 - Enhance `importFromSpreadsheet` to support row transformation via a `callbackFn`
 - Add custom Zod validator support in `ColumnDefinition` via `colProps.validator`
 - Improve Zod schema generation to respect custom validators
@@ -20,8 +21,24 @@ Latest commit: `2796113`
 - Add Zod-based validation for `insert` and `update` DTOs in `TableModel`
 - Add `countWhere` method to `QueryModel` for counting rows with specified conditions
 - Enhance `generateZodFromTableSchema` to conditionally set optional enum fields in `insertValidator`
+- Enhance `findAfterCursor` to support additional query options and include soft-deleted records
+- Add option to include soft-deleted records in `findWhere` method
+- Enhance `bulkInsert` and `bulkUpdate` to support optional `RETURNING` clause
+
+### � Refactors
+
+- Update count methods in `QueryModel` to use `countWhere` for consistency
+- Remove unused `insert` and `exportToSpreadsheet` methods from `TableModel`
+- Remove unused parameters from `TableModel` method documentation
+- Refactor `exportToSpreadsheet` to directly assign rows from `findWhere`
 
 ### 🐛 Fixes
+
+- Add `insert` method back to `TableModel`
+- Simplify `bulkInsert` and `bulkUpdate` methods by removing unused options parameter
+- Add optional options parameter to `bulkInsert` and `bulkUpdate` for transaction support
+- Support optional `RETURNING` clause in `bulkInsert` and `bulkUpdate`
+- Correct filtering issues in `countWhere`, `countAll`, and `findSoftDelete` methods
 - Update soft delete tests to assert `deactivated_at IS NOT NULL` instead of `!=`
 - Fix `$ne: null` condition handling in `QueryModel`
 - Standardize `ColumnDefinition` by replacing deprecated `nullable` with `notNull`
@@ -36,10 +53,12 @@ Latest commit: `2796113`
 - Fix issue in `createTableSQL` to quote unquoted string default values
 
 ### 📚 Documentation
+
 - Refactor and clarify schema types and JSDoc comments
 - Document `validateDto` method in `TableModel` for DTO validation
 
 ### 🧪 Tests
+
 - Add test for `CREATE TABLE` SQL with generated columns
 - Add validation tests for `bulkInsert` and `bulkUpdate` methods
 - Added unit tests for Zod schema generation
@@ -49,15 +68,19 @@ Latest commit: `2796113`
 - Clear columnSet cache and update schema properties in tests (`5b83d7e`)
 
 ### 🧹 Chores
+
 - Remove duplicate entry for `schemaTypes.js` in coverage exclude list
 
 ### 📦 Dependencies
+
 - Add `lru-cache` dependency to `package.json` (`500273a`)
+
 ---
 
 ## [v0.2.0-beta.1] - 2025-06-22
 
 ### 🚀 Features
+
 - Implemented `callDb` with schema-aware access to db methods
 - Added `exportToSpreadsheet` method to TableModel
 - Added Zod validation support to TableModel and schema generator
@@ -79,6 +102,7 @@ Latest commit: `2796113`
 - Spreadsheet-driven testing and import using structured test files
 
 ### 🛠 Refactors
+
 - Improved logging format in QueryModel
 - Removed `attachToCallDb` and related tests
 - Streamlined index exports
@@ -97,10 +121,12 @@ Latest commit: `2796113`
 - Rewrote test harness for tenant-awareness and reusable structure
 
 ### 🐛 Fixes
+
 - Fixed date coercion bug in Zod validation
 - Improved default value handling in `createTableSQL`
 
 ### 🧪 Tests
+
 - Added unit tests for Zod schema generation
 - Added integration tests for `updated_at` Zod coercion
 - Adapted tests for updated `findWhere` behavior
@@ -108,14 +134,17 @@ Latest commit: `2796113`
 - Clear columnSet cache and update schema properties in tests (`5b83d7e`)
 
 ### 📦 Dependencies
+
 - Add `lru-cache` dependency to `package.json` (`500273a`)
 
 ### 🐛 Fixes
+
 - Standardized handling of `$and`, `$or`, and condition operator normalization
 - Fixed default value quoting and schema property access in DDL generation
 - Improved integration test structure and database teardown logic
 
 ### 📚 Documentation
+
 - Merged docs branch (squashed)
 - Update README with enhanced features and spreadsheet import support (`ee4a01a`)
 - Added best practices, design overview, and WHERE clause usage examples
