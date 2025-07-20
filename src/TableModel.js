@@ -41,6 +41,56 @@ class TableModel extends QueryModel {
       this._schema.validators = generateZodFromTableSchema(this._schema);
     }
   }
+
+  /**
+   * Inserts a single row into the table after validation and sanitization.
+   * @param {Object} dto - Data to insert.
+   * @returns {Promise<Object>} The inserted row.
+   * @throws {SchemaDefinitionError} If validation fails or DTO is invalid.
+   */
+  async insert(dto) {
+    if (!isPlainObject(dto)) {
+      return Promise.reject(new SchemaDefinitionError('DTO must be a non-empty object'));
+    }
+    // Zod validation if available
+    try {
+      if (this._schema.validators?.insertValidator) {
+        this._schema.validators.insertValidator.parse(dto);
+      }
+    } catch (err) {
+      const error = new SchemaDefinitionError('DTO validation failed');
+
+      error.cause = err.errors || err;
+      this.logger?.error?.(error);
+      if (this.logger) {
+        this.logger.error(`DTO validation failed: ${error.message}`, { cause: error.cause });
+      }
+
+      // Return a rejected promise with the error
+      return Promise.reject(error);
+    }
+
+    // Sanitize the DTO to include only valid columns
+    const safeDto = this.sanitizeDto(dto);
+    if (Object.keys(safeDto).length === 0) {
+      return Promise.reject(new SchemaDefinitionError('DTO must contain at least one valid column'));
+    }
+    if (!safeDto.created_by) safeDto.created_by = 'system';
+    let query;
+    try {
+      query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
+    } catch (err) {
+      const error = new Error('Failed to construct insert query');
+      error.cause = err;
+      return Promise.reject(error);
+    }
+    try {
+      return await this.db.one(query);
+    } catch (err) {
+      this.handleDbError(err);
+    }
+  }
+  
   /**
    * Deletes a record by its ID.
    * @param {string|number} id - Primary key of the row to delete.
