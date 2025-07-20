@@ -38,7 +38,7 @@ class QueryModel {
     if (!schema || typeof schema !== 'object') {
       throw new Error('Schema must be an object');
     }
-    if (!db || !pgp || !schema.table || !schema.columns || !schema.constraints.primaryKey) {
+    if (!db || !pgp || !schema.table || !schema.columns) {
       throw new Error('Missing required parameters: db, pgp, schema, table, or primary key');
     }
 
@@ -637,3 +637,4 @@ class QueryModel {
 }
 
 export default QueryModel;
+export { QueryModel };

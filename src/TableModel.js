@@ -34,6 +34,10 @@ import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
  */
 class TableModel extends QueryModel {
   constructor(db, pgp, schema, logger) {
+    if (!schema.constraints?.primaryKey) {
+      throw new SchemaDefinitionError('Primary key must be defined in the schema');
+    }
+    
     super(db, pgp, schema, logger);
 
     // Auto-generate Zod validators if not provided
