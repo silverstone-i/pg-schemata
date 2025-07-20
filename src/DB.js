@@ -85,9 +85,8 @@ class DB {
 }
 
 /** The initialized pg-promise instance. */
-export const pgp = DB.pgp;
-/** The initialized pg-promise database instance. */
-export const db = DB.db;
+export const pgp = () => DB.pgp;
+export const db = () => DB.db;
 
 // Named exports for structured access
 export { DB };
