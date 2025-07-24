@@ -37,7 +37,7 @@ class TableModel extends QueryModel {
     if (!schema.constraints?.primaryKey) {
       throw new SchemaDefinitionError('Primary key must be defined in the schema');
     }
-    
+
     super(db, pgp, schema, logger);
 
     // Auto-generate Zod validators if not provided
@@ -94,7 +94,7 @@ class TableModel extends QueryModel {
       this.handleDbError(err);
     }
   }
-  
+
   /**
    * Deletes a record by its ID.
    * @param {string|number} id - Primary key of the row to delete.
@@ -446,8 +446,6 @@ class TableModel extends QueryModel {
         delete row.deactivated_at;
       }
     }
-
-    console.log('Rows to insert:', rows[0]);
 
     const inserted = await this.bulkInsert(rows);
     console.log('Inserted rows:', inserted);
