@@ -167,6 +167,114 @@ class TableModel extends QueryModel {
     }
   }
 
+  /**
+   * Inserts a record or updates it if it conflicts with specified columns.
+   * @param {Object} dto - Data to insert or update.
+   * @param {Array<string>} conflictColumns - Columns that define the conflict constraint.
+   * @param {Array<string>} [updateColumns] - Columns to update on conflict. Defaults to all non-conflict columns.
+   * @returns {Promise<Object>} The inserted or updated row.
+   */
+  async upsert(dto, conflictColumns, updateColumns = null) {
+    if (!isPlainObject(dto)) {
+      throw new SchemaDefinitionError('DTO must be a non-empty object');
+    }
+    if (!Array.isArray(conflictColumns) || conflictColumns.length === 0) {
+      throw new SchemaDefinitionError('Conflict columns must be a non-empty array');
+    }
+
+    const safeDto = this.sanitizeDto(dto);
+    if (!safeDto.created_by) safeDto.created_by = 'system';
+
+    const insertCs = new this.pgp.helpers.ColumnSet(Object.keys(safeDto), {
+      table: { table: this._schema.table, schema: this._schema.dbSchema },
+    });
+
+    const columnsToUpdate = updateColumns || Object.keys(safeDto).filter(col => !conflictColumns.includes(col) && col !== 'id');
+
+    if (columnsToUpdate.length === 0) {
+      throw new SchemaDefinitionError('No columns available for update on conflict');
+    }
+
+    const updateSet = columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ');
+    const timestampUpdate = this._schema.hasAuditFields ? ', updated_at = NOW()' : '';
+
+    const query = `
+      ${this.pgp.helpers.insert(safeDto, insertCs)}
+      ON CONFLICT (${conflictColumns.join(', ')})
+      DO UPDATE SET ${updateSet}${timestampUpdate}
+      RETURNING *
+    `;
+
+    console.log('Executing upsert query:', query);
+    
+
+    try {
+      return await this.db.one(query);
+    } catch (err) {
+      console.log('Error executing upsert query:', err);
+      
+      this.handleDbError(err);
+    }
+  }
+
+  /**
+   * Bulk upsert multiple records in a single transaction.
+   * @param {Array<Object>} records - Array of records to upsert.
+   * @param {Array<string>} conflictColumns - Columns that define the conflict constraint.
+   * @param {Array<string>} [updateColumns] - Columns to update on conflict. Defaults to all non-conflict columns.
+   * @param {Array<string>|null} [returning=null] - Optional array of columns to return.
+   * @returns {Promise<number|Array>} Number of rows affected or array of rows if returning specified.
+   */
+  async bulkUpsert(records, conflictColumns, updateColumns = null, returning = null) {
+    if (!Array.isArray(records) || records.length === 0) {
+      throw new SchemaDefinitionError('Records must be a non-empty array');
+    }
+    if (!Array.isArray(conflictColumns) || conflictColumns.length === 0) {
+      throw new SchemaDefinitionError('Conflict columns must be a non-empty array');
+    }
+    if (returning !== null && !Array.isArray(returning)) {
+      throw new SchemaDefinitionError('Expected returning to be an array of column names');
+    }
+
+    const safeRecords = records.map(dto => {
+      const sanitized = this.sanitizeDto(dto);
+      if (!sanitized.created_by) sanitized.created_by = 'system';
+      return sanitized;
+    });
+
+    const insertCs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), {
+      table: { table: this._schema.table, schema: this._schema.dbSchema },
+    });
+
+    const columnsToUpdate = updateColumns || Object.keys(safeRecords[0]).filter(col => !conflictColumns.includes(col) && col !== 'id');
+
+    if (columnsToUpdate.length === 0) {
+      throw new SchemaDefinitionError('No columns available for update on conflict');
+    }
+
+    const updateSet = columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ');
+    const timestampUpdate = this._schema.hasAuditFields ? ', updated_at = NOW()' : '';
+    const returningClause = returning ? ` RETURNING ${returning.join(', ')}` : '';
+
+    const query = `
+      ${this.pgp.helpers.insert(safeRecords, insertCs)}
+      ON CONFLICT (${conflictColumns.join(', ')})
+      DO UPDATE SET ${updateSet}${timestampUpdate}
+      ${returningClause}
+    `;
+
+    try {
+      return await this.db.tx(async t => {
+        if (returning) {
+          return await t.any(query);
+        }
+        return await t.result(query, [], r => r.rowCount);
+      });
+    } catch (err) {
+      this.handleDbError(err);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 🟤 Conditional Mutations
   // ---------------------------------------------------------------------------
