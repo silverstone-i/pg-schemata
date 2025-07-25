@@ -244,10 +244,10 @@ describe('QueryModel Integration', () => {
 
   it('should return single record in findOneBy with multiple matches', async () => {
     await model.insert({ email: 'dupe@example.com', created_by: 'X', tenant_id: TENANT_ID });
-    await model.insert({ email: 'dupe@example.com', created_by: 'Y', tenant_id: TENANT_ID });
-    const one = await model.findOneBy([{ email: 'dupe@example.com' }]);
+    await model.insert({ email: 'dupe1@example.com', created_by: 'X', tenant_id: TENANT_ID });
+    const one = await model.findOneBy([{ created_by: 'X' }]);
     expect(one).toBeDefined();
-    expect(one.email).toBe('dupe@example.com');
+    expect(one.created_by).toBe('X');
   });
   it('should return single result for duplicate OR conditions', async () => {
     await model.insert({
@@ -282,12 +282,12 @@ describe('QueryModel Integration', () => {
   });
 
   it('should support nested AND inside OR conditions', async () => {
-    await model.insert({ email: 'x@example.com', created_by: 'A', tenant_id: TENANT_ID });
-    await model.insert({ email: 'y@example.com', created_by: 'B', tenant_id: TENANT_ID });
+    await model.insert({ email: 'g@example.com', created_by: 'A', tenant_id: TENANT_ID });
+    await model.insert({ email: 'h@example.com', created_by: 'B', tenant_id: TENANT_ID });
 
     const result = await model.findWhere([
       {
-        $or: [{ $and: [{ created_by: 'A' }, { email: 'x@example.com' }] }, { $and: [{ created_by: 'B' }, { email: 'y@example.com' }] }],
+        $or: [{ $and: [{ created_by: 'A' }, { email: 'g@example.com' }] }, { $and: [{ created_by: 'B' }, { email: 'h@example.com' }] }],
       },
     ]);
     expect(result.length).toBe(2);

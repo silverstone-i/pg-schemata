@@ -68,11 +68,11 @@ describe('TableModel (Unit)', () => {
   // ================================
   describe('Constructor Validation', () => {
     test('should throw if schema is not an object', () => {
-      expect(() => new TableModel(mockDb, mockPgp, 'invalid')).toThrow('Schema must be an object');
+      expect(() => new TableModel(mockDb, mockPgp, 'invalid')).toThrow('Primary key must be defined in the schema');
     });
 
     test('should throw if required parameters are missing', () => {
-      expect(() => new TableModel(mockDb, mockPgp, {})).toThrow('Missing required parameters: db, pgp, schema, table, or primary key');
+      expect(() => new TableModel(mockDb, mockPgp, {})).toThrow('Primary key must be defined in the schema');
     });
   });
 
@@ -203,6 +203,222 @@ describe('TableModel (Unit)', () => {
 
       test('should throw if records is not an array', async () => {
         await expect(model.bulkUpdate({})).rejects.toThrow('Records must be a non-empty array');
+      });
+    });
+
+    // ================================
+    // Upsert Methods
+    // ================================
+    describe('upsert', () => {
+      test('should upsert a single record successfully', async () => {
+        const mockRecord = { id: 1, email: 'test@example.com' };
+        mockDb.one.mockResolvedValue(mockRecord);
+
+        const result = await model.upsert({ email: 'test@example.com', name: 'Test User' }, ['email']);
+
+        expect(mockDb.one).toHaveBeenCalled();
+        expect(result).toEqual(mockRecord);
+      });
+
+      test('should throw if dto is not an object', async () => {
+        await expect(model.upsert('invalid', ['email'])).rejects.toThrow('DTO must be a non-empty object');
+      });
+
+      test('should throw if dto is an array', async () => {
+        await expect(model.upsert([], ['email'])).rejects.toThrow('DTO must be a non-empty object');
+      });
+
+      test('should throw if conflictColumns is not an array', async () => {
+        await expect(model.upsert({ email: 'test@example.com' }, 'email')).rejects.toThrow('Conflict columns must be a non-empty array');
+      });
+
+      test('should throw if conflictColumns is empty', async () => {
+        await expect(model.upsert({ email: 'test@example.com' }, [])).rejects.toThrow('Conflict columns must be a non-empty array');
+      });
+
+      test('should throw if no columns available for update', async () => {
+        // Mock sanitizeDto to return only conflict columns (email, created_by) - no other columns
+        model.sanitizeDto = vi.fn(() => ({ email: 'test@example.com', created_by: 'system' }));
+
+        await expect(model.upsert({ email: 'test@example.com', created_by: 'system' }, ['email', 'created_by'])).rejects.toThrow(
+          'No columns available for update on conflict'
+        );
+
+        // Ensure db.one was not called since it should throw before reaching the database
+        expect(mockDb.one).not.toHaveBeenCalled();
+      });
+
+      test('should use custom updateColumns when provided', async () => {
+        const mockRecord = { id: 1, email: 'test@example.com', name: 'Test' };
+        mockDb.one.mockResolvedValue(mockRecord);
+
+        await model.upsert(
+          { email: 'test@example.com', name: 'Test', status: 'active' },
+          ['email'],
+          ['name'] // Only update name column
+        );
+
+        expect(mockDb.one).toHaveBeenCalled();
+        const query = mockDb.one.mock.calls[0][0];
+        expect(query).toContain('name = EXCLUDED.name');
+        expect(query).not.toContain('status = EXCLUDED.status');
+      });
+
+      test('should add timestamp update when hasAuditFields is true', async () => {
+        const auditSchema = { ...mockSchema, hasAuditFields: true };
+        const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
+        mockDb.one.mockResolvedValue({ id: 1 });
+
+        await auditModel.upsert({ email: 'test@example.com' }, ['email']);
+
+        const query = mockDb.one.mock.calls[0][0];
+        expect(query).toContain('updated_at = NOW()');
+      });
+
+      test('should call handleDbError on database error', async () => {
+        mockDb.one.mockRejectedValue(TEST_ERROR);
+        const spyHandleDbError = vi.spyOn(model, 'handleDbError').mockImplementation(err => {
+          throw err;
+        });
+
+        await expect(model.upsert({ email: 'test@example.com' }, ['email'])).rejects.toThrow('db error');
+        expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
+      });
+    });
+
+    describe('bulkUpsert', () => {
+      beforeEach(() => {
+        mockDb.tx = vi.fn(fn =>
+          fn({
+            any: vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]),
+            result: vi.fn(() => ({ rowCount: 2 })),
+          })
+        );
+      });
+
+      test('should bulk upsert multiple records in transaction', async () => {
+        const records = [
+          { email: 'user1@example.com', name: 'User 1' },
+          { email: 'user2@example.com', name: 'User 2' },
+        ];
+
+        const result = await model.bulkUpsert(records, ['email']);
+
+        expect(mockDb.tx).toHaveBeenCalled();
+        expect(result).toEqual({ rowCount: 2 }); // Return the result object from mockTx.result
+      });
+
+      test('should return records when returning columns specified', async () => {
+        const records = [
+          { email: 'user1@example.com', name: 'User 1' },
+          { email: 'user2@example.com', name: 'User 2' },
+        ];
+
+        const result = await model.bulkUpsert(records, ['email'], null, ['id', 'email']);
+
+        expect(mockDb.tx).toHaveBeenCalled();
+        expect(result).toEqual([{ id: 1 }, { id: 2 }]);
+      });
+
+      test('should throw if records is not an array', async () => {
+        await expect(model.bulkUpsert('invalid', ['email'])).rejects.toThrow('Records must be a non-empty array');
+      });
+
+      test('should throw if records is empty array', async () => {
+        await expect(model.bulkUpsert([], ['email'])).rejects.toThrow('Records must be a non-empty array');
+      });
+
+      test('should throw if conflictColumns is not an array', async () => {
+        await expect(model.bulkUpsert([{ email: 'test@example.com' }], 'email')).rejects.toThrow(
+          'Conflict columns must be a non-empty array'
+        );
+      });
+
+      test('should throw if conflictColumns is empty', async () => {
+        await expect(model.bulkUpsert([{ email: 'test@example.com' }], [])).rejects.toThrow('Conflict columns must be a non-empty array');
+      });
+
+      test('should throw if returning is not an array when provided', async () => {
+        await expect(model.bulkUpsert([{ email: 'test@example.com' }], ['email'], null, 'invalid')).rejects.toThrow(
+          'Expected returning to be an array of column names'
+        );
+      });
+
+      test('should throw if no columns available for update', async () => {
+        // Mock sanitizeDto to return only conflict columns (email, created_by) - no other columns
+        model.sanitizeDto = vi.fn(() => ({ email: 'test@example.com', created_by: 'system' }));
+
+        await expect(model.bulkUpsert([{ email: 'test@example.com', created_by: 'system' }], ['email', 'created_by'])).rejects.toThrow(
+          'No columns available for update on conflict'
+        );
+
+        // Ensure transaction was not started since it should throw before reaching the database
+        expect(mockDb.tx).not.toHaveBeenCalled();
+      });
+
+      test('should use custom updateColumns when provided', async () => {
+        const records = [{ email: 'test@example.com', name: 'Test', status: 'active' }];
+
+        await model.bulkUpsert(records, ['email'], ['name']); // Only update name
+
+        expect(mockDb.tx).toHaveBeenCalled();
+        // Verify the transaction function was called
+        const txFunction = mockDb.tx.mock.calls[0][0];
+        const mockTx = {
+          result: vi.fn(() => ({ rowCount: 1 })),
+          any: vi.fn(),
+        };
+        await txFunction(mockTx);
+
+        const query = mockTx.result.mock.calls[0][0];
+        expect(query).toContain('name = EXCLUDED.name');
+        expect(query).not.toContain('status = EXCLUDED.status');
+      });
+
+      test('should add timestamp update when hasAuditFields is true', async () => {
+        const auditSchema = { ...mockSchema, hasAuditFields: true };
+        const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
+
+        await auditModel.bulkUpsert([{ email: 'test@example.com' }], ['email']);
+
+        expect(mockDb.tx).toHaveBeenCalled();
+        const txFunction = mockDb.tx.mock.calls[0][0];
+        const mockTx = {
+          result: vi.fn(() => ({ rowCount: 1 })),
+          any: vi.fn(),
+        };
+        await txFunction(mockTx);
+
+        const query = mockTx.result.mock.calls[0][0];
+        expect(query).toContain('updated_at = NOW()');
+      });
+
+      test('should call handleDbError on database error', async () => {
+        mockDb.tx.mockRejectedValue(TEST_ERROR);
+        const spyHandleDbError = vi.spyOn(model, 'handleDbError').mockImplementation(err => {
+          throw err;
+        });
+
+        await expect(model.bulkUpsert([{ email: 'test@example.com' }], ['email'])).rejects.toThrow('db error');
+        expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
+      });
+
+      test('should sanitize all records before upserting', async () => {
+        const records = [
+          { email: 'user1@example.com', invalid_field: 'should_be_removed' },
+          { email: 'user2@example.com', another_invalid: 'also_removed' },
+        ];
+
+        const spySanitizeDto = vi.spyOn(model, 'sanitizeDto').mockImplementation(dto => ({
+          email: dto.email,
+          created_by: 'system',
+        }));
+
+        await model.bulkUpsert(records, ['email']);
+
+        expect(spySanitizeDto).toHaveBeenCalledTimes(2);
+        expect(spySanitizeDto).toHaveBeenCalledWith(records[0]);
+        expect(spySanitizeDto).toHaveBeenCalledWith(records[1]);
       });
     });
   });
