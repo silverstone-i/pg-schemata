@@ -206,13 +206,12 @@ class TableModel extends QueryModel {
     `;
 
     console.log('Executing upsert query:', query);
-    
 
     try {
       return await this.db.one(query);
     } catch (err) {
       console.log('Error executing upsert query:', err);
-      
+
       this.handleDbError(err);
     }
   }
@@ -502,7 +501,7 @@ class TableModel extends QueryModel {
    * @returns {Promise<{inserted: number}>} Number of rows inserted.
    * @throws {SchemaDefinitionError} If file format is invalid or spreadsheet is empty.
    */
-  async importFromSpreadsheet(filePath, sheetIndex = 0, callbackFn = null) {
+  async importFromSpreadsheet(filePath, sheetIndex = 0, callbackFn = null, returning = null) {
     if (typeof filePath !== 'string') {
       throw new SchemaDefinitionError('File path must be a valid string');
     }
@@ -555,8 +554,7 @@ class TableModel extends QueryModel {
       }
     }
 
-    const inserted = await this.bulkInsert(rows);
-    console.log('Inserted rows:', inserted);
+    const inserted = await this.bulkInsert(rows, returning);
 
     return { inserted };
   }
