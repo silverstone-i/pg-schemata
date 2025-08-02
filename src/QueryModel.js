@@ -364,6 +364,16 @@ class QueryModel {
   // 🟣 Utilities
   // ---------------------------------------------------------------------------
   /**
+   * Generates a SQL-safe VALUES clause using this model's ColumnSet.
+   * @param {Array<Object|Array>} data - Array of rows (object or array form)
+   * @returns {string} VALUES clause for direct embedding in SQL
+   */
+  buildValuesClause(data) {
+    if (!Array.isArray(data) || data.length === 0) return '';
+    return this.pgp.helpers.values(data, this.cs);
+  }
+  
+  /**
    * Validates a single DTO or an array of DTOs using a Zod validator.
    *
    * @param {Object|Object[]} data - The DTO or array of DTOs to validate.
