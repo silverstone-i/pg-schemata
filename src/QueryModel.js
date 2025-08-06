@@ -60,6 +60,9 @@ class QueryModel {
    * @returns {Promise<Object[]>} Soft-deleted rows.
    */
   async findSoftDeleted(conditions = [], joinType = 'AND', options = {}) {
+    if (!this._schema.softDelete) {
+      return Promise.reject(new Error('Soft delete is not enabled for this table.'));
+    }
     return this.findWhere([...conditions, { deactivated_at: { $ne: null } }], joinType, { ...options, includeDeactivated: true });
   }
 
@@ -69,6 +72,9 @@ class QueryModel {
    * @returns {Promise<boolean>} True if the record is soft-deleted, false otherwise.
    */
   async isSoftDeleted(id) {
+    if (!this._schema.softDelete) {
+      return Promise.reject(new Error('Soft delete is not enabled for this table.'));
+    }
     if (!isValidId(id)) throw new Error('Invalid ID format');
     return this.exists({ id, deactivated_at: { $ne: null } }, { includeDeactivated: true });
   }
@@ -119,11 +125,7 @@ class QueryModel {
    * @param {boolean} [options.includeDeactivated=false] - Include soft-deleted records when true.
    * @returns {Promise<Object[]>} Matching rows.
    */
-  async findWhere(
-    conditions = [],
-    joinType = 'AND',
-    { columnWhitelist = null, filters = {}, orderBy = null, limit = null, offset = null, includeDeactivated = false } = {}
-  ) {
+  async findWhere(conditions = [], joinType = 'AND', { columnWhitelist = null, filters = {}, orderBy = null, limit = null, offset = null, includeDeactivated = false } = {}) {
     if (!Array.isArray(conditions)) {
       throw new Error('Conditions must be an array');
     }
@@ -372,7 +374,7 @@ class QueryModel {
     if (!Array.isArray(data) || data.length === 0) return '';
     return this.pgp.helpers.values(data, this.cs);
   }
-  
+
   /**
    * Validates a single DTO or an array of DTOs using a Zod validator.
    *

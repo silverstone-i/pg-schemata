@@ -410,9 +410,7 @@ class TableModel extends QueryModel {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
 
-    const query =
-      this.pgp.helpers.insert(safeRecords, cs) +
-      (Array.isArray(returning) && returning.length > 0 ? ` RETURNING ${returning.join(', ')}` : '');
+    const query = this.pgp.helpers.insert(safeRecords, cs) + (Array.isArray(returning) && returning.length > 0 ? ` RETURNING ${returning.join(', ')}` : '');
 
     try {
       if (tx) {
@@ -482,9 +480,7 @@ class TableModel extends QueryModel {
       if (tx) {
         return await tx.batch(queries.map(q => (returning ? tx.any(q.query, [q.id]) : tx.result(q.query, [q.id], r => r.rowCount))));
       } else {
-        return await this.db.tx(async t =>
-          t.batch(queries.map(q => (returning ? t.any(q.query, [q.id]) : t.result(q.query, [q.id], r => r.rowCount))))
-        );
+        return await this.db.tx(async t => t.batch(queries.map(q => (returning ? t.any(q.query, [q.id]) : t.result(q.query, [q.id], r => r.rowCount)))));
       }
     } catch (err) {
       this.handleDbError(err);
@@ -569,12 +565,15 @@ class TableModel extends QueryModel {
    * @returns {Promise<number>} Number of rows updated.
    */
   async removeWhere(where) {
-    let { clause, values } = this.buildWhereClause(where);
-    if (this._schema.softDelete) {
-      const softCheck = 'deactivated_at IS NULL';
-      const prefix = clause ? `${clause} AND ` : '';
-      clause = `${prefix}${softCheck}`;
+    if (!this._schema.softDelete) {
+      const error = new Error('Soft delete is not enabled for this table. Let the client decide if the record should be deleted instead.');
+      error.status = 403;
+      return Promise.reject(error);
     }
+    let { clause, values } = this.buildWhereClause(where);
+    const softCheck = 'deactivated_at IS NULL';
+    const prefix = clause ? `${clause} AND ` : '';
+    clause = `${prefix}${softCheck}`;
     const query = `UPDATE ${this.schemaName}.${this.tableName} SET deactivated_at = NOW() WHERE ${clause}`;
     return this.db.result(query, values, r => r.rowCount);
   }
@@ -585,6 +584,9 @@ class TableModel extends QueryModel {
    * @returns {Promise<number>} Number of rows updated.
    */
   async restoreWhere(where) {
+    if (!this._schema.softDelete) {
+      return Promise.reject(new Error('Soft delete is not enabled for this table.'));
+    }
     const { clause, values } = this.buildWhereClause(where, true, [], 'AND', true);
     const query = `UPDATE ${this.schemaName}.${this.tableName} SET deactivated_at = NULL WHERE ${clause}`;
     return this.db.result(query, values, r => r.rowCount);
@@ -597,6 +599,9 @@ class TableModel extends QueryModel {
    * @returns {Promise<Object>} pg-promise result.
    */
   async purgeSoftDeleteWhere(where = []) {
+    if (!this._schema.softDelete) {
+      return Promise.reject(new Error('Soft delete is not enabled for this table.'));
+    }
     const normalized = Array.isArray(where) ? where : [where];
     const { clause, values } = this.buildWhereClause([...normalized, { deactivated_at: { $not: null } }], true, [], 'AND', true);
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
@@ -609,6 +614,9 @@ class TableModel extends QueryModel {
    * @returns {Promise<Object>} pg-promise result.
    */
   async purgeSoftDeleteById(id) {
+    if (!this._schema.softDelete) {
+      return Promise.reject(new Error('Soft delete is not enabled for this table.'));
+    }
     if (!isValidId(id)) throw new Error('Invalid ID format');
     return this.purgeSoftDeleteWhere([{ id }]);
   }
