@@ -11,14 +11,15 @@ Type: [Object][9]
 *   `generated` **(`"always"` | `"by default"`)?** Marks the column as a generated column.
 *   `expression` **[string][10]?** SQL expression used for the generated column.
 *   `stored` **[boolean][11]?** Whether the generated column should be stored.
-*   `nullable` **[boolean][11]?** Whether the column accepts null values. Defaults to true.
+*   `notNull` **[boolean][11]?** Whether the column accepts null values. Defaults to false.
 *   `default` **any?** Default value for the column. Can be a literal or SQL expression.
 *   `immutable` **[boolean][11]?** If true, the column cannot be updated after creation. Defaults to false.
-*   `colProps` **[Object][9]?** pg-promise column helper modifiers.
+*   `colProps` **[Object][9]?** Extended column behavior modifiers.
 
-    *   `colProps.mod` **[string][10]?** Format modifier.
+    *   `colProps.mod` **[string][10]?** pg-promise format modifier.
     *   `colProps.cnd` **[boolean][11]?** Use in conditional update clause.
     *   `colProps.def` **[string][10]?** Override default value.
+    *   `colProps.validator` **any?** Custom Zod validator for this column.
 
 ## ConstraintDefinition
 
