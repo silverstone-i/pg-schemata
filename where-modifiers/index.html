@@ -344,18 +344,36 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#modifier-reference-table" class="md-nav__link">
+  <a href="#field-modifiers" class="md-nav__link">
     <span class="md-ellipsis">
-      📌 Modifier Reference Table
+      📌 Field Modifiers
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#usage-example" class="md-nav__link">
+  <a href="#logical-grouping" class="md-nav__link">
     <span class="md-ellipsis">
-      🧠 Usage Example
+      🔁 Logical Grouping
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defaults-and-null-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      ✅ Defaults and Null Handling
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation-and-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      ⚠️ Validation and Errors
     </span>
   </a>
   
@@ -405,18 +423,36 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#modifier-reference-table" class="md-nav__link">
+  <a href="#field-modifiers" class="md-nav__link">
     <span class="md-ellipsis">
-      📌 Modifier Reference Table
+      📌 Field Modifiers
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#usage-example" class="md-nav__link">
+  <a href="#logical-grouping" class="md-nav__link">
     <span class="md-ellipsis">
-      🧠 Usage Example
+      🔁 Logical Grouping
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defaults-and-null-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      ✅ Defaults and Null Handling
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation-and-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      ⚠️ Validation and Errors
     </span>
   </a>
   
@@ -448,8 +484,8 @@
 
 
 <h1 id="where-clause-modifiers-reference">WHERE Clause Modifiers Reference<a class="headerlink" href="#where-clause-modifiers-reference" title="Permanent link">&para;</a></h1>
-<p>This guide describes the supported modifiers that can be used in <code>findWhere</code>, <code>updateWhere</code>, <code>buildCondition</code>, and similar methods in pg-schemata's query model.</p>
-<h2 id="modifier-reference-table">📌 Modifier Reference Table<a class="headerlink" href="#modifier-reference-table" title="Permanent link">&para;</a></h2>
+<p>This guide lists all modifiers supported by <code>QueryModel.buildCondition</code> and how to combine them in <code>findWhere</code>, <code>updateWhere</code>, and related methods.</p>
+<h2 id="field-modifiers">📌 Field Modifiers<a class="headerlink" href="#field-modifiers" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -468,9 +504,9 @@
 </tr>
 <tr>
 <td><code>$ne</code></td>
-<td>any</td>
-<td>Not equal to</td>
-<td><code>{ status: { $ne: 'X' } }</code></td>
+<td>any or null</td>
+<td>Not equal; with <code>null</code> becomes <code>IS NOT NULL</code></td>
+<td><code>{ status: { $ne: 'X' } }</code>, <code>{ deleted_at: { $ne: null } }</code></td>
 </tr>
 <tr>
 <td><code>$like</code></td>
@@ -487,51 +523,79 @@
 <tr>
 <td><code>$from</code></td>
 <td>comparable</td>
-<td>Greater than or equal</td>
+<td>Greater than or equal (<code>&gt;=</code>)</td>
 <td><code>{ date: { $from: '2024-01-01' } }</code></td>
 </tr>
 <tr>
 <td><code>$to</code></td>
 <td>comparable</td>
-<td>Less than or equal</td>
+<td>Less than or equal (<code>&lt;=</code>)</td>
 <td><code>{ date: { $to: '2024-12-31' } }</code></td>
 </tr>
 <tr>
 <td><code>$in</code></td>
-<td>array</td>
-<td>Matches any value in the list</td>
+<td>array (non-empty)</td>
+<td>Matches any value in list</td>
 <td><code>{ status: { $in: ['A', 'B'] } }</code></td>
+</tr>
+<tr>
+<td><code>$is</code></td>
+<td>null only</td>
+<td><code>IS NULL</code> (only supports <code>null</code>)</td>
+<td><code>{ archived_at: { $is: null } }</code></td>
+</tr>
+<tr>
+<td><code>$not</code></td>
+<td>null only</td>
+<td><code>IS NOT NULL</code> (only supports <code>null</code>)</td>
+<td><code>{ archived_at: { $not: null } }</code></td>
 </tr>
 <tr>
 <td><code>$max</code></td>
 <td>boolean/true</td>
-<td>Equals maximum value in the table</td>
+<td>Equals the maximum value of this column in the table</td>
 <td><code>{ score: { $max: true } }</code></td>
 </tr>
 <tr>
 <td><code>$min</code></td>
 <td>boolean/true</td>
-<td>Equals minimum value in the table</td>
+<td>Equals the minimum value of this column in the table</td>
 <td><code>{ value: { $min: true } }</code></td>
 </tr>
 <tr>
 <td><code>$sum</code></td>
 <td>boolean/true</td>
-<td>Equals total sum of values in the table</td>
+<td>Equals the total sum of this column in the table</td>
 <td><code>{ amount: { $sum: true } }</code></td>
 </tr>
 </tbody>
 </table>
-<h2 id="usage-example">🧠 Usage Example<a class="headerlink" href="#usage-example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="p">[</span>
-<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">status</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">$eq</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;active&#39;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
-<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">$or</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nx">created_at</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">$from</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;2024-01-01&#39;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
-<span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nx">created_by</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">$like</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;admin%&#39;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
-<span class="w">    </span><span class="p">]</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">]</span>
+<p>Notes</p>
+<ul>
+<li><code>$is</code> and <code>$not</code> currently only support <code>null</code>. Any other operand throws a <code>SchemaDefinitionError</code>.</li>
+<li><code>$in</code> must be a non-empty array or a <code>SchemaDefinitionError</code> is thrown.</li>
+</ul>
+<h2 id="logical-grouping">🔁 Logical Grouping<a class="headerlink" href="#logical-grouping" title="Permanent link">&para;</a></h2>
+<p>Use nested groups to combine conditions:</p>
+<ul>
+<li><code>$and</code>: array of conditions combined with AND</li>
+<li><code>$or</code>: array of conditions combined with OR</li>
+</ul>
+<p>Legacy aliases (also supported): <code>and</code>, <code>or</code>.</p>
+<p>Example</p>
+<div class="highlight"><pre><span></span><code><span class="p">[{</span><span class="w"> </span><span class="nx">$and</span><span class="o">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nx">status</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">$in</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;active&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;pending&#39;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">created_at</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">$from</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;2024-01-01&#39;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}]</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">$or</span><span class="o">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">$ilike</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;admin%&#39;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">email</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">$like</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;%@example.com&#39;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}]</span><span class="w"> </span><span class="p">}];</span>
 </code></pre></div>
+<h2 id="defaults-and-null-handling">✅ Defaults and Null Handling<a class="headerlink" href="#defaults-and-null-handling" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Plain values imply equality: <code>{ status: 'active' }</code> =&gt; <code>status = $1</code>.</li>
+<li>Plain <code>null</code> implies <code>IS NULL</code>: <code>{ deleted_at: null }</code> =&gt; <code>deleted_at IS NULL</code>.</li>
+<li><code>{ field: { $ne: null } }</code> and <code>{ field: { $not: null } }</code> both result in <code>field IS NOT NULL</code>.</li>
+</ul>
+<h2 id="validation-and-errors">⚠️ Validation and Errors<a class="headerlink" href="#validation-and-errors" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Unknown operators on a field cause <code>SchemaDefinitionError</code> (e.g., <code>{ age: { $gt: 10 } }</code> is not supported unless listed above).</li>
+<li><code>$in</code> requires a non-empty array.</li>
+</ul>
 <h2 id="see-also">🔗 See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../pg-schemata/#buildcondition">QueryModel.buildCondition</a></li>
