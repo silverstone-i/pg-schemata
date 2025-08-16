@@ -4,7 +4,7 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `2f8f583`
+Latest commit: `3840fc4`
 
 ---
 
@@ -12,6 +12,10 @@ Latest commit: `2f8f583`
 
 ### 🚀 Features
 
+- Add `upsert` and `bulkUpsert` methods to `TableModel` with comprehensive tests (`2143fb7`, `f7a8fa1`)
+- Add `buildValuesClause` method to generate SQL-safe VALUES clause for bulk data (`03f5215`)
+- Add soft delete checks in `QueryModel` and `TableModel` methods to respect `deactivated_at` (`3840fc4`)
+- Add initial TypeScript configuration via `tsconfig.json` (`99a4961`, `19bc9db`)
 - Enhance `importFromSpreadsheet` to support row transformation via a `callbackFn`
 - Add custom Zod validator support in `ColumnDefinition` via `colProps.validator`
 - Improve Zod schema generation to respect custom validators
@@ -27,6 +31,9 @@ Latest commit: `2f8f583`
 
 ### � Refactors
 
+- Change `pgp` and `db` exports to use getter functions for improved encapsulation (`4c53b5d`)
+- Streamline `findWhere` method calls in QueryModel integration tests (`ce0e4d9`)
+- Enhance test context to drop and recreate schema for cleaner integration tests (`2143fb7`)
 - Update count methods in `QueryModel` to use `countWhere` for consistency
 - Remove unused `insert` and `exportToSpreadsheet` methods from `TableModel`
 - Remove unused parameters from `TableModel` method documentation
@@ -34,6 +41,10 @@ Latest commit: `2f8f583`
 
 ### 🐛 Fixes
 
+- Streamline `upsert` error handling and enhance `importFromSpreadsheet` to optionally return inserted rows (`ecd8cac`)
+- Ensure a primary key is defined in schema for `TableModel` constructor (`050d06f`)
+- Remove leftover whitespace and console logs in `TableModel` (`f310cc6`)
+- Update error messages in `TableModel` constructor validation (`2143fb7`)
 - Add `insert` method back to `TableModel`
 - Simplify `bulkInsert` and `bulkUpdate` methods by removing unused options parameter
 - Add optional options parameter to `bulkInsert` and `bulkUpdate` for transaction support
