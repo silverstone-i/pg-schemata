@@ -38,7 +38,7 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD func
 ## 📦 Installation
 
 ```bash
-npm install
+npm install pg-schemata
 ```
 
 ---
@@ -153,8 +153,6 @@ To contribute to or build the documentation site locally, follow the setup guide
 
 - Node.js >= 14
 - PostgreSQL >= 12
-- [`pg-promise`](https://github.com/vitaly-t/pg-promise)
-- [`lru-cache`](https://www.npmjs.com/package/lru-cache) (installed automatically)
 
 ---
 
