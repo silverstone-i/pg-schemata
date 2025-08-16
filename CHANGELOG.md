@@ -8,7 +8,9 @@ Latest commit: `3840fc4`
 
 ---
 
-## next version
+## [v1.0.0] - 2025-08-16
+
+This marks the first stable release. See detailed notes in `v1.0.0 Release notes.md`.
 
 ### 🚀 Features
 

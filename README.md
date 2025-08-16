@@ -4,12 +4,12 @@
 [![build status](https://img.shields.io/github/actions/workflow/status/silverstone-i/pg-schemata/ci.yml?branch=main)](https://github.com/silverstone-i/pg-schemata/actions)
 [![license](https://img.shields.io/npm/l/pg-schemata.svg)](LICENSE)
 [![postgresql](https://img.shields.io/badge/PostgreSQL-✔️-blue)](https://www.postgresql.org/)
-[![node](https://img.shields.io/badge/node-%3E%3D14.0.0-brightgreen)](https://nodejs.org/)
+[![node](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen)](https://nodejs.org/)
 
 ---
 
-A lightweight Postgres-first ORM layer built on top of [`pg-promise`](https://github.com/vitaly-t/pg-promise).  
-Define your table schemas in code, generate `ColumnSets`, and get full CRUD functionality, cursor-based pagination, and multi-schema support — all without the heavy ORM overhead.
+A lightweight Postgres-first ORM layer built on top of [`pg-promise`](https://github.com/vitaly-t/pg-promise).
+Define your table schemas in code, generate `ColumnSets`, and get full CRUD, flexible WHERE builders, cursor-based pagination, and multi-schema support — without heavy ORM overhead.
 
 ---
 
@@ -20,9 +20,10 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD func
 - Full CRUD operations, including:
   - insert, update, delete
   - updateWhere, deleteWhere with flexible conditions
-  - bulkInsert, bulkUpdate using transactions
+  - bulkInsert, bulkUpdate, upsert, bulkUpsert
   - soft delete support via `deactivated_at` column (opt-in)
   - restore and purge operations for soft-deleted rows
+- Rich WHERE modifiers: `$like`, `$ilike`, `$from`, `$to`, `$in`, `$eq`, `$ne`, `$is`, `$not`, nested `$and`/`$or`
 - Cursor-based pagination (keyset pagination) with column whitelisting
 - Multi-schema (PostgreSQL schemas) support
 - Spreadsheet import and export support
@@ -38,7 +39,7 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD func
 ## 📦 Installation
 
 ```bash
-npm install pg-schemata
+npm install pg-schemata pg-promise
 ```
 
 ---
@@ -55,24 +56,24 @@ npm install pg-schemata
 
 See the supported modifiers used in `findWhere`, `updateWhere`, and other conditional methods:
 
-➡️ [WHERE Clause Modifiers Reference](./docs/where-modifiers.md)
+➡️ [WHERE Clause Modifiers Reference](https://silverstone-i.github.io/pg-schemata/where-modifiers/)
 
 ### 1. Define a Table Schema
 
 ```javascript
-// schemas/userSchema.js
-const userSchema = {
-  schema: 'public',
+// schemas/userSchema.js (ESM)
+export const userSchema = {
+  dbSchema: 'public',
   table: 'users',
+  hasAuditFields: true,
+  softDelete: true,
   columns: [
-    { name: 'id', type: 'serial', primaryKey: true },
-    { name: 'email', type: 'text', unique: true },
-    { name: 'password', type: 'text' },
-    { name: 'created_at', type: 'timestamp', default: 'now()' },
+    { name: 'id', type: 'uuid', notNull: true },
+    { name: 'email', type: 'text', notNull: true },
+    { name: 'password', type: 'text', notNull: true },
   ],
+  constraints: { primaryKey: ['id'], unique: [['email']] },
 };
-
-module.exports = userSchema;
 ```
 
 ---
@@ -80,47 +81,34 @@ module.exports = userSchema;
 ### 2. Create a Model
 
 ```javascript
-// models/User.js
-const TableModel = require('pg-schemata').TableModel;
-const userSchema = require('../schemas/userSchema');
+// models/User.js (ESM)
+import { TableModel } from 'pg-schemata';
+import { userSchema } from '../schemas/userSchema.js';
 
-class User extends TableModel {
-  constructor(db) {
-    super(db, userSchema);
-  }
-
-  async findByEmail(email) {
-    return this.db.oneOrNone(
-      `SELECT * FROM ${this.schema.schema}.${this.schema.table} WHERE email = $1`,
-      [email]
-    );
+export class User extends TableModel {
+  constructor(db, pgp, logger) {
+    super(db, pgp, userSchema, logger);
   }
 }
-
-module.exports = User;
 ```
 
 ---
 
-### 3. Perform Operations
+### 3. Initialize DB and Perform Operations
 
 ```javascript
-const { db } = require('./db'); // your pg-promise database instance
-const User = require('./models/User');
+import { DB, db } from 'pg-schemata';
+import { User } from './models/User.js';
 
-const userModel = new User(db);
+// Initialize with a pg connection string/object and attach repositories
+DB.init(process.env.DATABASE_URL, { users: User });
 
 async function example() {
-  const newUser = await userModel.create({
-    email: 'test@example.com',
-    password: 'secret',
-  });
-  const user = await userModel.findById(newUser.id);
-  const updated = await userModel.update(newUser.id, {
-    password: 'newpassword',
-  });
-  const users = await userModel.findAll({ limit: 10 });
-  const deleted = await userModel.delete(newUser.id);
+  const created = await db().users.insert({ email: 'test@example.com', password: 'secret' });
+  const one = await db().users.findById(created.id);
+  const updated = await db().users.update(created.id, { password: 'newpassword' });
+  const list = await db().users.findAll({ limit: 10 });
+  const removed = await db().users.delete(created.id);
 }
 ```
 
@@ -132,11 +120,10 @@ See [Planned Enhancements](./design_docs/PlannedEnhancements.md). Suggestions we
 
 ---
 
-
 ## 📘 Documentation
 
 Documentation is generated using [MkDocs](https://www.mkdocs.org/).  
-To contribute to or build the documentation site locally, follow the setup guide in [`docs/docs-setup.md`](./docs/docs-setup.md).
+To contribute to or build the documentation site locally, see the guide: [Docs Setup](https://silverstone-i.github.io/pg-schemata/docs-setup/).
 
 ---
 
@@ -151,7 +138,7 @@ To contribute to or build the documentation site locally, follow the setup guide
 
 ## 🧠 Requirements
 
-- Node.js >= 14
+- Node.js >= 16
 - PostgreSQL >= 12
 - [`pg-promise`](https://github.com/vitaly-t/pg-promise)
 - [`lru-cache`](https://www.npmjs.com/package/lru-cache) (installed automatically)
