@@ -50,5 +50,14 @@
     "eslint": "^9.24.0",
     "express": "^5.1.0",
     "vitest": "^3.1.4"
+  },
+  "overrides": {
+    "exceljs": {
+      "glob": "^11.0.0"
+    },
+    "rimraf": "^6.0.1",
+    "unzipper": {
+      "fstream": "github:isaacs/fstream#semver:^1.0.12"
+    }
   }
 }
