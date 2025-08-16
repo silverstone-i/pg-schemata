@@ -38,7 +38,7 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD func
 ## 📦 Installation
 
 ```bash
-npm install pg-schemata
+npm install
 ```
 
 ---
