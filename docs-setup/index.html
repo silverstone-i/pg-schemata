@@ -383,15 +383,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sanitize-markdown-files" class="md-nav__link">
-    <span class="md-ellipsis">
-      🧼 Sanitize Markdown Files
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#build-preview-mkdocs-site" class="md-nav__link">
     <span class="md-ellipsis">
       🛠 Build &amp; Preview MkDocs Site
@@ -461,7 +452,7 @@
 <h2 id="build-documentation-files">📜 Build Documentation Files<a class="headerlink" href="#build-documentation-files" title="Permanent link">&para;</a></h2>
 <p>Use the following script from <code>package.json</code> to generate both documentation files and sanitize the output:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">&quot;scripts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;docs&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;documentation build src/index.js -f md -o pg-schemata-docs/documentation/pg-schemata.md &amp;&amp; documentation build src/schemaTypes.js -f md -o pg-schemata-docs/documentation/schemaTypes.md &amp;&amp; node ./pg-schemata-docs/sanitizeToc.js&quot;</span>
+<span class="w">    </span><span class="nt">&quot;docs&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;documentation build src/index.js -f md -o pg-schemata-docs/documentation/pg-schemata.md &amp;&amp; documentation build src/schemaTypes.d.ts -f md -o pg-schemata-docs/documentation/schemaTypes.md &amp;&amp; node ./pg-schemata-docs/sanitizeToc.js&quot;</span><span class="p">,</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Run with:</p>
@@ -471,39 +462,28 @@
 <hr />
 <h2 id="python-mkdocs-setup">🐍 Python &amp; MkDocs Setup<a class="headerlink" href="#python-mkdocs-setup" title="Permanent link">&para;</a></h2>
 <ol>
-<li>
-<p><strong>Install Python (via Homebrew)</strong><br />
-   <div class="highlight"><pre><span></span><code>brew<span class="w"> </span>install<span class="w"> </span>python
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Create Virtual Environment</strong><br />
-   <div class="highlight"><pre><span></span><code>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>venv
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Activate Environment</strong><br />
-   <div class="highlight"><pre><span></span><code><span class="nb">source</span><span class="w"> </span>venv/bin/activate
-</code></pre></div></p>
-</li>
-<li>
-<p><strong>Install MkDocs and Plugins</strong><br />
+<li><strong>Install Python (via Homebrew)</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code>brew<span class="w"> </span>install<span class="w"> </span>python
+</code></pre></div>
+<ol>
+<li><strong>Create Virtual Environment</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>venv
+</code></pre></div>
+<ol>
+<li><strong>Activate Environment</strong></li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="nb">source</span><span class="w"> </span>venv/bin/activate
+</code></pre></div>
+<ol>
+<li><strong>Install MkDocs and Plugins</strong>
    <div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>mkdocs<span class="w"> </span>mkdocs-material<span class="w"> </span>mkdocs-material-extensions<span class="o">==</span><span class="m">1</span>.3.1
-</code></pre></div></p>
-</li>
+</code></pre></div></li>
 </ol>
 <hr />
-<h2 id="sanitize-markdown-files">🧼 Sanitize Markdown Files<a class="headerlink" href="#sanitize-markdown-files" title="Permanent link">&para;</a></h2>
-<p>Run this script to sanitize and format documentation output:</p>
-<div class="highlight"><pre><span></span><code>node<span class="w"> </span>sanitizeDocs.js
-</code></pre></div>
-<p>This script:
-- Inserts frontmatter
-- Escapes MDX-sensitive syntax
-- Normalizes formatting</p>
-<hr />
 <h2 id="build-preview-mkdocs-site">🛠 Build &amp; Preview MkDocs Site<a class="headerlink" href="#build-preview-mkdocs-site" title="Permanent link">&para;</a></h2>
-<p>From inside the <code>docs-site/</code> folder:</p>
+<p>From inside the <code>pg-schemata-docs/</code> folder (run source venv/bin/activate first if python is already setup):</p>
 <div class="highlight"><pre><span></span><code>mkdocs<span class="w"> </span>serve
 </code></pre></div>
 <p>To build static site output:</p>
