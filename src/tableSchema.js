@@ -18,6 +18,7 @@
  * - `dbSchema`: PostgreSQL schema name
  * - `table`: name of the table
  * - `hasAuditFields`: if true, adds created_at/updated_at/by fields automatically
+ * - `softDelete`: if true, adds an deleted_at field for soft deletes
  * - `version`: optional version tag for tracking schema evolution
  *
  * ## 📌 Columns
@@ -42,6 +43,7 @@ const tableSchema = {
   dbSchema: 'public',
   table: 'users',
   hasAuditFields: true,
+  softDelete: true,
   version: '1.0.0',
   columns: [
     {

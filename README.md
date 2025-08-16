@@ -21,9 +21,12 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD func
   - insert, update, delete
   - updateWhere, deleteWhere with flexible conditions
   - bulkInsert, bulkUpdate using transactions
+  - soft delete support via `deactivated_at` column (opt-in)
+  - restore and purge operations for soft-deleted rows
 - Cursor-based pagination (keyset pagination) with column whitelisting
 - Multi-schema (PostgreSQL schemas) support
-- Import data directly from spreadsheets (via selected sheet index)
+- Spreadsheet import and export support
+- Schema-based DTO validation using Zod
 - Extensible via class inheritance
 - Auto-sanitization of DTOs with support for audit fields
 - Consistent development and production logging via `logMessage` utility
@@ -35,7 +38,7 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD func
 ## 📦 Installation
 
 ```bash
-npm install pg-promise pg-schemata
+npm install pg-schemata
 ```
 
 ---
@@ -125,12 +128,7 @@ async function example() {
 
 ## 🛠️ Planned Enhancements
 
-- Soft delete support
-- Automatic table creation and migration from schema definitions
-- Schema differencing utility to generate DDL
-- Relationship handling (foreign key-aware querying and joins)
-- Declarative data validation (e.g. Zod/Joi integration)
-- Type-safe model generation
+See [Planned Enhancements](./design_docs/PlannedEnhancements.md). Suggestions welcome!!! 🙂
 
 ---
 

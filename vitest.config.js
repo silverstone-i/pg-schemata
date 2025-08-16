@@ -25,14 +25,17 @@ export default defineConfig({
       reporter: ['text', 'html'],
       exclude: [
         'Examples/**',
-        'docs/**',
+        'pg-schemata-docs/**',
         'node_modules/**',
         'dist/**',
         'vitest.config.js',
         'src/index.js',
         'tests/**',
         'src/tableSchema.js',
+        'src/schemaTypes.d.ts',
+        'src/types-ref.js',
         'src/utils/ddlGenerator.js',
+        
       ],
     },
     exclude: ['node_modules', 'dist'],

@@ -1,5 +1,6 @@
 'use strict';
 
+import { has } from 'lodash';
 /*
  * Copyright © 2024-present, Ian Silverstone
  *
@@ -202,11 +203,37 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('ON DELETE CASCADE');
       expect(sql).toContain('ON UPDATE SET NULL');
     });
+
+    it('should generate correct CREATE TABLE SQL with generated columns', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          {
+            name: 'schema_name',
+            type: 'varchar(63)',
+            generated: 'always',
+            expression: 'lower(tenant_code)',
+            stored: true,
+          },
+        ],
+        constraints: {
+          primaryKey: ['tenant_code'],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain(
+        '"schema_name" varchar(63) GENERATED ALWAYS AS (lower(tenant_code)) STORED'
+      );
+    });
   });
 
   describe('addAuditFields', () => {
     it('should add audit fields to the schema columns', () => {
-      const schema = { columns: [] };
+      const schema = { hasAuditFields: true, columns: [] };
       const updatedSchema = addAuditFields(schema);
 
       expect(updatedSchema.columns).toEqual(
@@ -321,6 +348,7 @@ describe('Schema Utilities', () => {
       const schema = {
         dbSchema: 'public',
         table: 'users',
+        hasAuditFields: true,
         columns: [
           { name: 'id', type: 'serial' },
           { name: 'name', type: 'varchar(255)' },

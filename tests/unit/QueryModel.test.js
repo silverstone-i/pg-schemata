@@ -42,21 +42,32 @@ describe('QueryModel', () => {
 
   describe('Constructor Validation', () => {
     test('should throw if schema is not an object', () => {
-      expect(() => new QueryModel(mockDb, mockPgp, 'invalid')).toThrow(
-        'Schema must be an object'
-      );
+      expect(() => new QueryModel(mockDb, mockPgp, 'invalid')).toThrow('Schema must be an object');
     });
 
     test('should throw if required parameters are missing', () => {
-      expect(() => new QueryModel(mockDb, mockPgp, {})).toThrow(
-        'Missing required parameters: db, pgp, schema, table, or primary key'
-      );
+      expect(() => new QueryModel(mockDb, mockPgp, {})).toThrow('Missing required parameters: db, pgp, schema, table, or primary key');
     });
   });
 
   describe('Utility Methods', () => {
     test('escapeName should wrap name in quotes', () => {
       expect(model.escapeName('foo')).toBe('"foo"');
+    });
+
+    test('sanitizeDto should strip invalid fields', () => {
+      const sanitized = model.sanitizeDto({
+        id: 1,
+        email: 'test@example.com',
+        invalidField: 'bad',
+      });
+      expect(sanitized).toEqual({ id: 1, email: 'test@example.com' });
+    });
+
+    test('sanitizeDto should remove immutable fields when includeImmutable is false', () => {
+      model._schema.columns.push({ name: 'created_at', immutable: true });
+      const sanitized = model.sanitizeDto({ id: 1, email: 'test@example.com', created_at: '2024-01-01' }, { includeImmutable: false });
+      expect(sanitized).toEqual({ id: 1, email: 'test@example.com' });
     });
   });
 
@@ -84,22 +95,14 @@ describe('QueryModel', () => {
 
     test('should wrap $or block and allow top-level AND joiner', () => {
       const values = [];
-      const clause = model.buildCondition(
-        [{ $or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
-        'AND',
-        values
-      );
+      const clause = model.buildCondition([{ $or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }], 'AND', values);
       expect(clause).toBe('("id" = $1 OR "id" = $2) AND "email" = $3');
       expect(values).toEqual([1, 2, 'a@x.com']);
     });
 
     test('should wrap $or block and allow top-level OR joiner', () => {
       const values = [];
-      const clause = model.buildCondition(
-        [{ $or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
-        'OR',
-        values
-      );
+      const clause = model.buildCondition([{ $or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }], 'OR', values);
       expect(clause).toBe('("id" = $1 OR "id" = $2) OR "email" = $3');
       expect(values).toEqual([1, 2, 'a@x.com']);
     });
@@ -122,6 +125,38 @@ describe('QueryModel', () => {
       const values = [];
       const conditions = [{ email: { likee: 'invalid' } }];
       expect(() => model.buildCondition(conditions, 'AND', values)).toThrow('Unsupported operator: likee');
+    });
+  });
+
+  describe('findAfterCursor', () => {
+    test('should return paginated rows and nextCursor', async () => {
+      mockDb.any.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+      const result = await model.findAfterCursor({ id: 0 }, 2, ['id']);
+      expect(result.rows.length).toBe(2);
+      expect(result.nextCursor).toEqual({ id: 2 });
+    });
+
+    test('should return null nextCursor if no rows', async () => {
+      mockDb.any.mockResolvedValue([]);
+      const result = await model.findAfterCursor({ id: 100 }, 10, ['id']);
+      expect(result.rows).toEqual([]);
+      expect(result.nextCursor).toBeNull();
+    });
+
+    test('should throw if cursor is missing required key', async () => {
+      await expect(model.findAfterCursor({ other_id: 1 }, 10, ['id'])).rejects.toThrow('Missing cursor for id');
+    });
+
+    test('should apply filters and ordering with direction and whitelist', async () => {
+      mockDb.any.mockResolvedValue([{ id: 3 }]);
+      const result = await model.findAfterCursor({ id: 2 }, 1, ['id'], {
+        descending: true,
+        columnWhitelist: ['id'],
+        filters: {
+          and: [{ email: { $like: '%example.com' } }],
+        },
+      });
+      expect(result.rows).toEqual([{ id: 3 }]);
     });
   });
 
@@ -150,11 +185,7 @@ describe('QueryModel', () => {
 
     test('should build clause from nested $or and AND blocks', () => {
       const values = [];
-      const where = [
-        { $or: [{ id: 1 }, { id: 2 }] },
-        { $or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] },
-        { password: 'secret' }
-      ];
+      const where = [{ $or: [{ id: 1 }, { id: 2 }] }, { $or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] }, { password: 'secret' }];
       const { clause, values: resultValues } = model.buildWhereClause(where, true, values);
       expect(clause).toBe('("id" = $1 OR "id" = $2) AND ("email" = $3 OR "email" = $4) AND "password" = $5');
       expect(resultValues).toEqual([1, 2, 'a@x.com', 'b@x.com', 'secret']);
@@ -209,9 +240,9 @@ describe('QueryModel', () => {
       expect(result).toBe(true);
     });
 
-    test('count should return numeric count', async () => {
+    test('count should return numeric count of all records where email is a@x.com', async () => {
       mockDb.one.mockResolvedValue({ count: '42' });
-      const result = await model.count({ email: 'a@x.com' });
+      const result = await model.countWhere({ email: 'a@x.com' });
       expect(result).toBe(42);
     });
 
@@ -244,7 +275,7 @@ describe('QueryModel', () => {
       const result = await model.findWhere([
         { $or: [{ id: 1 }, { id: 2 }] },
         { $or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] },
-        { password: 'secret' }
+        { password: 'secret' },
       ]);
       expect(result).toEqual([{ id: 3 }]);
     });
@@ -256,15 +287,11 @@ describe('QueryModel', () => {
     });
 
     test('exists should throw if conditions is not an object', async () => {
-      await expect(model.exists(null)).rejects.toThrow(
-        'Conditions must be a non-empty object'
-      );
+      await expect(model.exists(null)).rejects.toThrow('Conditions must be a non-empty object');
     });
 
     test('exists should throw if conditions is empty', async () => {
-      await expect(model.exists({})).rejects.toThrow(
-        'Conditions must be a non-empty object'
-      );
+      await expect(model.exists({})).rejects.toThrow('Conditions must be a non-empty object');
     });
 
     test('findWhere should return all when conditions array is empty', async () => {

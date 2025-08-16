@@ -54,7 +54,7 @@ function generateZodFromTableSchema(tableSchema) {
 
   for (const column of tableSchema.columns) {
     const { name, type, notNull, default: defaultValue } = column;
-    let zodType = mapSqlTypeToZod(type);
+    let zodType = column.colProps?.validator || mapSqlTypeToZod(type);
 
     // Enhance email fields
     if (name === 'email' && zodType._def.typeName === 'ZodString') {
@@ -114,7 +114,14 @@ function generateZodFromTableSchema(tableSchema) {
         if (Array.isArray(options) && options.length > 0) {
           const enumZod = z.enum([...new Set(options)]);
           if (base[field]) base[field] = enumZod;
-          if (insert[field]) insert[field] = enumZod;
+          if (insert[field]) {
+            const colDef = tableSchema.columns.find(c => c.name === field);
+            if (colDef?.default !== undefined) {
+              insert[field] = enumZod.optional();
+            } else {
+              insert[field] = enumZod;
+            }
+          }
           if (update[field]) update[field] = enumZod.nullable().optional();
         }
         continue;

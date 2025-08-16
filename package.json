@@ -1,6 +1,6 @@
 {
   "name": "pg-schemata",
-  "version": "0.2.0-beta1",
+  "version": "0.2.1-dev",
   "homepage": "https://silverstone-i.github.io/pg-schemata/",
   "description": "A lightweight Postgres-first ORM layer built on top of pg-promise",
   "main": "src/index.js",
@@ -18,7 +18,7 @@
     "nodejs"
   ],
   "scripts": {
-    "docs": "documentation build src/index.js -f md -o pg-schemata-docs/documentation/pg-schemata.md && documentation build src/schemaTypes.js -f md -o pg-schemata-docs/documentation/schemaTypes.md && node ./pg-schemata-docs/sanitizeToc.js",
+    "docs": "documentation build src/index.js -f md -o pg-schemata-docs/documentation/pg-schemata.md && documentation build src/schemaTypes.d.ts -f md -o pg-schemata-docs/documentation/schemaTypes.md && node ./pg-schemata-docs/sanitizeToc.js",
     "lint": "eslint .",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
@@ -50,5 +50,14 @@
     "eslint": "^9.24.0",
     "express": "^5.1.0",
     "vitest": "^3.1.4"
+  },
+  "overrides": {
+    "exceljs": {
+      "glob": "^11.0.0"
+    },
+    "rimraf": "^6.0.1",
+    "unzipper": {
+      "fstream": "github:isaacs/fstream#semver:^1.0.12"
+    }
   }
 }

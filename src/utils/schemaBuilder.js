@@ -16,7 +16,6 @@
  * based on a structured schema definition.
  */
 
-
 import SchemaDefinitionError from '../SchemaDefinitionError.js';
 import crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
@@ -52,6 +51,11 @@ function createTableSQL(schema, logger = null) {
 
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
+    // Support for generated columns
+    if (col.generated && col.expression) {
+      let def = `"${col.name}" ${col.type} GENERATED ${col.generated.toUpperCase()} AS (${col.expression})${col.stored ? ' STORED' : ''}`;
+      return def;
+    }
     let def = `"${col.name}" ${col.type}`;
     if (col.notNull) def += ' NOT NULL';
     if (col.default !== undefined) {
@@ -59,18 +63,19 @@ function createTableSQL(schema, logger = null) {
       if (typeof defaultValue === 'string') {
         const builtins = new Set(['now', 'current_timestamp']);
 
-        defaultValue = defaultValue.replace(
-          /\b([a-z_][a-z0-9_]*)\s*\(\)/gi,
-          (match, fnName) => {
-            if (
-              builtins.has(fnName.toLowerCase()) ||
-              /\b\w+\.\w+\(\)/.test(match)
-            ) {
-              return match;
-            }
-            return `public.${fnName}()`;
+        defaultValue = defaultValue.replace(/\b([a-z_][a-z0-9_]*)\s*\(\)/gi, (match, fnName) => {
+          if (builtins.has(fnName.toLowerCase()) || /\b\w+\.\w+\(\)/.test(match)) {
+            return match;
           }
-        );
+          return `public.${fnName}()`;
+        });
+
+        // Quote unquoted, non-function, non-numeric strings
+        const isSQLFunction = /\b\w+\(.*\)/.test(defaultValue);
+        const isNumeric = /^-?\d+(\.\d+)?$/.test(defaultValue);
+        if (!isSQLFunction && !isNumeric && !/^'.*'$/.test(defaultValue)) {
+          defaultValue = `'${defaultValue}'`;
+        }
       }
       def += ` DEFAULT ${defaultValue}`;
     }
@@ -83,9 +88,7 @@ function createTableSQL(schema, logger = null) {
   // Handle PRIMARY KEY constraint
   // Primary Key
   if (constraints.primaryKey) {
-    tableConstraints.push(
-      `PRIMARY KEY (${constraints.primaryKey.map(c => `"${c}"`).join(', ')})`
-    );
+    tableConstraints.push(`PRIMARY KEY (${constraints.primaryKey.map(c => `"${c}"`).join(', ')})`);
   }
 
   // Handle UNIQUE constraints with generated names
@@ -94,11 +97,7 @@ function createTableSQL(schema, logger = null) {
     for (const uniqueCols of constraints.unique) {
       const hash = createHash(table + uniqueCols.join('_'));
       const constraintName = `uidx_${table}_${uniqueCols.join('_')}_${hash}`;
-      tableConstraints.push(
-        `CONSTRAINT "${constraintName}" UNIQUE (${uniqueCols
-          .map(c => `"${c}"`)
-          .join(', ')})`
-      );
+      tableConstraints.push(`CONSTRAINT "${constraintName}" UNIQUE (${uniqueCols.map(c => `"${c}"`).join(', ')})`);
     }
   }
 
@@ -107,20 +106,14 @@ function createTableSQL(schema, logger = null) {
   if (constraints.foreignKeys) {
     for (const fk of constraints.foreignKeys) {
       if (typeof fk.references !== 'object') {
-        throw new SchemaDefinitionError(
-          `Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`
-        );
+        throw new SchemaDefinitionError(`Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`);
       }
 
-      const hash = createHash(
-        table + fk.references.table + fk.columns.join('_')
-      );
+      const hash = createHash(table + fk.references.table + fk.columns.join('_'));
       const constraintName = `fk_${table}_${hash}`;
 
       {
-        const hash = createHash(
-          table + fk.references.table + fk.columns.join('_')
-        );
+        const hash = createHash(table + fk.references.table + fk.columns.join('_'));
         const constraintName = `fk_${table}_${hash}`;
 
         const [refSchema, refTable] = fk.references.table.includes('.')
@@ -128,12 +121,8 @@ function createTableSQL(schema, logger = null) {
           : [schemaName, fk.references.table];
 
         tableConstraints.push(
-          `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns
-            .map(c => `"${c}"`)
-            .join(', ')}) ` +
-            `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns
-              .map(c => `"${c}"`)
-              .join(', ')})` +
+          `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` +
+            `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` +
             (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') +
             (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '')
         );
@@ -170,7 +159,6 @@ function createTableSQL(schema, logger = null) {
   // if (table === 'costlines') {
   //   console.log('costlines sql', sql);
   // }
-
   return sql;
 }
 
@@ -184,26 +172,39 @@ function createTableSQL(schema, logger = null) {
  */
 function addAuditFields(schema) {
   const { columns } = schema;
-  const auditFields = [
-    {
-      name: 'created_at',
-      type: 'timestamp',
-      default: 'now()',
-      immutable: true,
-    },
-    {
-      name: 'created_by',
-      type: 'varchar(50)',
-      default: `'system'`,
-      immutable: true,
-    },
-    { name: 'updated_at', type: 'timestamp', default: 'now()' },
-    { name: 'updated_by', type: 'varchar(50)', default: `'system'` },
-  ];
+  if (schema?.hasAuditFields) {
+    const auditFields = [
+      {
+        name: 'created_at',
+        type: 'timestamptz',
+        default: 'now()',
+        immutable: true,
+      },
+      {
+        name: 'created_by',
+        type: 'varchar(50)',
+        default: `'system'`,
+        immutable: true,
+      },
+      { name: 'updated_at', type: 'timestamptz', default: 'now()' },
+      { name: 'updated_by', type: 'varchar(50)', default: `'system'` },
+    ];
 
-  for (const auditField of auditFields) {
-    if (!columns.find(col => col.name === auditField.name)) {
-      columns.push(auditField);
+    for (const auditField of auditFields) {
+      if (!columns.find(col => col.name === auditField.name)) {
+        columns.push(auditField);
+      }
+    }
+  }
+
+  if (schema?.softDelete) {
+    const hasDeactivatedAt = columns.some(col => col.name === 'deactivated_at');
+    if (!hasDeactivatedAt) {
+      columns.push({
+        name: 'deactivated_at',
+        type: 'timestamptz',
+        nullable: true,
+      });
     }
   }
 
@@ -231,12 +232,8 @@ function createIndexesSQL(schema, unique = false, where = null, logger = null) {
   const { indexes } = schema.constraints;
 
   const indexSQL = indexes.map(index => {
-    const indexName = `${unique ? 'uidx' : 'idx'}_${
-      schema.table
-    }_${index.columns.join('_')}`.toLowerCase();
-    return `CREATE INDEX IF NOT EXISTS "${indexName}" ON "${
-      schema.schemaName
-    }"."${schema.table}" (${index.columns.join(', ')});`;
+    const indexName = `${unique ? 'uidx' : 'idx'}_${schema.table}_${index.columns.join('_')}`.toLowerCase();
+    return `CREATE INDEX IF NOT EXISTS "${indexName}" ON "${schema.schemaName}"."${schema.table}" (${index.columns.join(', ')});`;
   });
 
   logMessage({
@@ -285,17 +282,12 @@ function createColumnSet(schema, pgp, logger = null) {
   // Define standard audit field names to exclude from base ColumnSet
   const auditFields = ['created_at', 'created_by', 'updated_at', 'updated_by'];
   // Remove audit fields from the list of columns
-  const columnsetColumns = schema.columns.filter(
-    col => !auditFields.includes(col.name)
-  );
+  const columnsetColumns = schema.columns.filter(col => !auditFields.includes(col.name));
 
   const hasAuditFields = columnsetColumns.length !== schema.columns.length;
 
   // Validate that audit fields hav been added correctly
-  if (
-    schema.hasOwnProperty('hasAuditFields') &&
-    hasAuditFields !== schema.hasAuditFields
-  ) {
+  if (schema.hasOwnProperty('hasAuditFields') && hasAuditFields !== schema.hasAuditFields) {
     const message = hasAuditFields
       ? 'Cannot use create_at, created_by, updated_at, updated_by in your schema definition'
       : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
@@ -309,44 +301,39 @@ function createColumnSet(schema, pgp, logger = null) {
       const hasDefault = col.hasOwnProperty('default');
 
       // Skip serial or UUID primary keys with defaults
-      if (
-        col.type === 'serial' ||
-        (col.type === 'uuid' && isPrimaryKey && hasDefault)
-      ) {
+      if (col.type === 'serial' || (col.type === 'uuid' && isPrimaryKey && hasDefault)) {
         return null;
       }
 
+      // Exclude 'validator' from col.colProps when building columnObject
+      const { validator, ...colPropsWithoutValidator } = col.colProps || {};
       const columnObject = {
         name: col.name,
-        ...(col.colProps || {}),
-        def: col.hasOwnProperty('default')
-          ? col.default
-          : col.colProps?.def ?? undefined,
+        ...colPropsWithoutValidator,
+        def: col.hasOwnProperty('default') ? col.default : col.colProps?.def ?? undefined,
       };
 
       return columnObject;
     })
     .filter(col => col !== null); // Remove nulls (skipped columns)
-/**
- * @private
- *
- * Validates column definitions to ensure colProps.skip is a function if provided.
- *
- * @param {Array<ColumnDefinition>} columns - Array of column definitions.
- * @throws {SchemaDefinitionError} If colProps.skip is invalid.
- */
-function validateColumnProps(columns) {
-  for (const col of columns) {
-    if (col.colProps) {
-      const { skip } = col.colProps;
-      if (typeof skip !== 'undefined' && typeof skip !== 'function') {
-        throw new SchemaDefinitionError(
-          `Invalid colProps.skip for column "${col.name}": expected function, got ${typeof skip}`
-        );
+  /**
+   * @private
+   *
+   * Validates column definitions to ensure colProps.skip is a function if provided.
+   *
+   * @param {Array<ColumnDefinition>} columns - Array of column definitions.
+   * @throws {SchemaDefinitionError} If colProps.skip is invalid.
+   */
+  function validateColumnProps(columns) {
+    for (const col of columns) {
+      if (col.colProps) {
+        const { skip } = col.colProps;
+        if (typeof skip !== 'undefined' && typeof skip !== 'function') {
+          throw new SchemaDefinitionError(`Invalid colProps.skip for column "${col.name}": expected function, got ${typeof skip}`);
+        }
       }
     }
   }
-}
 
   const cs = {};
 
@@ -388,11 +375,4 @@ function validateColumnProps(columns) {
   return cs;
 }
 
-export {
-  createTableSQL,
-  addAuditFields,
-  createIndexesSQL,
-  normalizeSQL,
-  createColumnSet,
-  columnSetCache,
-};
+export { createTableSQL, addAuditFields, createIndexesSQL, normalizeSQL, createColumnSet, columnSetCache };
