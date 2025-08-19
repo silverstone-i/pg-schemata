@@ -112,21 +112,9 @@ function createTableSQL(schema, logger = null) {
       const hash = createHash(table + fk.references.table + fk.columns.join('_'));
       const constraintName = `fk_${table}_${hash}`;
 
-      {
-        const hash = createHash(table + fk.references.table + fk.columns.join('_'));
-        const constraintName = `fk_${table}_${hash}`;
+      const [refSchema, refTable] = fk.references.table.includes('.') ? fk.references.table.split('.') : [schemaName, fk.references.table];
 
-        const [refSchema, refTable] = fk.references.table.includes('.')
-          ? fk.references.table.split('.')
-          : [schemaName, fk.references.table];
-
-        tableConstraints.push(
-          `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` +
-            `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` +
-            (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') +
-            (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '')
-        );
-      }
+      tableConstraints.push(`CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` + `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` + (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') + (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : ''));
     }
   }
 
@@ -288,9 +276,7 @@ function createColumnSet(schema, pgp, logger = null) {
 
   // Validate that audit fields hav been added correctly
   if (schema.hasOwnProperty('hasAuditFields') && hasAuditFields !== schema.hasAuditFields) {
-    const message = hasAuditFields
-      ? 'Cannot use create_at, created_by, updated_at, updated_by in your schema definition'
-      : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
+    const message = hasAuditFields ? 'Cannot use create_at, created_by, updated_at, updated_by in your schema definition' : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
     throw new SchemaDefinitionError(message);
   }
 
