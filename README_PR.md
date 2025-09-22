@@ -109,6 +109,11 @@ esm-loader` if necessary, depending on your environment):
 node migrate.mjs
 ```
 
+### End-to-end example
+
+For a full walkthrough that creates three related tables and ships a
+follow-up migration, see `Examples/migration-tutorial/README.md`.
+
 The `MigrationManager` will:
 
 1. Ensure that the `schema_migrations` table exists (creating it if

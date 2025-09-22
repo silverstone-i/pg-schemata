@@ -1,0 +1,13 @@
+{
+  "name": "pg-schemata-migration-tutorial",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate": "node migrate.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.11.5",
+    "pg-promise": "^11.5.0",
+    "pg-schemata": "file:../.."
+  }
+}
