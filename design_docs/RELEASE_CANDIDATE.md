@@ -25,9 +25,9 @@ npm test
 
 ## 2. Cut an RC branch
 
-Create a dedicated branch so fixes can land without blocking `dev`:
-
-Create one release branch per target version and reuse it for all RC iterations (do not create a new branch for each rc.N):
+Create a dedicated branch so fixes can land without blocking `dev`. Use **one
+branch per target version** and reuse it for every RC iteration (do not create a
+new branch for each `rc.N`):
 
 ```bash
 export TARGET_VERSION=1.4.0
@@ -39,6 +39,10 @@ git checkout -b release/${TARGET_VERSION}
 
 # For subsequent RCs of the same version, reuse the branch:
 # git checkout release/${TARGET_VERSION}
+
+# When you respin the RC, bump the counter and derived name:
+export RC_ITERATION=$((RC_ITERATION + 1))
+export RC_NAME="${TARGET_VERSION}-rc.${RC_ITERATION}"
 ```
 
 Use tags like ${RC_NAME} for each iteration; keep the branch name as release/${TARGET_VERSION}.
@@ -57,11 +61,8 @@ export TARGET_VERSION=1.1.0
 export RC_ITERATION=0
 export RC_NAME="v${TARGET_VERSION}-rc.${RC_ITERATION}"
 
-# Exact set (recommended)
-npm version 1.1.0-rc.0 --no-git-tag-version
-
-# Or derive from 1.0.0 → 1.1.0-rc.0
-# npm version preminor --preid=rc --no-git-tag-version
+npm version preminor --preid=rc --no-git-tag-version    # Increment minor version
+npm version prerelease --preid=rc --no-git-tag-version  # Increment rc version
 
 git add package.json package-lock.json
 git commit -m "chore: bump version to ${RC_NAME}"
@@ -101,11 +102,11 @@ git tag ${RC_NAME}
 Push branch and tag for review:
 
 ```bash
-git push origin release/${RC_NAME}
+git push origin release/${TARGET_VERSION}
 git push origin ${RC_NAME}
 ```
 
-Open a PR from `release/${RC_NAME}` → `main` (mark as draft until the RC is
+Open a PR from `release/${TARGET_VERSION}` → `main` (mark as draft until the RC is
 promoted).
 
 ---
@@ -145,7 +146,7 @@ any migration tutorials relevant to the changes.
 1. Go to the Releases tab
 2. Click **“Draft a new release”**
 3. Pick `${RC_NAME}` as the tag (mark as pre-release)
-4. Target `release/${RC_NAME}` or `main` if already merged
+4. Target `release/${TARGET_VERSION}` or `main` if already merged
 5. Paste the RC notes
 
 This helps surface the candidate without signalling a final GA release.
@@ -155,7 +156,7 @@ This helps surface the candidate without signalling a final GA release.
 ## 9. Iterate quickly
 
 - Collect feedback and file issues against the RC branch.
-- For each fix, merge into `dev` first, then cherry-pick onto `release/${RC_NAME}`.
+- For each fix, merge into `dev` first, then cherry-pick onto `release/${TARGET_VERSION}`.
 - Bump the prerelease number (`npm version prerelease --preid=rc`) and republish
   (`npm publish --tag rc`).
 
@@ -167,7 +168,7 @@ Repeat until the candidate is stable.
 
 Once the RC is approved:
 
-1. Merge `release/${RC_NAME}` into `main`.
+1. Merge `release/${TARGET_VERSION}` into `main`.
 2. Follow the standard release steps in `design_docs/RELEASE.md` (which will
    bump to `1.4.0` and publish with the `latest` dist-tag).
 3. Update npm tags:
