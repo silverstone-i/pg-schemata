@@ -41,6 +41,9 @@ export async function bootstrap({ models, schema = 'public' }) {
       // Skip values that are not classes
       if (typeof ModelClass !== 'function') continue;
       const instance = new ModelClass(t, DB.pgp);
+      if (schema && typeof instance.setSchemaName === 'function') {
+        instance.setSchemaName(schema);
+      }
       if (typeof instance.createTable === 'function') {
         await instance.createTable();
       }
