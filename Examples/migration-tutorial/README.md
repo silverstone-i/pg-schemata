@@ -196,6 +196,8 @@ export async function up({ schema }) {
 }
 ```
 
+> **Note**: The `bootstrap` function automatically enables the `pgcrypto` extension by default, which is needed for UUID generation. You can customize this by passing an `extensions` array: `bootstrap({ models, schema, extensions: ['pgcrypto', 'uuid-ossp', 'postgis'] })` or disable extensions entirely with `extensions: []`.
+
 The migration runner (`migrate.mjs`) initialises the DB and applies pending
 migrations:
 
