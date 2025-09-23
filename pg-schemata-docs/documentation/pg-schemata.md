@@ -40,54 +40,54 @@
         *   [Parameters][36]
     *   [truncate][37]
     *   [createTable][38]
-*   [QueryModel][39]
+*   [SchemaDefinitionError][39]
     *   [Parameters][40]
-    *   [findSoftDeleted][41]
-        *   [Parameters][42]
-    *   [isSoftDeleted][43]
-        *   [Parameters][44]
-    *   [findAll][45]
+*   [createHash][41]
+    *   [Parameters][42]
+*   [QueryModel][43]
+    *   [Parameters][44]
+    *   [findSoftDeleted][45]
         *   [Parameters][46]
-    *   [findById][47]
+    *   [isSoftDeleted][47]
         *   [Parameters][48]
-    *   [findByIdIncludingDeactivated][49]
+    *   [findAll][49]
         *   [Parameters][50]
-    *   [findWhere][51]
+    *   [findById][51]
         *   [Parameters][52]
-    *   [findOneBy][53]
+    *   [findByIdIncludingDeactivated][53]
         *   [Parameters][54]
-    *   [findAfterCursor][55]
+    *   [findWhere][55]
         *   [Parameters][56]
-    *   [reload][57]
+    *   [findOneBy][57]
         *   [Parameters][58]
-    *   [exportToSpreadsheet][59]
+    *   [findAfterCursor][59]
         *   [Parameters][60]
-    *   [exists][61]
+    *   [reload][61]
         *   [Parameters][62]
-    *   [countWhere][63]
+    *   [exportToSpreadsheet][63]
         *   [Parameters][64]
-    *   [countAll][65]
+    *   [exists][65]
         *   [Parameters][66]
-    *   [buildValuesClause][67]
+    *   [countWhere][67]
         *   [Parameters][68]
-    *   [validateDto][69]
+    *   [countAll][69]
         *   [Parameters][70]
-    *   [sanitizeDto][71]
+    *   [buildValuesClause][71]
         *   [Parameters][72]
-    *   [escapeName][73]
+    *   [validateDto][73]
         *   [Parameters][74]
-    *   [setSchemaName][75]
+    *   [sanitizeDto][75]
         *   [Parameters][76]
-    *   [buildWhereClause][77]
+    *   [escapeName][77]
         *   [Parameters][78]
-    *   [buildCondition][79]
+    *   [setSchemaName][79]
         *   [Parameters][80]
-    *   [handleDbError][81]
+    *   [buildWhereClause][81]
         *   [Parameters][82]
-*   [SchemaDefinitionError][83]
-    *   [Parameters][84]
-*   [createHash][85]
-    *   [Parameters][86]
+    *   [buildCondition][83]
+        *   [Parameters][84]
+    *   [handleDbError][85]
+        *   [Parameters][86]
 *   [callDb][87]
     *   [Parameters][88]
 *   [DatabaseError][89]
@@ -161,7 +161,7 @@ Inserts a single row into the table after validation and sanitization.
 
 <!---->
 
-*   Throws **[SchemaDefinitionError][83]** If validation fails or DTO is invalid.
+*   Throws **[SchemaDefinitionError][39]** If validation fails or DTO is invalid.
 
 Returns **[Promise][100]<[Object][96]>** The inserted row.
 
@@ -190,7 +190,7 @@ Updates a record by ID with new data.
 
 <!---->
 
-*   Throws **[SchemaDefinitionError][83]** If ID or DTO is invalid.
+*   Throws **[SchemaDefinitionError][39]** If ID or DTO is invalid.
 
 Returns **[Promise][100]<([Object][96] | null)>** Updated record or null if not found.
 
@@ -252,7 +252,7 @@ Updates rows matching a WHERE clause.
 
 <!---->
 
-*   Throws **[SchemaDefinitionError][83]** If input is invalid.
+*   Throws **[SchemaDefinitionError][39]** If input is invalid.
 
 Returns **[Promise][100]<[number][101]>** Number of rows updated.
 
@@ -267,7 +267,7 @@ Inserts many rows in a single batch operation, with optional RETURNING support.
 
 <!---->
 
-*   Throws **[SchemaDefinitionError][83]** If records or returning are invalid.
+*   Throws **[SchemaDefinitionError][39]** If records or returning are invalid.
 
 Returns **[Promise][100]<([number][101] | [Array][102]<[Object][96]>)>** Number of rows inserted, or array of rows if returning specified.
 
@@ -282,7 +282,7 @@ Updates multiple rows using their primary keys.
 
 <!---->
 
-*   Throws **[SchemaDefinitionError][83]** If input or IDs are invalid.
+*   Throws **[SchemaDefinitionError][39]** If input or IDs are invalid.
 
 Returns **[Promise][100]<[Array][102]>** Array of row counts or updated rows per query.
 
@@ -300,7 +300,7 @@ Each row can be transformed using an optional callback before insertion.
 
 <!---->
 
-*   Throws **[SchemaDefinitionError][83]** If file format is invalid or spreadsheet is empty.
+*   Throws **[SchemaDefinitionError][39]** If file format is invalid or spreadsheet is empty.
 
 Returns **[Promise][100]<{inserted: [number][101]}>** Number of rows inserted.
 
@@ -356,6 +356,28 @@ Returns **[Promise][100]\<void>**&#x20;
 Creates the table using the current schema definition.
 
 Returns **[Promise][100]\<void>**&#x20;
+
+## SchemaDefinitionError
+
+**Extends Error**
+
+Custom error used to indicate problems with table schema definitions or data validation
+within pg-schemata. This is typically thrown during insert/update validation or schema parsing.
+
+### Parameters
+
+*   `message` **[string][97]** Error message describing the schema issue.
+*   `originalError` **([Error][99] | null)** Optional original error cause for tracing. (optional, default `null`)
+
+## createHash
+
+Creates a short MD5-based hash of the input string.
+
+### Parameters
+
+*   `input` **[string][97]** Value to hash.
+
+Returns **[string][97]** A 6-character hex hash.
 
 ## QueryModel
 
@@ -580,7 +602,7 @@ Validates a single DTO or an array of DTOs using a Zod validator.
 
 <!---->
 
-*   Throws **[SchemaDefinitionError][83]** If validation fails. The `.cause` property contains Zod error details.
+*   Throws **[SchemaDefinitionError][39]** If validation fails. The `.cause` property contains Zod error details.
 
 ### sanitizeDto
 
@@ -617,7 +639,7 @@ Sets a new schema name and regenerates the column set.
 
 *   Throws **[Error][99]** If name is invalid.
 
-Returns **[QueryModel][39]** The updated model instance.
+Returns **[QueryModel][43]** The updated model instance.
 
 ### buildWhereClause
 
@@ -667,28 +689,6 @@ Handles known pg errors and logs them.
 
 *   Throws **[DatabaseError][89]** Translated database error.
 
-## SchemaDefinitionError
-
-**Extends Error**
-
-Custom error used to indicate problems with table schema definitions or data validation
-within pg-schemata. This is typically thrown during insert/update validation or schema parsing.
-
-### Parameters
-
-*   `message` **[string][97]** Error message describing the schema issue.
-*   `originalError` **([Error][99] | null)** Optional original error cause for tracing. (optional, default `null`)
-
-## createHash
-
-Creates a short MD5-based hash of the input string.
-
-### Parameters
-
-*   `input` **[string][97]** Value to hash.
-
-Returns **[string][97]** A 6-character hex hash.
-
 ## callDb
 
 Returns a schema-aware version of a registered model or repository.
@@ -725,6 +725,7 @@ none are if an error occurs.
 
     *   `options.models` **[Object][96]<[string][97], [Function][98]>** Map of repository names to their constructors
     *   `options.schema` **[string][97]** Target Postgres schema (optional, default `'public'`)
+    *   `options.extensions` **[Array][102]<[string][97]>** PostgreSQL extensions to enable before creating tables (optional, default `['pgcrypto']`)
 
 Returns **[Promise][100]\<void>**&#x20;
 
@@ -830,99 +831,99 @@ ColumnSets, validators and CRUD helpers based on the schema definition.
 
 [38]: #createtable
 
-[39]: #querymodel
+[39]: #schemadefinitionerror
 
 [40]: #parameters-17
 
-[41]: #findsoftdeleted
+[41]: #createhash
 
 [42]: #parameters-18
 
-[43]: #issoftdeleted
+[43]: #querymodel
 
 [44]: #parameters-19
 
-[45]: #findall
+[45]: #findsoftdeleted
 
 [46]: #parameters-20
 
-[47]: #findbyid
+[47]: #issoftdeleted
 
 [48]: #parameters-21
 
-[49]: #findbyidincludingdeactivated
+[49]: #findall
 
 [50]: #parameters-22
 
-[51]: #findwhere
+[51]: #findbyid
 
 [52]: #parameters-23
 
-[53]: #findoneby
+[53]: #findbyidincludingdeactivated
 
 [54]: #parameters-24
 
-[55]: #findaftercursor
+[55]: #findwhere
 
 [56]: #parameters-25
 
-[57]: #reload
+[57]: #findoneby
 
 [58]: #parameters-26
 
-[59]: #exporttospreadsheet
+[59]: #findaftercursor
 
 [60]: #parameters-27
 
-[61]: #exists
+[61]: #reload
 
 [62]: #parameters-28
 
-[63]: #countwhere
+[63]: #exporttospreadsheet
 
 [64]: #parameters-29
 
-[65]: #countall
+[65]: #exists
 
 [66]: #parameters-30
 
-[67]: #buildvaluesclause
+[67]: #countwhere
 
 [68]: #parameters-31
 
-[69]: #validatedto
+[69]: #countall
 
 [70]: #parameters-32
 
-[71]: #sanitizedto
+[71]: #buildvaluesclause
 
 [72]: #parameters-33
 
-[73]: #escapename
+[73]: #validatedto
 
 [74]: #parameters-34
 
-[75]: #setschemaname
+[75]: #sanitizedto
 
 [76]: #parameters-35
 
-[77]: #buildwhereclause
+[77]: #escapename
 
 [78]: #parameters-36
 
-[79]: #buildcondition
+[79]: #setschemaname
 
 [80]: #parameters-37
 
-[81]: #handledberror
+[81]: #buildwhereclause
 
 [82]: #parameters-38
 
-[83]: #schemadefinitionerror
+[83]: #buildcondition
 
 [84]: #parameters-39
 
-[85]: #createhash
+[85]: #handledberror
 
 [86]: #parameters-40
 
