@@ -49,13 +49,23 @@ Use tags like ${RC_NAME} for each iteration; keep the branch name as release/${T
 
 ## 3. Bump package metadata
 
-Use `npm version` to stamp the prerelease version without tagging `main` yet:
+Target version: v1.1.0-rc.0 (package.json should read 1.1.0-rc.0)
 
 ```bash
-npm version prerelease --preid=rc --no-git-tag-version
-```
+# Optional: keep env in sync with this RC
+export TARGET_VERSION=1.1.0
+export RC_ITERATION=0
+export RC_NAME="v${TARGET_VERSION}-rc.${RC_ITERATION}"
 
-This updates `package.json` and `package-lock.json` (commit both). Verify the result:
+# Exact set (recommended)
+npm version 1.1.0-rc.0 --no-git-tag-version
+
+# Or derive from 1.0.0 → 1.1.0-rc.0
+# npm version preminor --preid=rc --no-git-tag-version
+
+git add package.json package-lock.json
+git commit -m "chore: bump version to ${RC_NAME}"
+```
 
 ```bash
 node -p "require('./package.json').version"
