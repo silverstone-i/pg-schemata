@@ -8,12 +8,6 @@ import DB from '../../src/DB.js';
 import { createTableSQL } from '../../src/utils/schemaBuilder.js';
 import TableModel from '../../src/TableModel.js';
 
-class TestUserModel extends TableModel {
-  constructor(db, pgp) {
-    super(db, pgp, testUserSchema);
-  }
-}
-
 export async function createTestContext(schema, seed = null) {
   const uniqueSchemaName = `${schema.dbSchema}_${crypto.randomUUID().replace(/-/g, '')}`;
   const schemaCopy = { ...schema, dbSchema: uniqueSchemaName };
@@ -25,9 +19,6 @@ export async function createTestContext(schema, seed = null) {
   }
 
   const { db, pgp } = await DB.init(process.env.DATABASE_URL, { model: Model });
-
-  const tableName = schemaCopy.table;
-  const fullTableRef = `"${schemaCopy.dbSchema}"."${tableName}"`;
 
   // console.log(`🧪 Using schema: ${schemaCopy.dbSchema}`);
   await db.none(`DROP SCHEMA IF EXISTS "${schemaCopy.dbSchema}" CASCADE; CREATE SCHEMA IF NOT EXISTS "${schemaCopy.dbSchema}"`);

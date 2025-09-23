@@ -124,7 +124,7 @@ export class MigrationManager {
     const result = await DB.db.tx(async t => {
       // Acquire an advisory lock scoped to the schema name to prevent
       // concurrent migration runs.
-      await t.none('SELECT pg_advisory_xact_lock(hashtext($1))', [this.schema]);
+      await t.one('SELECT pg_advisory_xact_lock(hashtext($1))', [this.schema]);
 
       // Ensure the schema_migrations table exists
       await this.ensure(t);

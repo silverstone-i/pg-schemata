@@ -25,7 +25,7 @@ import { bootstrap } from '../src/migrate/bootstrap.js';
 // DB.init() in your application code. See the README_PR.md instructions
 // for more details.
 
-export async function up({ db, schema }) {
+export async function up({ db: _db, schema: _schema }) {
   // When running via MigrationManager, `db` is a pg‑promise transaction
   // object scoped to the same connection as the transaction. We don't
   // initialize DB here because it's already initialized in your
@@ -38,5 +38,7 @@ export async function up({ db, schema }) {
 
   // For demonstration purposes, this migration does nothing. Replace
   // the contents of up() with your own bootstrap logic.
-  return;
+  void _db;
+  void _schema;
+  void bootstrap;
 }
