@@ -141,3 +141,5 @@ const tableSchema = {
     ],
   },
 };
+
+export default tableSchema;

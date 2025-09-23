@@ -112,21 +112,9 @@ function createTableSQL(schema, logger = null) {
       const hash = createHash(table + fk.references.table + fk.columns.join('_'));
       const constraintName = `fk_${table}_${hash}`;
 
-      {
-        const hash = createHash(table + fk.references.table + fk.columns.join('_'));
-        const constraintName = `fk_${table}_${hash}`;
+      const [refSchema, refTable] = fk.references.table.includes('.') ? fk.references.table.split('.') : [schemaName, fk.references.table];
 
-        const [refSchema, refTable] = fk.references.table.includes('.')
-          ? fk.references.table.split('.')
-          : [schemaName, fk.references.table];
-
-        tableConstraints.push(
-          `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` +
-            `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` +
-            (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') +
-            (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '')
-        );
-      }
+      tableConstraints.push(`CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` + `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` + (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') + (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : ''));
     }
   }
 
@@ -218,12 +206,11 @@ function addAuditFields(schema) {
  *
  * @param {TableSchema} schema - Structured schema object.
  * @param {boolean} [unique=false] - Whether to treat all indexes as unique.
- * @param {string|null} [where=null] - Optional WHERE clause for partial indexes.
  * @param {Object|null} logger - Optional logger instance.
  * @returns {string} One or more SQL CREATE INDEX statements.
  * @throws {SchemaDefinitionError} If no indexes are defined in the schema.
  */
-function createIndexesSQL(schema, unique = false, where = null, logger = null) {
+function createIndexesSQL(schema, unique = false, logger = null) {
   // Ensure that index definitions are present in the schema
   if (!schema.constraints || !schema.constraints.indexes) {
     throw new SchemaDefinitionError('No indexes defined in schema');
@@ -287,10 +274,8 @@ function createColumnSet(schema, pgp, logger = null) {
   const hasAuditFields = columnsetColumns.length !== schema.columns.length;
 
   // Validate that audit fields hav been added correctly
-  if (schema.hasOwnProperty('hasAuditFields') && hasAuditFields !== schema.hasAuditFields) {
-    const message = hasAuditFields
-      ? 'Cannot use create_at, created_by, updated_at, updated_by in your schema definition'
-      : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
+  if (Object.prototype.hasOwnProperty.call(schema, 'hasAuditFields') && hasAuditFields !== schema.hasAuditFields) {
+    const message = hasAuditFields ? 'Cannot use create_at, created_by, updated_at, updated_by in your schema definition' : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
     throw new SchemaDefinitionError(message);
   }
 
@@ -298,7 +283,7 @@ function createColumnSet(schema, pgp, logger = null) {
   const columns = columnsetColumns
     .map(col => {
       const isPrimaryKey = schema.constraints?.primaryKey?.includes(col.name);
-      const hasDefault = col.hasOwnProperty('default');
+      const hasDefault = Object.prototype.hasOwnProperty.call(col, 'default');
 
       // Skip serial or UUID primary keys with defaults
       if (col.type === 'serial' || (col.type === 'uuid' && isPrimaryKey && hasDefault)) {
@@ -306,11 +291,12 @@ function createColumnSet(schema, pgp, logger = null) {
       }
 
       // Exclude 'validator' from col.colProps when building columnObject
-      const { validator, ...colPropsWithoutValidator } = col.colProps || {};
+      const colPropsWithoutValidator = { ...(col.colProps ?? {}) };
+      delete colPropsWithoutValidator.validator;
       const columnObject = {
         name: col.name,
         ...colPropsWithoutValidator,
-        def: col.hasOwnProperty('default') ? col.default : col.colProps?.def ?? undefined,
+        def: Object.prototype.hasOwnProperty.call(col, 'default') ? col.default : col.colProps?.def ?? undefined,
       };
 
       return columnObject;

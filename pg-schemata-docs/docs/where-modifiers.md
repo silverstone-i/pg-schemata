@@ -1,55 +1,54 @@
 # WHERE Clause Modifiers Reference
 
-This guide lists all supported modifiers for `findWhere`, `updateWhere`, and `buildCondition`.
+This guide lists all modifiers supported by `QueryModel.buildCondition` and how to combine them in `findWhere`, `updateWhere`, and related methods.
 
-## 📌 Modifier Reference Table
+## 📌 Field Modifiers
 
-| Modifier      | Type         | Description                               | Example                                            |
-| ------------- | ------------ | ----------------------------------------- | -------------------------------------------------- |
-| (plain value) | any          | Equals (default)                          | `{ status: 'A' }`                                  |
-| (plain null)  | null         | IS NULL                                   | `{ deleted_at: null }`                             |
-| `$eq`         | any          | Equal to                                  | `{ status: { $eq: 'A' } }`                         |
-| `$ne`         | any or null  | Not equal to (null becomes `IS NOT NULL`) | `{ status: { $ne: 'X' } }`, `{ x: { $ne: null } }` |
-| `$like`       | string       | SQL `LIKE` pattern                        | `{ name: { $like: 'John%' } }`                     |
-| `$ilike`      | string       | Case-insensitive `ILIKE` pattern          | `{ name: { $ilike: '%doe' } }`                     |
-| `$from`       | comparable   | Greater than or equal (`>=`)              | `{ date: { $from: '2024-01-01' } }`                |
-| `$to`         | comparable   | Less than or equal (`<=`)                 | `{ date: { $to: '2024-12-31' } }`                  |
-| `$in`         | array        | Matches any value in the list             | `{ status: { $in: ['A', 'B'] } }`                  |
-| `$is`         | null         | IS NULL (null only)                       | `{ archived_at: { $is: null } }`                   |
-| `$not`        | null         | IS NOT NULL (null only)                   | `{ archived_at: { $not: null } }`                  |
-| `$max`        | boolean/true | Equals maximum value in the table         | `{ score: { $max: true } }`                        |
-| `$min`        | boolean/true | Equals minimum value in the table         | `{ value: { $min: true } }`                        |
-| `$sum`        | boolean/true | Equals total sum of values in the table   | `{ amount: { $sum: true } }`                       |
+| Modifier | Type              | Description                                          | Example                                                     |
+| -------- | ----------------- | ---------------------------------------------------- | ----------------------------------------------------------- |
+| `$eq`    | any               | Equal to                                             | `{ status: { $eq: 'A' } }`                                  |
+| `$ne`    | any or null       | Not equal; with `null` becomes `IS NOT NULL`         | `{ status: { $ne: 'X' } }`, `{ deleted_at: { $ne: null } }` |
+| `$like`  | string            | SQL `LIKE` pattern                                   | `{ name: { $like: 'John%' } }`                              |
+| `$ilike` | string            | Case-insensitive `ILIKE` pattern                     | `{ name: { $ilike: '%doe' } }`                              |
+| `$from`  | comparable        | Greater than or equal (`>=`)                         | `{ date: { $from: '2024-01-01' } }`                         |
+| `$to`    | comparable        | Less than or equal (`<=`)                            | `{ date: { $to: '2024-12-31' } }`                           |
+| `$in`    | array (non-empty) | Matches any value in list                            | `{ status: { $in: ['A', 'B'] } }`                           |
+| `$is`    | null only         | `IS NULL` (only supports `null`)                     | `{ archived_at: { $is: null } }`                            |
+| `$not`   | null only         | `IS NOT NULL` (only supports `null`)                 | `{ archived_at: { $not: null } }`                           |
+| `$max`   | boolean/true      | Equals the maximum value of this column in the table | `{ score: { $max: true } }`                                 |
+| `$min`   | boolean/true      | Equals the minimum value of this column in the table | `{ value: { $min: true } }`                                 |
+| `$sum`   | boolean/true      | Equals the total sum of this column in the table     | `{ amount: { $sum: true } }`                                |
 
-Notes:
+Notes
 
-- `$gt`, `$gte`, `$lt`, `$lte`, `$between` are not supported; use `$from`/`$to`.
-- Unsupported operators throw a `SchemaDefinitionError`.
+- `$is` and `$not` currently only support `null`. Any other operand throws a `SchemaDefinitionError`.
+- `$in` must be a non-empty array or a `SchemaDefinitionError` is thrown.
 
-## 🔀 Boolean group operators
+## 🔁 Logical Grouping
 
 Use nested groups to combine conditions:
 
-- `$and: [...]` or `and: [...]`
-- `$or: [...]` or `or: [...]`
+- `$and`: array of conditions combined with AND
+- `$or`: array of conditions combined with OR
 
-Example:
+Legacy aliases (also supported): `and`, `or`.
+
+Example
 
 ```js
-[{ status: 'active' }, { $or: [{ created_at: { $from: '2024-01-01' } }, { created_by: { $like: 'admin%' } }] }];
+[{ $and: [{ status: { $in: ['active', 'pending'] } }, { created_at: { $from: '2024-01-01' } }] }, { $or: [{ name: { $ilike: 'admin%' } }, { email: { $like: '%@example.com' } }] }];
 ```
 
-## ❗ Null handling
+## ✅ Defaults and Null Handling
 
-- Plain `null` becomes `IS NULL`.
-- `{ col: { $ne: null } }` and `{ col: { $not: null } }` both become `col IS NOT NULL`.
-- `{ col: { $is: null } }` becomes `col IS NULL`.
+- Plain values imply equality: `{ status: 'active' }` => `status = $1`.
+- Plain `null` implies `IS NULL`: `{ deleted_at: null }` => `deleted_at IS NULL`.
+- `{ field: { $ne: null } }` and `{ field: { $not: null } }` both result in `field IS NOT NULL`.
 
-## ⚠️ Constraints and errors
+## ⚠️ Validation and Errors
 
-- `$in` must be a non-empty array; empty arrays throw `SchemaDefinitionError`.
-- `$not` and `$is` only accept `null`; any other value throws `SchemaDefinitionError`.
-- Any unknown operator key results in `SchemaDefinitionError`.
+- Unknown operators on a field cause `SchemaDefinitionError` (e.g., `{ age: { $gt: 10 } }` is not supported unless listed above).
+- `$in` requires a non-empty array.
 
 ## 🔗 See Also
 

@@ -15,3 +15,8 @@ export * from './QueryModel.js';
 export * from './utils/callDB.js';
 export * from './SchemaDefinitionError.js';
 export * from './DatabaseError.js';
+
+// New exports for migration support
+export * from './migrate/MigrationManager.js';
+export * from './migrate/bootstrap.js';
+export * from './models/SchemaMigrations.js';

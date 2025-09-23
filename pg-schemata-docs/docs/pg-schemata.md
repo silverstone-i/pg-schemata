@@ -15,13 +15,13 @@ Initializes the DB singleton if it hasn't been initialized yet.
 
 #### Parameters
 
-*   `connection` **([object][91] | [string][92])** A pg-promise-compatible connection object or string.
-*   `repositories` **[Object][91]<[string][92], [Function][93]>** A map of repository names to their constructors.
-*   `logger` **[object][91]** Optional logger passed to each repository. (optional, default `null`)
+*   `connection` **([object][96] | [string][97])** A pg-promise-compatible connection object or string.
+*   `repositories` **[Object][96]<[string][97], [Function][98]>** A map of repository names to their constructors.
+*   `logger` **[object][96]** Optional logger passed to each repository. (optional, default `null`)
 
 <!---->
 
-*   Throws **[Error][94]** If connection or repositories are invalid.
+*   Throws **[Error][99]** If connection or repositories are invalid.
 
 ## pgp
 
@@ -59,13 +59,13 @@ Inserts a single row into the table after validation and sanitization.
 
 #### Parameters
 
-*   `dto` **[Object][91]** Data to insert.
+*   `dto` **[Object][96]** Data to insert.
 
 <!---->
 
 *   Throws **[SchemaDefinitionError][39]** If validation fails or DTO is invalid.
 
-Returns **[Promise][95]<[Object][91]>** The inserted row.
+Returns **[Promise][100]<[Object][96]>** The inserted row.
 
 ### delete
 
@@ -73,13 +73,13 @@ Deletes a record by its ID.
 
 #### Parameters
 
-*   `id` **([string][92] | [number][96])** Primary key of the row to delete.
+*   `id` **([string][97] | [number][101])** Primary key of the row to delete.
 
 <!---->
 
-*   Throws **[Error][94]** If the ID is invalid or deletion fails.
+*   Throws **[Error][99]** If the ID is invalid or deletion fails.
 
-Returns **[Promise][95]<[number][96]>** Number of rows deleted.
+Returns **[Promise][100]<[number][101]>** Number of rows deleted.
 
 ### update
 
@@ -87,14 +87,14 @@ Updates a record by ID with new data.
 
 #### Parameters
 
-*   `id` **([string][92] | [number][96])** Primary key value.
-*   `dto` **[Object][91]** Updated values.
+*   `id` **([string][97] | [number][101])** Primary key value.
+*   `dto` **[Object][96]** Updated values.
 
 <!---->
 
 *   Throws **[SchemaDefinitionError][39]** If ID or DTO is invalid.
 
-Returns **[Promise][95]<([Object][91] | null)>** Updated record or null if not found.
+Returns **[Promise][100]<([Object][96] | null)>** Updated record or null if not found.
 
 ### upsert
 
@@ -102,11 +102,11 @@ Inserts a record or updates it if it conflicts with specified columns.
 
 #### Parameters
 
-*   `dto` **[Object][91]** Data to insert or update.
-*   `conflictColumns` **[Array][97]<[string][92]>** Columns that define the conflict constraint.
-*   `updateColumns` **[Array][97]<[string][92]>?** Columns to update on conflict. Defaults to all non-conflict columns. (optional, default `null`)
+*   `dto` **[Object][96]** Data to insert or update.
+*   `conflictColumns` **[Array][102]<[string][97]>** Columns that define the conflict constraint.
+*   `updateColumns` **[Array][102]<[string][97]>?** Columns to update on conflict. Defaults to all non-conflict columns. (optional, default `null`)
 
-Returns **[Promise][95]<[Object][91]>** The inserted or updated row.
+Returns **[Promise][100]<[Object][96]>** The inserted or updated row.
 
 ### bulkUpsert
 
@@ -114,12 +114,12 @@ Bulk upsert multiple records in a single transaction.
 
 #### Parameters
 
-*   `records` **[Array][97]<[Object][91]>** Array of records to upsert.
-*   `conflictColumns` **[Array][97]<[string][92]>** Columns that define the conflict constraint.
-*   `updateColumns` **[Array][97]<[string][92]>?** Columns to update on conflict. Defaults to all non-conflict columns. (optional, default `null`)
-*   `returning` **([Array][97]<[string][92]> | null)** Optional array of columns to return. (optional, default `null`)
+*   `records` **[Array][102]<[Object][96]>** Array of records to upsert.
+*   `conflictColumns` **[Array][102]<[string][97]>** Columns that define the conflict constraint.
+*   `updateColumns` **[Array][102]<[string][97]>?** Columns to update on conflict. Defaults to all non-conflict columns. (optional, default `null`)
+*   `returning` **([Array][102]<[string][97]> | null)** Optional array of columns to return. (optional, default `null`)
 
-Returns **[Promise][95]<([number][96] | [Array][97])>** Number of rows affected or array of rows if returning specified.
+Returns **[Promise][100]<([number][101] | [Array][102])>** Number of rows affected or array of rows if returning specified.
 
 ### deleteWhere
 
@@ -127,9 +127,9 @@ Deletes rows matching a WHERE clause.
 
 #### Parameters
 
-*   `where` **([Object][91] | [Array][97])** Filter criteria.
+*   `where` **([Object][96] | [Array][102])** Filter criteria.
 
-Returns **[Promise][95]<[number][96]>** Number of rows deleted.
+Returns **[Promise][100]<[number][101]>** Number of rows deleted.
 
 ### touch
 
@@ -137,10 +137,10 @@ Updates only the updated\_by timestamp for a given row.
 
 #### Parameters
 
-*   `id` **([string][92] | [number][96])** Primary key.
-*   `updatedBy` **[string][92]** User performing the update. (optional, default `'system'`)
+*   `id` **([string][97] | [number][101])** Primary key.
+*   `updatedBy` **[string][97]** User performing the update. (optional, default `'system'`)
 
-Returns **[Promise][95]<([Object][91] | null)>** Updated row.
+Returns **[Promise][100]<([Object][96] | null)>** Updated row.
 
 ### updateWhere
 
@@ -148,15 +148,15 @@ Updates rows matching a WHERE clause.
 
 #### Parameters
 
-*   `where` **([Object][91] | [Array][97])** Conditions.
-*   `updates` **[Object][91]** Fields to update.
-*   `options` **[Object][91]** Additional options (e.g., includeDeactivated). (optional, default `{}`)
+*   `where` **([Object][96] | [Array][102])** Conditions.
+*   `updates` **[Object][96]** Fields to update.
+*   `options` **[Object][96]** Additional options (e.g., includeDeactivated). (optional, default `{}`)
 
 <!---->
 
 *   Throws **[SchemaDefinitionError][39]** If input is invalid.
 
-Returns **[Promise][95]<[number][96]>** Number of rows updated.
+Returns **[Promise][100]<[number][101]>** Number of rows updated.
 
 ### bulkInsert
 
@@ -164,14 +164,14 @@ Inserts many rows in a single batch operation, with optional RETURNING support.
 
 #### Parameters
 
-*   `records` **[Array][97]<[Object][91]>** Rows to insert.
-*   `returning` **([Array][97]<[string][92]> | null)** Optional array of columns to return. (optional, default `null`)
+*   `records` **[Array][102]<[Object][96]>** Rows to insert.
+*   `returning` **([Array][102]<[string][97]> | null)** Optional array of columns to return. (optional, default `null`)
 
 <!---->
 
 *   Throws **[SchemaDefinitionError][39]** If records or returning are invalid.
 
-Returns **[Promise][95]<([number][96] | [Array][97]<[Object][91]>)>** Number of rows inserted, or array of rows if returning specified.
+Returns **[Promise][100]<([number][101] | [Array][102]<[Object][96]>)>** Number of rows inserted, or array of rows if returning specified.
 
 ### bulkUpdate
 
@@ -179,14 +179,14 @@ Updates multiple rows using their primary keys.
 
 #### Parameters
 
-*   `records` **[Array][97]<[Object][91]>** Each must include an ID field.
-*   `returning` **([Array][97]<[string][92]> | null)** Optional array of columns to return. (optional, default `null`)
+*   `records` **[Array][102]<[Object][96]>** Each must include an ID field.
+*   `returning` **([Array][102]<[string][97]> | null)** Optional array of columns to return. (optional, default `null`)
 
 <!---->
 
 *   Throws **[SchemaDefinitionError][39]** If input or IDs are invalid.
 
-Returns **[Promise][95]<[Array][97]>** Array of row counts or updated rows per query.
+Returns **[Promise][100]<[Array][102]>** Array of row counts or updated rows per query.
 
 ### importFromSpreadsheet
 
@@ -195,8 +195,8 @@ Each row can be transformed using an optional callback before insertion.
 
 #### Parameters
 
-*   `filePath` **[string][92]** Source .xlsx file path.
-*   `sheetIndex` **[number][96]** Sheet index to load. (optional, default `0`)
+*   `filePath` **[string][97]** Source .xlsx file path.
+*   `sheetIndex` **[number][101]** Sheet index to load. (optional, default `0`)
 *   `callbackFn`   (optional, default `null`)
 *   `returning`   (optional, default `null`)
 
@@ -204,7 +204,7 @@ Each row can be transformed using an optional callback before insertion.
 
 *   Throws **[SchemaDefinitionError][39]** If file format is invalid or spreadsheet is empty.
 
-Returns **[Promise][95]<{inserted: [number][96]}>** Number of rows inserted.
+Returns **[Promise][100]<{inserted: [number][101]}>** Number of rows inserted.
 
 ### removeWhere
 
@@ -212,9 +212,9 @@ Soft deletes records matching a WHERE clause by setting deactivated\_at = NOW().
 
 #### Parameters
 
-*   `where` **([Object][91] | [Array][97])** Filter criteria.
+*   `where` **([Object][96] | [Array][102])** Filter criteria.
 
-Returns **[Promise][95]<[number][96]>** Number of rows updated.
+Returns **[Promise][100]<[number][101]>** Number of rows updated.
 
 ### restoreWhere
 
@@ -222,9 +222,9 @@ Restores previously soft-deleted records by setting deactivated\_at = NULL.
 
 #### Parameters
 
-*   `where` **([Object][91] | [Array][97])** Filter criteria.
+*   `where` **([Object][96] | [Array][102])** Filter criteria.
 
-Returns **[Promise][95]<[number][96]>** Number of rows updated.
+Returns **[Promise][100]<[number][101]>** Number of rows updated.
 
 ### purgeSoftDeleteWhere
 
@@ -233,9 +233,9 @@ Useful for scheduled cleanup of records older than a threshold.
 
 #### Parameters
 
-*   `where` **([Object][91] | [Array][97]<[Object][91]>)** Filter conditions. (optional, default `[]`)
+*   `where` **([Object][96] | [Array][102]<[Object][96]>)** Filter conditions. (optional, default `[]`)
 
-Returns **[Promise][95]<[Object][91]>** pg-promise result.
+Returns **[Promise][100]<[Object][96]>** pg-promise result.
 
 ### purgeSoftDeleteById
 
@@ -243,21 +243,21 @@ Permanently deletes a soft-deleted row by ID.
 
 #### Parameters
 
-*   `id` **([string][92] | [number][96])** Primary key value.
+*   `id` **([string][97] | [number][101])** Primary key value.
 
-Returns **[Promise][95]<[Object][91]>** pg-promise result.
+Returns **[Promise][100]<[Object][96]>** pg-promise result.
 
 ### truncate
 
 Truncates the table and resets its identity sequence.
 
-Returns **[Promise][95]\<void>**&#x20;
+Returns **[Promise][100]\<void>**&#x20;
 
 ### createTable
 
 Creates the table using the current schema definition.
 
-Returns **[Promise][95]\<void>**&#x20;
+Returns **[Promise][100]\<void>**&#x20;
 
 ## SchemaDefinitionError
 
@@ -268,8 +268,8 @@ within pg-schemata. This is typically thrown during insert/update validation or 
 
 ### Parameters
 
-*   `message` **[string][92]** Error message describing the schema issue.
-*   `originalError` **([Error][94] | null)** Optional original error cause for tracing. (optional, default `null`)
+*   `message` **[string][97]** Error message describing the schema issue.
+*   `originalError` **([Error][99] | null)** Optional original error cause for tracing. (optional, default `null`)
 
 ## createHash
 
@@ -277,9 +277,9 @@ Creates a short MD5-based hash of the input string.
 
 ### Parameters
 
-*   `input` **[string][92]** Value to hash.
+*   `input` **[string][97]** Value to hash.
 
-Returns **[string][92]** A 6-character hex hash.
+Returns **[string][97]** A 6-character hex hash.
 
 ## QueryModel
 
@@ -297,7 +297,7 @@ It may be instantiated directly when only read-access is required.
 *   Aggregations and checks: `count`, `countAll`, `exists`
 *   Rich condition syntax with `$like`, `$from`, `$eq`, `$in`, `$and`, `$or`, etc.
 
-📌 See [where-modifiers.md][98] for full reference.
+📌 See [where-modifiers.md][103] for full reference.
 
 ### Parameters
 
@@ -312,11 +312,11 @@ Finds only soft-deleted records.
 
 #### Parameters
 
-*   `conditions` **[Array][97]<[Object][91]>** Optional extra conditions. (optional, default `[]`)
-*   `joinType` **[string][92]** Logical joiner ('AND' or 'OR'). (optional, default `'AND'`)
-*   `options` **[Object][91]** Query options. (optional, default `{}`)
+*   `conditions` **[Array][102]<[Object][96]>** Optional extra conditions. (optional, default `[]`)
+*   `joinType` **[string][97]** Logical joiner ('AND' or 'OR'). (optional, default `'AND'`)
+*   `options` **[Object][96]** Query options. (optional, default `{}`)
 
-Returns **[Promise][95]<[Array][97]<[Object][91]>>** Soft-deleted rows.
+Returns **[Promise][100]<[Array][102]<[Object][96]>>** Soft-deleted rows.
 
 ### isSoftDeleted
 
@@ -324,9 +324,9 @@ Checks if a specific record is soft-deleted.
 
 #### Parameters
 
-*   `id` **([number][96] | [string][92])** The primary key value.
+*   `id` **([number][101] | [string][97])** The primary key value.
 
-Returns **[Promise][95]<[boolean][99]>** True if the record is soft-deleted, false otherwise.
+Returns **[Promise][100]<[boolean][104]>** True if the record is soft-deleted, false otherwise.
 
 ### findAll
 
@@ -334,12 +334,12 @@ Fetches all rows from the table with optional pagination.
 
 #### Parameters
 
-*   `options` **[Object][91]** Query options. (optional, default `{}`)
+*   `options` **[Object][96]** Query options. (optional, default `{}`)
 
-    *   `options.limit` **[number][96]** Maximum number of records to return. (optional, default `50`)
-    *   `options.offset` **[number][96]** Number of records to skip. (optional, default `0`)
+    *   `options.limit` **[number][101]** Maximum number of records to return. (optional, default `50`)
+    *   `options.offset` **[number][101]** Number of records to skip. (optional, default `0`)
 
-Returns **[Promise][95]<[Array][97]<[Object][91]>>** List of rows.
+Returns **[Promise][100]<[Array][102]<[Object][96]>>** List of rows.
 
 ### findById
 
@@ -347,13 +347,13 @@ Finds a single row by its ID.
 
 #### Parameters
 
-*   `id` **([number][96] | [string][92])** The primary key value.
+*   `id` **([number][101] | [string][97])** The primary key value.
 
 <!---->
 
-*   Throws **[Error][94]** If ID is invalid.
+*   Throws **[Error][99]** If ID is invalid.
 
-Returns **[Promise][95]<([Object][91] | null)>** Matching row or null if not found.
+Returns **[Promise][100]<([Object][96] | null)>** Matching row or null if not found.
 
 ### findByIdIncludingDeactivated
 
@@ -361,13 +361,13 @@ Finds a single row by its ID, including soft-deleted records.
 
 #### Parameters
 
-*   `id` **([number][96] | [string][92])** The primary key value.
+*   `id` **([number][101] | [string][97])** The primary key value.
 
 <!---->
 
-*   Throws **[Error][94]** If ID is invalid.
+*   Throws **[Error][99]** If ID is invalid.
 
-Returns **[Promise][95]<([Object][91] | null)>** Matching row or null if not found.
+Returns **[Promise][100]<([Object][96] | null)>** Matching row or null if not found.
 
 ### findWhere
 
@@ -375,18 +375,18 @@ Finds rows matching conditions and optional filters.
 
 #### Parameters
 
-*   `conditions` **[Array][97]<[Object][91]>** Array of condition objects. (optional, default `[]`)
-*   `joinType` **[string][92]** Logical operator ('AND' or 'OR'). (optional, default `'AND'`)
-*   `options` **[Object][91]** Query options. (optional, default `{}`)
+*   `conditions` **[Array][102]<[Object][96]>** Array of condition objects. (optional, default `[]`)
+*   `joinType` **[string][97]** Logical operator ('AND' or 'OR'). (optional, default `'AND'`)
+*   `options` **[Object][96]** Query options. (optional, default `{}`)
 
-    *   `options.columnWhitelist` **[Array][97]<[string][92]>?** Columns to return. (optional, default `null`)
-    *   `options.filters` **[Object][91]?** Additional filter object. (optional, default `{}`)
-    *   `options.orderBy` **([string][92] | [Array][97]<[string][92]>)?** Sort columns. (optional, default `null`)
-    *   `options.limit` **[number][96]?** Limit results. (optional, default `null`)
-    *   `options.offset` **[number][96]?** Offset results. (optional, default `null`)
-    *   `options.includeDeactivated` **[boolean][99]** Include soft-deleted records when true. (optional, default `false`)
+    *   `options.columnWhitelist` **[Array][102]<[string][97]>?** Columns to return. (optional, default `null`)
+    *   `options.filters` **[Object][96]?** Additional filter object. (optional, default `{}`)
+    *   `options.orderBy` **([string][97] | [Array][102]<[string][97]>)?** Sort columns. (optional, default `null`)
+    *   `options.limit` **[number][101]?** Limit results. (optional, default `null`)
+    *   `options.offset` **[number][101]?** Offset results. (optional, default `null`)
+    *   `options.includeDeactivated` **[boolean][104]** Include soft-deleted records when true. (optional, default `false`)
 
-Returns **[Promise][95]<[Array][97]<[Object][91]>>** Matching rows.
+Returns **[Promise][100]<[Array][102]<[Object][96]>>** Matching rows.
 
 ### findOneBy
 
@@ -394,10 +394,10 @@ Finds the first row matching the given conditions.
 
 #### Parameters
 
-*   `conditions` **[Array][97]<[Object][91]>** Condition list.
-*   `options` **[Object][91]?** Query options (same as findWhere). (optional, default `{}`)
+*   `conditions` **[Array][102]<[Object][96]>** Condition list.
+*   `options` **[Object][96]?** Query options (same as findWhere). (optional, default `{}`)
 
-Returns **[Promise][95]<([Object][91] | null)>** First matching row or null.
+Returns **[Promise][100]<([Object][96] | null)>** First matching row or null.
 
 ### findAfterCursor
 
@@ -405,14 +405,14 @@ Retrieves a paginated set of rows after a cursor position.
 
 #### Parameters
 
-*   `cursor` **[Object][91]** Cursor values keyed by orderBy columns. (optional, default `{}`)
-*   `limit` **[number][96]** Max number of rows to return. (optional, default `50`)
-*   `orderBy` **[Array][97]<[string][92]>** Columns used for pagination ordering. (optional, default `['id']`)
-*   `options` **[Object][91]** Query options. (optional, default `{}`)
+*   `cursor` **[Object][96]** Cursor values keyed by orderBy columns. (optional, default `{}`)
+*   `limit` **[number][101]** Max number of rows to return. (optional, default `50`)
+*   `orderBy` **[Array][102]<[string][97]>** Columns used for pagination ordering. (optional, default `['id']`)
+*   `options` **[Object][96]** Query options. (optional, default `{}`)
 
-    *   `options.columnWhitelist` **[Array][97]<[string][92]>?** Columns to return.
-    *   `options.filters` **[Object][91]?** Additional filter object.
-    *   `options.includeDeactivated` **[boolean][99]** Include soft-deleted records when true. (optional, default `false`)
+    *   `options.columnWhitelist` **[Array][102]<[string][97]>?** Columns to return.
+    *   `options.filters` **[Object][96]?** Additional filter object.
+    *   `options.includeDeactivated` **[boolean][104]** Include soft-deleted records when true. (optional, default `false`)
 
 ### reload
 
@@ -420,12 +420,12 @@ Reloads a single record by ID using findById.
 
 #### Parameters
 
-*   `id` **([string][92] | [number][96])** Primary key value.
-*   `options` **[Object][91]?** Optional flags. (optional, default `{}`)
+*   `id` **([string][97] | [number][101])** Primary key value.
+*   `options` **[Object][96]?** Optional flags. (optional, default `{}`)
 
-    *   `options.includeDeactivated` **[boolean][99]** Whether to include soft-deleted records. (optional, default `false`)
+    *   `options.includeDeactivated` **[boolean][104]** Whether to include soft-deleted records. (optional, default `false`)
 
-Returns **[Promise][95]<([Object][91] | null)>** The found record or null.
+Returns **[Promise][100]<([Object][96] | null)>** The found record or null.
 
 ### exportToSpreadsheet
 
@@ -433,12 +433,12 @@ Exports table data to an Excel file based on filter criteria.
 
 #### Parameters
 
-*   `filePath` **[string][92]** Destination .xlsx path.
-*   `where` **[Array][97]** Optional conditions. (optional, default `[]`)
-*   `joinType` **[string][92]** Join type between conditions. (optional, default `'AND'`)
-*   `options` **[Object][91]** Additional query options. (optional, default `{}`)
+*   `filePath` **[string][97]** Destination .xlsx path.
+*   `where` **[Array][102]** Optional conditions. (optional, default `[]`)
+*   `joinType` **[string][97]** Join type between conditions. (optional, default `'AND'`)
+*   `options` **[Object][96]** Additional query options. (optional, default `{}`)
 
-Returns **[Promise][95]<{exported: [number][96], filePath: [string][92]}>**&#x20;
+Returns **[Promise][100]<{exported: [number][101], filePath: [string][97]}>**&#x20;
 
 ### exists
 
@@ -446,14 +446,14 @@ Checks if any row exists matching the given conditions.
 
 #### Parameters
 
-*   `conditions` **[Object][91]** Condition object.
-*   `options` **[Object][91]?** Query options. (optional, default `{}`)
+*   `conditions` **[Object][96]** Condition object.
+*   `options` **[Object][96]?** Query options. (optional, default `{}`)
 
 <!---->
 
-*   Throws **[Error][94]** If conditions are invalid.
+*   Throws **[Error][99]** If conditions are invalid.
 
-Returns **[Promise][95]<[boolean][99]>** True if a match is found.
+Returns **[Promise][100]<[boolean][104]>** True if a match is found.
 
 ### countWhere
 
@@ -461,14 +461,14 @@ Counts the number of rows matching a WHERE clause.
 
 #### Parameters
 
-*   `conditions` **[Array][97]<[Object][91]>** Array of condition objects. (optional, default `[]`)
-*   `joinType` **[string][92]** Logical joiner ('AND' or 'OR'). (optional, default `'AND'`)
-*   `options` **[Object][91]** Query options. (optional, default `{}`)
+*   `conditions` **[Array][102]<[Object][96]>** Array of condition objects. (optional, default `[]`)
+*   `joinType` **[string][97]** Logical joiner ('AND' or 'OR'). (optional, default `'AND'`)
+*   `options` **[Object][96]** Query options. (optional, default `{}`)
 
-    *   `options.filters` **[Object][91]?** Additional filter object. (optional, default `{}`)
-    *   `options.includeDeactivated` **[boolean][99]** Include soft-deleted records when true. (optional, default `false`)
+    *   `options.filters` **[Object][96]?** Additional filter object. (optional, default `{}`)
+    *   `options.includeDeactivated` **[boolean][104]** Include soft-deleted records when true. (optional, default `false`)
 
-Returns **[Promise][95]<[number][96]>** Number of matching rows.
+Returns **[Promise][100]<[number][101]>** Number of matching rows.
 
 ### countAll
 
@@ -476,11 +476,11 @@ Counts all rows in the table.
 
 #### Parameters
 
-*   `options` **[Object][91]?** Query options. (optional, default `{}`)
+*   `options` **[Object][96]?** Query options. (optional, default `{}`)
 
-    *   `options.includeDeactivated` **[boolean][99]** Include soft-deleted records when true. (optional, default `false`)
+    *   `options.includeDeactivated` **[boolean][104]** Include soft-deleted records when true. (optional, default `false`)
 
-Returns **[Promise][95]<[number][96]>** Total row count.
+Returns **[Promise][100]<[number][101]>** Total row count.
 
 ### buildValuesClause
 
@@ -488,9 +488,9 @@ Generates a SQL-safe VALUES clause using this model's ColumnSet.
 
 #### Parameters
 
-*   `data` **[Array][97]<([Object][91] | [Array][97])>** Array of rows (object or array form)
+*   `data` **[Array][102]<([Object][96] | [Array][102])>** Array of rows (object or array form)
 
-Returns **[string][92]** VALUES clause for direct embedding in SQL
+Returns **[string][97]** VALUES clause for direct embedding in SQL
 
 ### validateDto
 
@@ -498,9 +498,9 @@ Validates a single DTO or an array of DTOs using a Zod validator.
 
 #### Parameters
 
-*   `data` **([Object][91] | [Array][97]<[Object][91]>)** The DTO or array of DTOs to validate.
+*   `data` **([Object][96] | [Array][102]<[Object][96]>)** The DTO or array of DTOs to validate.
 *   `validator` &#x20;
-*   `type` **[string][92]** Optional label used in error messages. (optional, default `'DTO'`)
+*   `type` **[string][97]** Optional label used in error messages. (optional, default `'DTO'`)
 
 <!---->
 
@@ -512,12 +512,12 @@ Returns a sanitized copy of the input, filtering out invalid or immutable column
 
 #### Parameters
 
-*   `dto` **[Object][91]** Input object.
-*   `options` **[Object][91]?**  (optional, default `{}`)
+*   `dto` **[Object][96]** Input object.
+*   `options` **[Object][96]?**  (optional, default `{}`)
 
-    *   `options.includeImmutable` **[boolean][99]**  (optional, default `true`)
+    *   `options.includeImmutable` **[boolean][104]**  (optional, default `true`)
 
-Returns **[Object][91]** Sanitized DTO.
+Returns **[Object][96]** Sanitized DTO.
 
 ### escapeName
 
@@ -525,9 +525,9 @@ Escapes a column or table name using pg-promise syntax.
 
 #### Parameters
 
-*   `name` **[string][92]** Unescaped identifier.
+*   `name` **[string][97]** Unescaped identifier.
 
-Returns **[string][92]** Escaped name.
+Returns **[string][97]** Escaped name.
 
 ### setSchemaName
 
@@ -535,11 +535,11 @@ Sets a new schema name and regenerates the column set.
 
 #### Parameters
 
-*   `name` **[string][92]** The new schema name.
+*   `name` **[string][97]** The new schema name.
 
 <!---->
 
-*   Throws **[Error][94]** If name is invalid.
+*   Throws **[Error][99]** If name is invalid.
 
 Returns **[QueryModel][43]** The updated model instance.
 
@@ -549,17 +549,17 @@ Builds a SQL WHERE clause from conditions.
 
 #### Parameters
 
-*   `where` **([Object][91] | [Array][97]<[Object][91]>)** Conditions object or array. (optional, default `{}`)
-*   `requireNonEmpty` **[boolean][99]** Enforce non-empty input. (optional, default `true`)
-*   `values` **[Array][97]** Array to accumulate parameter values. (optional, default `[]`)
-*   `joinType` **[string][92]** Logical operator for combining. (optional, default `'AND'`)
-*   `includeDeactivated` **[boolean][99]** Include soft-deleted records if true. (optional, default `false`)
+*   `where` **([Object][96] | [Array][102]<[Object][96]>)** Conditions object or array. (optional, default `{}`)
+*   `requireNonEmpty` **[boolean][104]** Enforce non-empty input. (optional, default `true`)
+*   `values` **[Array][102]** Array to accumulate parameter values. (optional, default `[]`)
+*   `joinType` **[string][97]** Logical operator for combining. (optional, default `'AND'`)
+*   `includeDeactivated` **[boolean][104]** Include soft-deleted records if true. (optional, default `false`)
 
 <!---->
 
-*   Throws **[Error][94]** If input is invalid or empty when required.
+*   Throws **[Error][99]** If input is invalid or empty when required.
 
-Returns **{clause: [string][92], values: [Array][97]}** Clause and parameter list.
+Returns **{clause: [string][97], values: [Array][102]}** Clause and parameter list.
 
 ### buildCondition
 
@@ -569,15 +569,15 @@ Builds a SQL fragment from a group of conditions, supporting nested logic and ad
 🔁 Also supports nested boolean logic via `$and`, `$or`, `and`, `or`.
 
 📘 See full documentation:
-[WHERE Clause Modifiers Reference][98]
+[WHERE Clause Modifiers Reference][103]
 
 #### Parameters
 
-*   `group` **[Array][97]<[Object][91]>** Array of condition objects.
-*   `joiner` **[string][92]** Logical joiner ('AND' or 'OR') between conditions. (optional, default `'AND'`)
-*   `values` **[Array][97]** Parameter values to be populated. (optional, default `[]`)
+*   `group` **[Array][102]<[Object][96]>** Array of condition objects.
+*   `joiner` **[string][97]** Logical joiner ('AND' or 'OR') between conditions. (optional, default `'AND'`)
+*   `values` **[Array][102]** Parameter values to be populated. (optional, default `[]`)
 
-Returns **[string][92]** A SQL-safe WHERE fragment.
+Returns **[string][97]** A SQL-safe WHERE fragment.
 
 ### handleDbError
 
@@ -585,7 +585,7 @@ Handles known pg errors and logs them.
 
 #### Parameters
 
-*   `err` **[Error][94]** The error thrown by pg-promise.
+*   `err` **[Error][99]** The error thrown by pg-promise.
 
 <!---->
 
@@ -597,10 +597,10 @@ Returns a schema-aware version of a registered model or repository.
 
 ### Parameters
 
-*   `modelOrName` **([string][92] | [object][91])** The model instance or its name.
-*   `schemaName` **[string][92]** The database schema to bind.
+*   `modelOrName` **([string][97] | [object][96])** The model instance or its name.
+*   `schemaName` **[string][97]** The database schema to bind.
 
-Returns **[object][91]** The model bound to the given schema.
+Returns **[object][96]** The model bound to the given schema.
 
 ## DatabaseError
 
@@ -612,8 +612,50 @@ such as the constraint name, table, and SQLSTATE error code.
 
 ### Parameters
 
-*   `message` **[string][92]** A human-readable description of the error.
-*   `originalError` **[Error][94]** The original error object from PostgreSQL.
+*   `message` **[string][97]** A human-readable description of the error.
+*   `originalError` **[Error][99]** The original error object from PostgreSQL.
+
+## bootstrap
+
+Create all tables defined by the provided models. This runs inside a
+single transaction to ensure that either all tables are created or
+none are if an error occurs.
+
+### Parameters
+
+*   `options` **[object][96]** Options
+
+    *   `options.models` **[Object][96]<[string][97], [Function][98]>** Map of repository names to their constructors
+    *   `options.schema` **[string][97]** Target Postgres schema (optional, default `'public'`)
+    *   `options.extensions` **[Array][102]<[string][97]>** PostgreSQL extensions to enable before creating tables (optional, default `['pgcrypto']`)
+
+Returns **[Promise][100]\<void>**&#x20;
+
+## migrationSchema
+
+Schema definition for the `schema_migrations` table.
+
+The shape of this object follows the standard table schema format used
+throughout pg‑schemata. Each column is defined as an object within the
+`columns` array, and table level constraints live in the `constraints`
+property. Audit fields (created\_at, updated\_at, etc.) are enabled via
+`hasAuditFields`.
+
+## SchemaMigrations
+
+**Extends TableModel**
+
+TableModel subclass for the `schema_migrations` table.
+
+This class simply passes the `migrationSchema` to the base TableModel
+constructor. It relies on the pg‑schemata TableModel to generate
+ColumnSets, validators and CRUD helpers based on the schema definition.
+
+### Parameters
+
+*   `db` &#x20;
+*   `pgp` &#x20;
+*   `logger`   (optional, default `null`)
 
 [1]: #db
 
@@ -795,20 +837,30 @@ such as the constraint name, table, and SQLSTATE error code.
 
 [90]: #parameters-42
 
-[91]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object
+[91]: #bootstrap
 
-[92]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String
+[92]: #parameters-43
 
-[93]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/function
+[93]: #migrationschema
 
-[94]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Error
+[94]: #schemamigrations
 
-[95]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise
+[95]: #parameters-44
 
-[96]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Number
+[96]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object
 
-[97]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array
+[97]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String
 
-[98]: where-modifiers.md
+[98]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/function
 
-[99]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Boolean
+[99]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Error
+
+[100]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise
+
+[101]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Number
+
+[102]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array
+
+[103]: where-modifiers.md
+
+[104]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Boolean

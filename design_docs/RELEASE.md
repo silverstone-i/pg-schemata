@@ -2,6 +2,9 @@
 
 This document outlines the steps for creating a new release of the `pg-schemata` project, including tagging, publishing to GitHub, and publishing to npm.
 
+> Looking for the prerelease workflow? See `design_docs/RELEASE_CANDIDATE.md` for
+> detailed instructions on cutting and distributing RC builds before GA.
+
 ---
 
 ## ✅ GitHub Release

@@ -4,7 +4,33 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `3840fc4`
+Latest commit: `7e04823`
+
+---
+
+## [v1.1.0] - 2025-09-23
+
+This release introduces comprehensive migration management and soft delete functionality. See detailed notes in `v1.1.0 Release Notes.md`.
+
+### 🚀 Features
+
+- **Migration Management**: Add full migration support with `SchemaMigrations` model and `MigrationManager` class (`46f29b0`)
+- **Migration Tutorial**: Add comprehensive migration tutorial with example schemas and migration scripts (`7e04823`)
+- **Soft Delete Enhancement**: Add soft delete checks in `QueryModel` and `TableModel` methods (`3840fc4`)
+- **Example Projects**: Initialize pg-schemata-min-example with database connection and user model (`7bd8c86`)
+- **Dependency Management**: Add package overrides for exceljs, rimraf, and unzipper dependencies (`e9d4d73`)
+
+### 📚 Documentation
+
+- **Enhanced WHERE Documentation**: Refactor documentation for WHERE clause modifiers with detailed descriptions and examples (`5bbb650`)
+- **Improved Readability**: Remove repeated lines and syntax to enhance readability (`7226b72`)
+- **Updated Documentation**: Refactor documentation for pg-schemata and schemaTypes (`90e5620`)
+- **Changelog Updates**: Update changelog for latest commits and enhancements (`69f4cb9`)
+
+### 🐛 Fixes
+
+- **Installation Instructions**: Update installation command to specify package name (`95acfb8`)
+- **Installation Instructions**: Update installation instructions to remove package name (`d7b0150`)
 
 ---
 

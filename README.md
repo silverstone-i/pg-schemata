@@ -15,6 +15,10 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD, fle
 
 ## ✨ Features
 
+- **Migration Management**: Full database migration support with `MigrationManager` class
+  - Automatic migration tracking in `schema_migrations` table
+  - Transaction-safe migration execution
+  - Bootstrap utility with PostgreSQL extension support
 - Schema-driven table configuration via plain JavaScript objects
 - Automatic `ColumnSet` generation for efficient pg-promise integration
 - Full CRUD operations, including:
@@ -85,9 +89,13 @@ export const userSchema = {
 import { TableModel } from 'pg-schemata';
 import { userSchema } from '../schemas/userSchema.js';
 
-export class User extends TableModel {
-  constructor(db, pgp, logger) {
-    super(db, pgp, userSchema, logger);
+class User extends TableModel {
+  constructor(db) {
+    super(db, userSchema);
+  }
+
+  async findByEmail(email) {
+    return this.db.oneOrNone(`SELECT * FROM ${this.schema.schema}.${this.schema.table} WHERE email = $1`, [email]);
   }
 }
 ```
@@ -111,6 +119,38 @@ async function example() {
   const removed = await db().users.delete(created.id);
 }
 ```
+
+---
+
+### 4. Database Migrations
+
+pg-schemata provides a complete migration management system:
+
+```javascript
+// migrations/0001_initial.mjs
+import { bootstrap } from 'pg-schemata';
+import { models } from '../src/models/index.js';
+
+export async function up({ schema }) {
+  // Bootstrap creates all tables and enables common extensions
+  await bootstrap({ models, schema });
+}
+```
+
+```javascript
+// migrate.mjs - Run your migrations
+import { MigrationManager } from 'pg-schemata';
+
+const manager = new MigrationManager({
+  schema: 'public',
+  dir: './migrations',
+});
+
+const { applied, files } = await manager.applyAll();
+console.log(`Applied ${applied.length} migration(s)`);
+```
+
+➡️ **[Complete Migration Tutorial](./Examples/migration-tutorial/README.md)**
 
 ---
 
@@ -140,8 +180,6 @@ To contribute to or build the documentation site locally, see the guide: [Docs S
 
 - Node.js >= 16
 - PostgreSQL >= 12
-- [`pg-promise`](https://github.com/vitaly-t/pg-promise)
-- [`lru-cache`](https://www.npmjs.com/package/lru-cache) (installed automatically)
 
 ---
 

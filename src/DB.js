@@ -42,42 +42,37 @@ class DB {
    * @param {object} [logger=null] - Optional logger passed to each repository.
    * @returns {typeof DB} The initialized DB class (for chaining or access).
    * @throws {Error} If connection or repositories are invalid.
-   */
+  */
   static init(connection, repositories, logger = null) {
     if (!DB.db) {
       // Only initialize once to enforce singleton pattern
-      try {
-        // Validate that a connection configuration is provided
-        if (connection === undefined || connection === null) {
-          throw new Error();
-        }
 
-        // Validate that a repositories object is provided
-        if (!repositories || typeof repositories !== 'object' || Array.isArray(repositories) || repositories === null) {
-          throw new Error();
-        }
-
-        // Configure pg-promise: capitalize SQL and auto-extend DB with repositories
-        const initOptions = {
-          capSQL: true, // capitalize all generated SQL
-          extend(obj, dc) {
-            // Attach each repository to the database instance
-            for (const repository of Object.keys(repositories)) {
-              const RepoClass = repositories[repository];
-              if (typeof RepoClass !== 'function') {
-                throw new TypeError(`Repository "${repository}" is not a valid constructor`);
-              }
-              obj[repository] = new RepoClass(obj, DB.pgp, logger);
-            }
-          },
-        };
-        // Initialize the pg-promise library with the custom options
-        DB.pgp = pgPromise(initOptions);
-        // Create the database instance using the provided connection
-        DB.db = DB.pgp(connection);
-      } catch (error) {
-        throw error;
+      if (connection === undefined || connection === null) {
+        throw new Error('DB.init requires a connection configuration');
       }
+
+      if (!repositories || typeof repositories !== 'object' || Array.isArray(repositories)) {
+        throw new Error('DB.init requires a repositories map');
+      }
+
+      // Configure pg-promise: capitalize SQL and auto-extend DB with repositories
+      const initOptions = {
+        capSQL: true, // capitalize all generated SQL
+        extend(obj) {
+          // Attach each repository to the database instance
+          for (const repository of Object.keys(repositories)) {
+            const RepoClass = repositories[repository];
+            if (typeof RepoClass !== 'function') {
+              throw new TypeError(`Repository "${repository}" is not a valid constructor`);
+            }
+            obj[repository] = new RepoClass(obj, DB.pgp, logger);
+          }
+        },
+      };
+      // Initialize the pg-promise library with the custom options
+      DB.pgp = pgPromise(initOptions);
+      // Create the database instance using the provided connection
+      DB.db = DB.pgp(connection);
     }
 
     return DB;

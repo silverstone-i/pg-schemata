@@ -1,5 +1,7 @@
 'use strict';
 
+import DB from '../DB.js';
+
 /*
 * Copyright © 2024-present, Ian Silverstone
 *

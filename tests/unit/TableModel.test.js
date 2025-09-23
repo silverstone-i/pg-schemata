@@ -559,8 +559,8 @@ describe('TableModel (Unit)', () => {
   vi.mock('exceljs', () => {
     const mockGetRow = rowNumber => {
       const rows = {
-        1: { values: [, 'email'], actualCellCount: 1 },
-        2: { values: [, 'x@test.com'], actualCellCount: 1 },
+        1: { values: [undefined, 'email'], actualCellCount: 1 },
+        2: { values: [undefined, 'x@test.com'], actualCellCount: 1 },
       };
       return rows[rowNumber] || { values: [] };
     };
@@ -569,7 +569,7 @@ describe('TableModel (Unit)', () => {
       getRow: vi.fn(mockGetRow),
       actualRowCount: 2,
       eachRow: vi.fn(callback => {
-        const rows = [{ values: [, 'email'] }, { values: [, 'x@test.com'] }];
+        const rows = [{ values: [undefined, 'email'] }, { values: [undefined, 'x@test.com'] }];
         rows.forEach((row, index) => callback(row, index + 1));
       }),
     };
