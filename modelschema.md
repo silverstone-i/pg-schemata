@@ -6,7 +6,8 @@ This document summarizes **everything related to designing and using Model Schem
 
 ## 1. **Model Schema Structure**
 
-**Approach:**  
+**Approach:**
+
 - Separate **columns** and **constraints** clearly in your JavaScript model schema.
 
 ---
@@ -22,28 +23,38 @@ const userSchema = {
     { name: 'tenant_id', type: 'uuid', notNull: true, immutable: true },
     { name: 'email', type: 'text', notNull: true },
     { name: 'password', type: 'text', notNull: true },
-    { name: 'created_at', type: 'timestamp', default: 'now()', immutable: true }
+    { name: 'created_at', type: 'timestamp', default: 'now()', immutable: true },
   ],
   constraints: {
     primaryKey: ['id'],
     unique: [
-      ['tenant_id', 'email']     // Composite unique constraint
+      ['tenant_id', 'email'], // Composite unique constraint
     ],
     foreignKeys: [
       {
         columns: ['tenant_id'],
         references: 'admin.tenants(id)',
-        onDelete: 'CASCADE'
-      }
+        onDelete: 'CASCADE',
+      },
     ],
-    checks: [
-      { expression: 'length(email) > 3' }
-    ],
+    checks: [{ expression: 'length(email) > 3' }],
     indexes: [
       { columns: ['email'] },
-      { columns: ['tenant_id', 'email'] }
-    ]
-  }
+      { columns: ['tenant_id', 'email'] },
+      // Advanced index features:
+      {
+        name: 'users_email_search_idx',
+        columns: ['email'],
+        using: 'gin',
+        where: 'deactivated_at IS NULL',
+      },
+      {
+        columns: ['created_at'],
+        unique: true,
+        with: { fillfactor: 90 },
+      },
+    ],
+  },
 };
 
 module.exports = userSchema;
@@ -55,25 +66,25 @@ module.exports = userSchema;
 
 ## 2. **Column Field Options**
 
-| Field | Purpose |
-|:------|:--------|
-| `name` | Column name |
-| `type` | PostgreSQL data type (`text`, `uuid`, `timestamp`, etc.) |
-| `default` | Default value (e.g., `gen_random_uuid()`, `now()`) |
-| `notNull` | Set `NOT NULL` constraint |
+| Field       | Purpose                                                               |
+| :---------- | :-------------------------------------------------------------------- |
+| `name`      | Column name                                                           |
+| `type`      | PostgreSQL data type (`text`, `uuid`, `timestamp`, etc.)              |
+| `default`   | Default value (e.g., `gen_random_uuid()`, `now()`)                    |
+| `notNull`   | Set `NOT NULL` constraint                                             |
 | `immutable` | Mark fields that cannot change after insert (e.g., `id`, `tenant_id`) |
 
 ---
 
 ## 3. **Constraint Options**
 
-| Constraint | Purpose |
-|:-----------|:--------|
-| `primaryKey` | Single or composite primary key |
-| `unique` | Single or composite unique constraints |
+| Constraint    | Purpose                                |
+| :------------ | :------------------------------------- |
+| `primaryKey`  | Single or composite primary key        |
+| `unique`      | Single or composite unique constraints |
 | `foreignKeys` | Foreign key references to other tables |
-| `checks` | Check constraints for custom rules |
-| `indexes` | Extra indexes for performance |
+| `checks`      | Check constraints for custom rules     |
+| `indexes`     | Extra indexes for performance          |
 
 ---
 
@@ -106,10 +117,7 @@ function createTableSQL(schema) {
 
   if (constraints.foreignKeys) {
     for (const fk of constraints.foreignKeys) {
-      tableConstraints.push(
-        `FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) REFERENCES ${fk.references}` +
-        (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '')
-      );
+      tableConstraints.push(`FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) REFERENCES ${fk.references}` + (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : ''));
     }
   }
 
@@ -138,9 +146,7 @@ CREATE TABLE IF NOT EXISTS "${schemaName}"."${table}" (
 **Extract Immutable Columns:**
 
 ```javascript
-this.immutableColumns = schema.columns
-  .filter(c => c.immutable)
-  .map(c => c.name);
+this.immutableColumns = schema.columns.filter(c => c.immutable).map(c => c.name);
 ```
 
 ✅ Use this to exclude immutable fields from `UPDATE` queries automatically.
@@ -163,10 +169,12 @@ function createIndexesSQL(schema) {
   const { schema: schemaName, table, constraints = {} } = schema;
   const indexes = constraints.indexes || [];
 
-  return indexes.map(index => {
-    const cols = index.columns.map(col => `"${col}"`).join(', ');
-    return `CREATE INDEX IF NOT EXISTS ON "${schemaName}"."${table}" (${cols});`;
-  }).join('\n');
+  return indexes
+    .map(index => {
+      const cols = index.columns.map(col => `"${col}"`).join(', ');
+      return `CREATE INDEX IF NOT EXISTS ON "${schemaName}"."${table}" (${cols});`;
+    })
+    .join('\n');
 }
 ```
 
@@ -216,15 +224,15 @@ async update(id, data) {
 
 # 🎯 Final Model Schema Best Practices
 
-| Topic | Best Practice |
-|:------|:--------------|
-| Model Layout | Separate `columns` and `constraints` |
-| Column Fields | Always mark `immutable` and `notNull` fields clearly |
-| UUIDs | Use UUIDs for `id` and `tenant_id` |
-| Primary Keys | Always define explicitly |
-| Foreign Keys | Define references cleanly |
-| Indexes | Add for fast lookup fields (`email`, etc.) |
-| Table Creation | Auto-generate SQL from model |
-| Immutable Enforcement | Block updates at code level; optional DB triggers |
+| Topic                 | Best Practice                                        |
+| :-------------------- | :--------------------------------------------------- |
+| Model Layout          | Separate `columns` and `constraints`                 |
+| Column Fields         | Always mark `immutable` and `notNull` fields clearly |
+| UUIDs                 | Use UUIDs for `id` and `tenant_id`                   |
+| Primary Keys          | Always define explicitly                             |
+| Foreign Keys          | Define references cleanly                            |
+| Indexes               | Add for fast lookup fields (`email`, etc.)           |
+| Table Creation        | Auto-generate SQL from model                         |
+| Immutable Enforcement | Block updates at code level; optional DB triggers    |
 
 ✅ This setup ensures **fast development**, **safe data design**, and **future-proof** SaaS readiness.
