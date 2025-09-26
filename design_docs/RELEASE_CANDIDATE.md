@@ -61,8 +61,9 @@ export TARGET_VERSION=1.1.0
 export RC_ITERATION=0
 export RC_NAME="v${TARGET_VERSION}-rc.${RC_ITERATION}"
 
-npm version preminor --preid=rc --no-git-tag-version    # Increment minor version
 npm version prerelease --preid=rc --no-git-tag-version  # Increment rc version
+npm version preminor --preid=rc --no-git-tag-version    # Increment minor version
+npm version prepatch --preid=rc --no-git-tag-version
 
 git add package.json package-lock.json
 git commit -m "chore: bump version to ${RC_NAME}"

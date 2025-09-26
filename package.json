@@ -1,6 +1,6 @@
 {
   "name": "pg-schemata",
-  "version": "1.1.0",
+  "version": "1.1.1-rc.0",
   "homepage": "https://silverstone-i.github.io/pg-schemata/",
   "description": "A lightweight Postgres-first ORM layer built on top of pg-promise",
   "main": "src/index.js",

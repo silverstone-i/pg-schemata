@@ -4,7 +4,21 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `7e04823`
+Latest commit: `a798d57`
+
+---
+
+## [v1.1.1] - 2025-09-26
+
+Schema builder now emits clearer logging and supports index generation across schemas, including new coverage for customers.
+
+### 🚀 Features
+
+- Enhance schema builder to surface index creation errors and ensure indexes are generated alongside table creation (`a798d57`)
+
+### 🧪 Tests
+
+- Refactor `schemaBuilder` test suite for readability and add assertions for index creation (`f43cf26`)
 
 ---
 
