@@ -235,7 +235,14 @@ class QueryModel {
           : null;
       return { rows, nextCursor };
     } catch (err) {
-      console.error('Error occurred while finding after cursor:', err);
+      const level = err instanceof DatabaseError ? 'error' : 'debug';
+      logMessage({
+        logger: this.logger,
+        level,
+        schema: this._schema.dbSchema,
+        table: this._schema.table,
+        message: `findAfterCursor failure: ${err.message}`,
+      });
       throw err;
     }
   }

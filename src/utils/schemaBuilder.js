@@ -41,7 +41,7 @@ function createHash(input) {
  *
  * @param {TableSchema} schema - Structured schema definition.
  * @param {Object|null} logger - Optional logger instance.
- * @returns {string} SQL statement for creating the table.
+ * @returns {string} SQL statement for creating the table and any defined indexes.
  * @throws {SchemaDefinitionError} If a foreign key reference is invalid.
  */
 function createTableSQL(schema, logger = null) {
@@ -132,22 +132,41 @@ function createTableSQL(schema, logger = null) {
   const sql = `CREATE SCHEMA IF NOT EXISTS "${schemaName}";
   CREATE TABLE IF NOT EXISTS "${schemaName}"."${table}" (
     ${allDefs}
-  );
-  `.trim();
+  );`.trim();
+
+  let finalSQL = sql;
+
+  // Automatically include index creation if indexes are defined in the schema
+  if (schema.constraints?.indexes) {
+    try {
+      const indexSQL = createIndexesSQL(schema, false, logger);
+      finalSQL += '\n' + indexSQL;
+    } catch (error) {
+      // If createIndexesSQL throws an error, log it but don't fail the table creation
+      logMessage({
+        logger,
+        level: 'debug',
+        schema: schemaName,
+        table,
+        message: 'Error generating index SQL',
+        data: { error: error.message },
+      });
+    }
+  }
 
   logMessage({
     logger,
     level: 'debug',
     schema: schemaName,
     table,
-    message: 'Generated CREATE TABLE SQL',
-    data: { sql },
+    message: schema.constraints?.indexes ? 'Generated CREATE TABLE SQL with indexes' : 'Generated CREATE TABLE SQL',
+    data: { sql: finalSQL },
   });
 
   // if (table === 'costlines') {
-  //   console.log('costlines sql', sql);
+  //   console.log('costlines sql', finalSQL);
   // }
-  return sql;
+  return finalSQL;
 }
 
 /**
@@ -217,16 +236,98 @@ function createIndexesSQL(schema, unique = false, logger = null) {
   }
 
   const { indexes } = schema.constraints;
+  const schemaName = schema.dbSchema || schema.schemaName || 'public';
 
   const indexSQL = indexes.map(index => {
-    const indexName = `${unique ? 'uidx' : 'idx'}_${schema.table}_${index.columns.join('_')}`.toLowerCase();
-    return `CREATE INDEX IF NOT EXISTS "${indexName}" ON "${schema.schemaName}"."${schema.table}" (${index.columns.join(', ')});`;
+    // Support both old format { columns: [...] } and new format with more options
+    const columns = index.columns || [];
+    if (columns.length === 0) {
+      throw new SchemaDefinitionError(`Index definition must have at least one column for table ${schema.table}`);
+    }
+
+    // Generate index name - allow custom names or generate automatically
+    let indexName;
+    if (index.name) {
+      indexName = index.name;
+    } else {
+      const prefix = unique || index.unique ? 'uidx' : 'idx';
+      indexName = `${prefix}_${schema.table}_${columns.join('_')}`.toLowerCase();
+    }
+
+    // Build the CREATE INDEX statement
+    let sql = 'CREATE';
+
+    // Handle unique indexes
+    if (unique || index.unique) {
+      sql += ' UNIQUE';
+    }
+
+    sql += ` INDEX`;
+
+    // Add IF NOT EXISTS unless explicitly disabled
+    if (index.ifNotExists !== false) {
+      sql += ' IF NOT EXISTS';
+    }
+
+    sql += ` "${indexName}"`;
+    sql += ` ON "${schemaName}"."${schema.table}"`;
+
+    // Handle index method (btree, gin, gist, hash, spgist, brin)
+    if (index.using) {
+      sql += ` USING ${index.using.toUpperCase()}`;
+    }
+
+    // Handle column expressions and operators
+    const columnExpressions = columns.map(col => {
+      if (typeof col === 'string') {
+        // Simple column name
+        return `"${col}"`;
+      } else if (typeof col === 'object' && col.column) {
+        // Column with options: { column: 'name', opclass: 'text_ops', order: 'DESC' }
+        let expr = `"${col.column}"`;
+        if (col.opclass) {
+          expr += ` ${col.opclass}`;
+        }
+        if (col.order && ['ASC', 'DESC'].includes(col.order.toUpperCase())) {
+          expr += ` ${col.order.toUpperCase()}`;
+        }
+        return expr;
+      } else {
+        // Treat as expression string
+        return col.toString();
+      }
+    });
+
+    sql += ` (${columnExpressions.join(', ')})`;
+
+    // Handle partial indexes (WHERE clause)
+    if (index.where) {
+      sql += ` WHERE ${index.where}`;
+    }
+
+    // Handle storage parameters (WITH clause)
+    if (index.with && typeof index.with === 'object') {
+      const params = Object.entries(index.with).map(([key, value]) => {
+        if (typeof value === 'string') {
+          return `${key} = '${value}'`;
+        }
+        return `${key} = ${value}`;
+      });
+      sql += ` WITH (${params.join(', ')})`;
+    }
+
+    // Handle tablespace
+    if (index.tablespace) {
+      sql += ` TABLESPACE ${index.tablespace}`;
+    }
+
+    return sql + ';';
   });
 
   logMessage({
     logger,
     level: 'debug',
-    schema: schema.schemaName,
+    schema: schemaName,
     table: schema.table,
     message: 'Generated INDEX SQL',
     data: { sql: indexSQL.join('\n') },
