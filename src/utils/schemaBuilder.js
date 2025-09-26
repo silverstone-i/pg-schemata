@@ -37,6 +37,29 @@ function createHash(input) {
 /**
  * @private
  *
+ * Resolves index definitions from either the legacy top-level `indexes`
+ * property or the newer `constraints.indexes` location.
+ *
+ * @param {TableSchema} schema - Structured schema definition.
+ * @returns {Array|undefined} Array of index definitions if present.
+ */
+function resolveIndexes(schema) {
+  const constraintIndexes = schema?.constraints?.indexes;
+  if (Array.isArray(constraintIndexes) && constraintIndexes.length > 0) {
+    return constraintIndexes;
+  }
+
+  const topLevelIndexes = schema?.indexes;
+  if (Array.isArray(topLevelIndexes) && topLevelIndexes.length > 0) {
+    return topLevelIndexes;
+  }
+
+  return undefined;
+}
+
+/**
+ * @private
+ *
  * Generates a CREATE TABLE SQL statement based on a validated table schema definition.
  *
  * @param {TableSchema} schema - Structured schema definition.
@@ -137,7 +160,8 @@ function createTableSQL(schema, logger = null) {
   let finalSQL = sql;
 
   // Automatically include index creation if indexes are defined in the schema
-  if (schema.constraints?.indexes) {
+  const indexDefinitions = resolveIndexes(schema);
+  if (indexDefinitions) {
     try {
       const indexSQL = createIndexesSQL(schema, false, logger);
       finalSQL += '\n' + indexSQL;
@@ -159,7 +183,7 @@ function createTableSQL(schema, logger = null) {
     level: 'debug',
     schema: schemaName,
     table,
-    message: schema.constraints?.indexes ? 'Generated CREATE TABLE SQL with indexes' : 'Generated CREATE TABLE SQL',
+    message: indexDefinitions ? 'Generated CREATE TABLE SQL with indexes' : 'Generated CREATE TABLE SQL',
     data: { sql: finalSQL },
   });
 
@@ -230,12 +254,12 @@ function addAuditFields(schema) {
  * @throws {SchemaDefinitionError} If no indexes are defined in the schema.
  */
 function createIndexesSQL(schema, unique = false, logger = null) {
+  const indexes = resolveIndexes(schema);
   // Ensure that index definitions are present in the schema
-  if (!schema.constraints || !schema.constraints.indexes) {
+  if (!indexes) {
     throw new SchemaDefinitionError('No indexes defined in schema');
   }
 
-  const { indexes } = schema.constraints;
   const schemaName = schema.dbSchema || schema.schemaName || 'public';
 
   const indexSQL = indexes.map(index => {
