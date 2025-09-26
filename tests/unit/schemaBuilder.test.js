@@ -11,14 +11,7 @@ import { has } from 'lodash';
  */
 
 // schema-utils.test.js
-import {
-  createTableSQL,
-  addAuditFields,
-  createIndexesSQL,
-  normalizeSQL,
-  createColumnSet,
-  columnSetCache,
-} from '../../src/utils/schemaBuilder';
+import { createTableSQL, addAuditFields, createIndexesSQL, normalizeSQL, createColumnSet, columnSetCache } from '../../src/utils/schemaBuilder';
 import { LRUCache } from 'lru-cache';
 
 // Mock pg-promise and its helpers
@@ -61,9 +54,7 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('"id" serial NOT NULL');
       expect(sql).toContain('"name" varchar(255) NOT NULL');
       expect(sql).toContain('PRIMARY KEY ("id")');
-      expect(sql).toMatch(
-        /CONSTRAINT "uidx_users_name_[a-z0-9]{6}" UNIQUE \("name"\)/
-      );
+      expect(sql).toMatch(/CONSTRAINT "uidx_users_name_[a-z0-9]{6}" UNIQUE \("name"\)/);
     });
 
     it('should generate correct CREATE TABLE SQL with foreign keys', () => {
@@ -96,9 +87,7 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('"id" serial NOT NULL');
       expect(sql).toContain('"user_id" int NOT NULL');
       expect(sql).toContain('PRIMARY KEY ("id")');
-      expect(normalizeSQL(sql)).toMatch(
-        /CONSTRAINT "fk_posts_[a-z0-9]{6}" FOREIGN KEY \("user_id", "tenant_id"\) REFERENCES "public"\."users" \("id", "tenant_id"\)/
-      );
+      expect(normalizeSQL(sql)).toMatch(/CONSTRAINT "fk_posts_[a-z0-9]{6}" FOREIGN KEY \("user_id", "tenant_id"\) REFERENCES "public"\."users" \("id", "tenant_id"\)/);
     });
 
     it('should throw an error for invalid foreign key reference', () => {
@@ -113,9 +102,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      expect(() => createTableSQL(schema)).toThrow(
-        'Invalid foreign key reference for table posts: expected object, got string'
-      );
+      expect(() => createTableSQL(schema)).toThrow('Invalid foreign key reference for table posts: expected object, got string');
     });
 
     it('should generate correct CREATE TABLE SQL with checks', () => {
@@ -156,9 +143,7 @@ describe('Schema Utilities', () => {
 
       const sql = createTableSQL(schema);
 
-      expect(sql).toContain(
-        '"id" serial NOT NULL DEFAULT nextval(\'products_id_seq\')'
-      );
+      expect(sql).toContain('"id" serial NOT NULL DEFAULT nextval(\'products_id_seq\')');
     });
 
     it('should handle schema with no constraints', () => {
@@ -225,9 +210,49 @@ describe('Schema Utilities', () => {
 
       const sql = createTableSQL(schema);
 
-      expect(sql).toContain(
-        '"schema_name" varchar(63) GENERATED ALWAYS AS (lower(tenant_code)) STORED'
-      );
+      expect(sql).toContain('"schema_name" varchar(63) GENERATED ALWAYS AS (lower(tenant_code)) STORED');
+    });
+
+    it('should automatically include index creation when indexes are defined', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial', primaryKey: true },
+          { name: 'email', type: 'varchar(255)', notNull: true },
+          { name: 'username', type: 'varchar(100)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          indexes: [{ columns: ['email'] }, { columns: ['username'] }],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
+    });
+
+    it('should not include indexes when no indexes are defined', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial', primaryKey: true },
+          { name: 'email', type: 'varchar(255)', notNull: true },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          // No indexes defined
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
+      expect(sql).not.toContain('CREATE INDEX');
     });
   });
 
@@ -236,14 +261,7 @@ describe('Schema Utilities', () => {
       const schema = { hasAuditFields: true, columns: [] };
       const updatedSchema = addAuditFields(schema);
 
-      expect(updatedSchema.columns).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ name: 'created_at' }),
-          expect.objectContaining({ name: 'created_by' }),
-          expect.objectContaining({ name: 'updated_at' }),
-          expect.objectContaining({ name: 'updated_by' }),
-        ])
-      );
+      expect(updatedSchema.columns).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'created_at' }), expect.objectContaining({ name: 'created_by' }), expect.objectContaining({ name: 'updated_at' }), expect.objectContaining({ name: 'updated_by' })]));
     });
   });
 
@@ -287,39 +305,59 @@ describe('Schema Utilities', () => {
 
       const sql = createIndexesSQL(schema, true);
 
-      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "uidx_users_email"');
-      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "uidx_users_username"');
+      expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "uidx_users_email"');
+      expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "uidx_users_username"');
     });
 
-    it('should handle schema without primary key in createColumnSet', () => {
+    it('should generate advanced index with custom name and options', () => {
       const schema = {
         dbSchema: 'public',
-        table: 'products',
-        columns: [
-          {
-            name: 'name',
-            type: 'varchar(255)',
-            nullable: true,
-            colProps: { skip: c => !c.exists },
-          },
-          { name: 'price', type: 'numeric' },
-        ],
-        // ❌ No constraints.primaryKey
-        constraints: {}, // <- empty constraints
+        table: 'posts',
+        constraints: {
+          indexes: [
+            {
+              name: 'posts_title_gin_idx',
+              columns: ['title'],
+              using: 'gin',
+              where: 'deleted_at IS NULL',
+            },
+          ],
+        },
       };
 
-      const columnSet = createColumnSet(schema, mockPgp);
+      const sql = createIndexesSQL(schema);
 
-      const columnNames = columnSet.products.columns.map(col => col.name);
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "posts_title_gin_idx"');
+      expect(sql).toContain('USING GIN');
+      expect(sql).toContain('WHERE deleted_at IS NULL');
+    });
 
-      expect(columnNames).toContain('name');
-      expect(columnNames).toContain('price');
+    it('should generate partial unique index with storage parameters', () => {
+      const schema = {
+        dbSchema: 'analytics',
+        table: 'events',
+        constraints: {
+          indexes: [
+            {
+              columns: ['user_id', 'event_type'],
+              unique: true,
+              where: 'active = true',
+              with: {
+                fillfactor: 80,
+                parallel_workers: 4,
+              },
+              tablespace: 'fast_ssd',
+            },
+          ],
+        },
+      };
 
-      // Make sure 'skip' was added (non-primary key columns have skip)
-      const nameCol = columnSet.products.columns.find(
-        col => col.name === 'name'
-      );
-      expect(typeof nameCol.skip).toBe('function');
+      const sql = createIndexesSQL(schema);
+
+      expect(sql).toContain('CREATE UNIQUE INDEX');
+      expect(sql).toContain('WHERE active = true');
+      expect(sql).toContain('WITH (fillfactor = 80, parallel_workers = 4)');
+      expect(sql).toContain('TABLESPACE fast_ssd');
     });
   });
 
@@ -414,9 +452,7 @@ describe('Schema Utilities', () => {
 
       const columnSet = createColumnSet(schema, mockPgp);
 
-      expect(columnSet.orders.columns).toContainEqual(
-        expect.objectContaining({ def: 'pending' })
-      );
+      expect(columnSet.orders.columns).toContainEqual(expect.objectContaining({ def: 'pending' }));
     });
 
     it('should skip missing columns correctly', () => {
@@ -439,9 +475,7 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      const statusCol = columnSet.orders.columns.find(
-        col => col.name === 'status'
-      );
+      const statusCol = columnSet.orders.columns.find(col => col.name === 'status');
 
       expect(statusCol.skip({ exists: false })).toBe(true);
       expect(statusCol.skip({ exists: true })).toBe(false);
@@ -503,13 +537,40 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      const addressCol = columnSet.users.columns.find(
-        col => col.name === 'address'
-      );
+      const addressCol = columnSet.users.columns.find(col => col.name === 'address');
 
       expect(addressCol.mod).toBe(':json');
       expect(typeof addressCol.skip).toBe('function');
       expect(addressCol.skip({ exists: false })).toBe(true);
+    });
+
+    it('should handle schema without primary key in createColumnSet', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'products',
+        columns: [
+          {
+            name: 'name',
+            type: 'varchar(255)',
+            nullable: true,
+            colProps: { skip: c => !c.exists },
+          },
+          { name: 'price', type: 'numeric' },
+        ],
+        // ❌ No constraints.primaryKey
+        constraints: {}, // <- empty constraints
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+
+      const columnNames = columnSet.products.columns.map(col => col.name);
+
+      expect(columnNames).toContain('name');
+      expect(columnNames).toContain('price');
+
+      // Make sure 'skip' was added (non-primary key columns have skip)
+      const nameCol = columnSet.products.columns.find(col => col.name === 'name');
+      expect(typeof nameCol.skip).toBe('function');
     });
   });
   // LRU Cache tests for columnSetCache
