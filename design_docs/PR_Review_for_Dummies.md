@@ -12,9 +12,13 @@
 - Verify the code matches the RC build already published.
 
 ## 3. Draft the PR
-- Push `release/1.1.1` and open a PR into `main`.
-- Summarize key changes (link to `CHANGELOG.md` entry).
-- Reference the release checklist and note that this promotes `v1.1.1-rc.1` to production.
+- Run `git push --set-upstream origin release/1.1.1` so the branch exists on the remote.
+- Open your repo in the browser; most hosts pop a "Compare & pull request" banner for the new branch. Click it.
+- Ensure the base branch is `main` and the compare branch is `release/1.1.1`; give the PR a release-focused title (e.g. `Release 1.1.1`).
+- Paste in the highlights from `CHANGELOG.md` so reviewers see what ships.
+- If the banner is gone, use the green "Compare & pull request" or "Create pull request" button; it shows the same screen.
+- In the PR form, double-check title/description, then hit "Create pull request" to open it.
+- Link or embed the release checklist and mention this PR promotes `v1.1.1-rc.1` to production.
 
 ## 4. Self-Review & Approval
 - Walk the diff in the PR UI; confirm no unexpected files or merges.
