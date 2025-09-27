@@ -205,13 +205,9 @@ class TableModel extends QueryModel {
       RETURNING *
     `;
 
-    console.log('Executing upsert query:', query);
-
     try {
       return await this.db.one(query);
     } catch (err) {
-      console.log('Error executing upsert query:', err);
-
       this.handleDbError(err);
     }
   }
@@ -647,18 +643,20 @@ class TableModel extends QueryModel {
 
   /**
    * Creates the table using the current schema definition.
+   * Automatically creates any indexes defined in the schema constraints.
    * @returns {Promise<void>}
    */
   async createTable() {
+    const hasIndexes = this._schema.constraints?.indexes?.length > 0;
     logMessage({
       logger: this.logger,
       level: 'info',
       schema: this._schema.dbSchema,
       table: this._schema.table,
-      message: 'Creating table from schema',
+      message: hasIndexes ? 'Creating table with indexes from schema' : 'Creating table from schema',
     });
     try {
-      const query = createTableSQL(this._schema);
+      const query = createTableSQL(this._schema, this.logger);
       return await this.db.none(query);
     } catch (err) {
       this.handleDbError(err);
