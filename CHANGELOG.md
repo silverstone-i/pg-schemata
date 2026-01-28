@@ -4,11 +4,11 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `a798d57`
+Latest commit: `07234a8`
 
 ---
 
-## [Unreleased]
+## [v1.2.0] - 26-01-28
 
 ### 🚀 Features
 
