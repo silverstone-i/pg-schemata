@@ -45,6 +45,20 @@ Type: [Object][9]
 *   `checks` **[Array][12]<[ConstraintDefinition][3]>?** Array of SQL check expressions.
 *   `indexes` **[Array][12]<[ConstraintDefinition][3]>?** Index definitions for query optimization.
 
+## AuditFieldsConfig
+
+Type: [Object][9]
+
+Configuration for audit fields when using object format.
+
+### Properties
+
+*   `enabled` **[boolean][11]** Whether to include audit fields.
+*   `userFields` **[Object][9]?** Configuration for user tracking fields (created\_by, updated\_by).
+    *   `userFields.type` **[string][10]?** PostgreSQL data type for user fields (e.g., 'uuid', 'varchar(50)', 'int'). Defaults to 'varchar(50)'.
+    *   `userFields.nullable` **[boolean][11]?** Whether user fields can be null. Defaults to true.
+    *   `userFields.default` **any?** Default value for user fields. Defaults to null.
+
 ## TableSchema
 
 Type: [Object][9]
@@ -53,7 +67,7 @@ Type: [Object][9]
 
 *   `dbSchema` **[string][10]** PostgreSQL schema name (e.g., 'public').
 *   `table` **[string][10]** Table name.
-*   `hasAuditFields` **[boolean][11]?** Whether to include created\_at/updated\_at/by fields.
+*   `hasAuditFields` **([boolean][11] | [AuditFieldsConfig][13])?** Whether to include created\_at/updated\_at/by fields. Accepts boolean for backward compatibility or object for configuration.
 *   `softDelete` **[boolean][11]?** Whether to use a soft delete strategy.
 *   `version` **[string][10]?** Optional schema version string.
 *   `columns` **[Array][12]<[ColumnDefinition][1]>** List of column definitions.
@@ -82,3 +96,5 @@ Type: [Object][9]
 [11]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Boolean
 
 [12]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array
+
+[13]: #auditfieldsconfig

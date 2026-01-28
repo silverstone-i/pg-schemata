@@ -160,8 +160,32 @@ type TableSchema = {
   /** Table name */
   table: string;
 
-  /** Adds created_at/_by and updated_at/_by columns + triggers in DDL */
-  hasAuditFields?: boolean;
+  /**
+   * Adds created_at/_by and updated_at/_by columns + triggers in DDL
+   *
+   * Supports two formats:
+   * - boolean: true/false (backward compatible, defaults to varchar(50) for user fields)
+   * - object: {
+   *     enabled: boolean,
+   *     userFields?: {
+   *       type?: string,      // e.g., 'uuid', 'int', 'varchar(100)' (default: 'varchar(50)')
+   *       nullable?: boolean, // default: true
+   *       default?: any       // default: null
+   *     }
+   *   }
+   *
+   * Examples:
+   *   hasAuditFields: true  // varchar(50) user fields
+   *   hasAuditFields: { enabled: true, userFields: { type: 'uuid' } }
+   */
+  hasAuditFields?: boolean | {
+    enabled: boolean;
+    userFields?: {
+      type?: string;
+      nullable?: boolean;
+      default?: any;
+    };
+  };
 
   /** Adds deactivated_at and switches deletes to soft-delete helpers */
   softDelete?: boolean;
@@ -275,6 +299,61 @@ const usersSchema = {
   ]
 };
 ```
+
+### Example — Custom Audit Fields with UUID
+
+The new object format for `hasAuditFields` allows you to customize the user tracking columns (`created_by`, `updated_by`):
+
+```js
+// Accounts with UUID-based user tracking
+const accountsSchema = {
+  dbSchema: 'public',
+  table: 'accounts',
+  hasAuditFields: {
+    enabled: true,
+    userFields: {
+      type: 'uuid',        // Use UUID instead of varchar(50)
+      nullable: true,      // Optional (default: true)
+      default: null        // Optional (default: null)
+    }
+  },
+  columns: [
+    { name: 'id', type: 'uuid', default: 'gen_random_uuid()', notNull: true },
+    { name: 'account_name', type: 'varchar(255)', notNull: true },
+    { name: 'balance', type: 'numeric(15,2)', notNull: true, default: 0 },
+  ],
+  constraints: {
+    primaryKey: ['id'],
+  },
+};
+
+// Transactions with integer user IDs
+const transactionsSchema = {
+  dbSchema: 'public',
+  table: 'transactions',
+  hasAuditFields: {
+    enabled: true,
+    userFields: { type: 'int' }  // Partial config, uses defaults for nullable and default
+  },
+  columns: [
+    { name: 'id', type: 'bigserial', notNull: true },
+    { name: 'amount', type: 'numeric(10,2)', notNull: true },
+  ],
+  constraints: {
+    primaryKey: ['id'],
+  },
+};
+```
+
+The generated SQL for `accountsSchema` will include:
+```sql
+"created_at" timestamptz DEFAULT now(),
+"created_by" uuid,
+"updated_at" timestamptz DEFAULT now(),
+"updated_by" uuid,
+```
+
+> **Backward Compatibility**: The boolean format (`hasAuditFields: true` or `hasAuditFields: false`) continues to work as before, using `varchar(50)` for user fields.
 
 ### Using these schemas with TableModel
 

@@ -69,7 +69,7 @@ See the supported modifiers used in `findWhere`, `updateWhere`, and other condit
 export const userSchema = {
   dbSchema: 'public',
   table: 'users',
-  hasAuditFields: true,
+  hasAuditFields: true,  // Adds created_at, created_by, updated_at, updated_by
   softDelete: true,
   columns: [
     { name: 'id', type: 'uuid', notNull: true },
@@ -78,6 +78,19 @@ export const userSchema = {
   ],
   constraints: { primaryKey: ['id'], unique: [['email']] },
 };
+```
+
+**💡 Tip:** `hasAuditFields` now supports an object format for custom user field types:
+
+```javascript
+hasAuditFields: {
+  enabled: true,
+  userFields: {
+    type: 'uuid',      // Use UUID instead of default varchar(50)
+    nullable: true,
+    default: null
+  }
+}
 ```
 
 ---
