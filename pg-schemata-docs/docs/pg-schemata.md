@@ -256,6 +256,7 @@ Returns **[Promise][100]\<void>**&#x20;
 ### createTable
 
 Creates the table using the current schema definition.
+Automatically creates any indexes defined in the schema constraints.
 
 Returns **[Promise][100]\<void>**&#x20;
 

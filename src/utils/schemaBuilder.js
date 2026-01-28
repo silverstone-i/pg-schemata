@@ -197,13 +197,61 @@ function createTableSQL(schema, logger = null) {
  * @private
  *
  * Appends standard audit fields to a table schema's column list if not already present.
+ * Supports both boolean and object configuration formats for hasAuditFields.
  *
  * @param {TableSchema} schema - The table schema to modify.
  * @returns {TableSchema} The updated schema with audit fields.
  */
 function addAuditFields(schema) {
   const { columns } = schema;
+
+  // Determine if audit fields should be added
+  let shouldAddAuditFields = false;
+  let userFieldsConfig = {
+    type: 'varchar(50)',
+    nullable: true,
+    default: null,
+  };
+
   if (schema?.hasAuditFields) {
+    if (typeof schema.hasAuditFields === 'boolean') {
+      // Backward compatibility: simple boolean true
+      shouldAddAuditFields = schema.hasAuditFields;
+    } else if (typeof schema.hasAuditFields === 'object') {
+      // New object format
+      shouldAddAuditFields = schema.hasAuditFields.enabled === true;
+
+      // Merge user-provided userFields with defaults
+      if (schema.hasAuditFields.userFields) {
+        const userFields = schema.hasAuditFields.userFields;
+        userFieldsConfig = {
+          type: userFields.type || 'varchar(50)',
+          nullable: userFields.nullable !== undefined ? userFields.nullable : true,
+          default: userFields.default !== undefined ? userFields.default : null,
+        };
+      }
+    }
+  }
+
+  if (shouldAddAuditFields) {
+    // Build user field definition based on configuration
+    const userFieldDef = {
+      type: userFieldsConfig.type,
+    };
+
+    // Add default value
+    // For backward compatibility, always default to 'system' for boolean format
+    if (userFieldsConfig.default !== null) {
+      userFieldDef.default = userFieldsConfig.default;
+    } else if (typeof schema.hasAuditFields === 'boolean') {
+      // Boolean format: always use 'system' default (backward compatibility)
+      userFieldDef.default = `'system'`;
+    } else if (!userFieldsConfig.nullable) {
+      // Object format with non-nullable: use 'system' default
+      userFieldDef.default = `'system'`;
+    }
+    // Otherwise, no default (nullable with null default)
+
     const auditFields = [
       {
         name: 'created_at',
@@ -213,12 +261,11 @@ function addAuditFields(schema) {
       },
       {
         name: 'created_by',
-        type: 'varchar(50)',
-        default: `'system'`,
+        ...userFieldDef,
         immutable: true,
       },
       { name: 'updated_at', type: 'timestamptz', default: 'now()' },
-      { name: 'updated_by', type: 'varchar(50)', default: `'system'` },
+      { name: 'updated_by', ...userFieldDef },
     ];
 
     for (const auditField of auditFields) {

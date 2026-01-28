@@ -77,12 +77,31 @@ export interface Constraints {
 }
 
 /**
+ * @typedef {Object} AuditFieldsConfig
+ * Configuration for audit fields when using object format.
+ *
+ * @property {boolean} enabled - Whether to include audit fields.
+ * @property {Object} [userFields] - Configuration for user tracking fields (created_by, updated_by).
+ * @property {string} [userFields.type] - PostgreSQL data type for user fields (e.g., 'uuid', 'varchar(50)', 'int'). Defaults to 'varchar(50)'.
+ * @property {boolean} [userFields.nullable] - Whether user fields can be null. Defaults to true.
+ * @property {*} [userFields.default] - Default value for user fields. Defaults to null.
+ */
+export interface AuditFieldsConfig {
+  enabled: boolean;
+  userFields?: {
+    type?: string;
+    nullable?: boolean;
+    default?: any;
+  };
+}
+
+/**
  * @typedef {Object} TableSchema
  * Describes the full definition of a table schema for pg-schemata.
  *
  * @property {string} dbSchema - PostgreSQL schema name (e.g., 'public').
  * @property {string} table - Table name.
- * @property {boolean} [hasAuditFields] - Whether to include created_at/updated_at/by fields.
+ * @property {boolean | AuditFieldsConfig} [hasAuditFields] - Whether to include created_at/updated_at/by fields. Accepts boolean for backward compatibility or object for configuration.
  * @property {boolean} [softDelete] - Whether to use a soft delete strategy.
  * @property {string} [version] - Optional schema version string.
  * @property {Array<ColumnDefinition>} columns - List of column definitions.
@@ -91,7 +110,7 @@ export interface Constraints {
 export interface TableSchema {
   dbSchema: string;
   table: string;
-  hasAuditFields?: boolean;
+  hasAuditFields?: boolean | AuditFieldsConfig;
   softDelete?: boolean;
   version?: string;
   columns: ColumnDefinition[];

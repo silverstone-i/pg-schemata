@@ -1,6 +1,4 @@
 'use strict';
-
-import { has } from 'lodash';
 /*
  * Copyright © 2024-present, Ian Silverstone
  *
@@ -257,11 +255,162 @@ describe('Schema Utilities', () => {
   });
 
   describe('addAuditFields', () => {
-    it('should add audit fields to the schema columns', () => {
+    it('should add audit fields to the schema columns with boolean true (backward compatible)', () => {
       const schema = { hasAuditFields: true, columns: [] };
       const updatedSchema = addAuditFields(schema);
 
       expect(updatedSchema.columns).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'created_at' }), expect.objectContaining({ name: 'created_by' }), expect.objectContaining({ name: 'updated_at' }), expect.objectContaining({ name: 'updated_by' })]));
+
+      // Verify default varchar(50) type for user fields
+      const createdBy = updatedSchema.columns.find(col => col.name === 'created_by');
+      const updatedBy = updatedSchema.columns.find(col => col.name === 'updated_by');
+      expect(createdBy.type).toBe('varchar(50)');
+      expect(updatedBy.type).toBe('varchar(50)');
+    });
+
+    it('should not add audit fields when hasAuditFields is false (backward compatible)', () => {
+      const schema = { hasAuditFields: false, columns: [] };
+      const updatedSchema = addAuditFields(schema);
+
+      expect(updatedSchema.columns).toHaveLength(0);
+    });
+
+    it('should add audit fields with uuid type when using object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'uuid', nullable: true, default: null },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema);
+
+      expect(updatedSchema.columns).toHaveLength(4);
+
+      // Verify timestamp fields remain unchanged
+      const createdAt = updatedSchema.columns.find(col => col.name === 'created_at');
+      const updatedAt = updatedSchema.columns.find(col => col.name === 'updated_at');
+      expect(createdAt.type).toBe('timestamptz');
+      expect(updatedAt.type).toBe('timestamptz');
+      expect(createdAt.default).toBe('now()');
+
+      // Verify user fields use uuid type
+      const createdBy = updatedSchema.columns.find(col => col.name === 'created_by');
+      const updatedBy = updatedSchema.columns.find(col => col.name === 'updated_by');
+      expect(createdBy.type).toBe('uuid');
+      expect(updatedBy.type).toBe('uuid');
+      expect(createdBy.default).toBeUndefined();
+      expect(updatedBy.default).toBeUndefined();
+    });
+
+    it('should use defaults when only type is specified in object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'int' },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema);
+
+      const createdBy = updatedSchema.columns.find(col => col.name === 'created_by');
+      const updatedBy = updatedSchema.columns.find(col => col.name === 'updated_by');
+
+      expect(createdBy.type).toBe('int');
+      expect(updatedBy.type).toBe('int');
+      // nullable defaults to true, default defaults to null (should be undefined in object)
+      expect(createdBy.default).toBeUndefined();
+      expect(updatedBy.default).toBeUndefined();
+    });
+
+    it('should not add audit fields when object format has enabled: false', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: false,
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema);
+
+      expect(updatedSchema.columns).toHaveLength(0);
+    });
+
+    it('should use default varchar(50) when userFields is not specified in object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema);
+
+      const createdBy = updatedSchema.columns.find(col => col.name === 'created_by');
+      const updatedBy = updatedSchema.columns.find(col => col.name === 'updated_by');
+
+      expect(createdBy.type).toBe('varchar(50)');
+      expect(updatedBy.type).toBe('varchar(50)');
+    });
+
+    it('should support custom default values in object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'varchar(100)', default: `'admin'` },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema);
+
+      const createdBy = updatedSchema.columns.find(col => col.name === 'created_by');
+      const updatedBy = updatedSchema.columns.find(col => col.name === 'updated_by');
+
+      expect(createdBy.type).toBe('varchar(100)');
+      expect(createdBy.default).toBe(`'admin'`);
+      expect(updatedBy.default).toBe(`'admin'`);
+    });
+
+    it('should handle bigint type in object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'bigint', nullable: false, default: 0 },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema);
+
+      const createdBy = updatedSchema.columns.find(col => col.name === 'created_by');
+      const updatedBy = updatedSchema.columns.find(col => col.name === 'updated_by');
+
+      expect(createdBy.type).toBe('bigint');
+      expect(createdBy.default).toBe(0);
+      expect(updatedBy.type).toBe('bigint');
+      expect(updatedBy.default).toBe(0);
+    });
+
+    it('should not duplicate audit fields if already present', () => {
+      const schema = {
+        hasAuditFields: true,
+        columns: [{ name: 'created_at', type: 'timestamptz' }],
+      };
+      const updatedSchema = addAuditFields(schema);
+
+      const createdAtFields = updatedSchema.columns.filter(col => col.name === 'created_at');
+      expect(createdAtFields).toHaveLength(1);
+    });
+
+    it('should add system default when nullable is false and no default provided', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'varchar(50)', nullable: false },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema);
+
+      const createdBy = updatedSchema.columns.find(col => col.name === 'created_by');
+      expect(createdBy.default).toBe(`'system'`);
     });
   });
 

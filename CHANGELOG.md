@@ -4,7 +4,29 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `a798d57`
+Latest commit: `07234a8`
+
+---
+
+## [v1.2.0] - 26-01-28
+
+### 🚀 Features
+
+- **Configurable Audit Fields**: Add support for object format in `hasAuditFields` to customize user tracking field types
+  - Supports configurable PostgreSQL types for `created_by` and `updated_by` columns (e.g., `uuid`, `int`, `varchar`)
+  - Maintains full backward compatibility with existing boolean format
+  - New format: `hasAuditFields: { enabled: true, userFields: { type: 'uuid', nullable: true, default: null } }`
+  - TypeScript types updated with new `AuditFieldsConfig` interface
+
+### 📚 Documentation
+
+- Add comprehensive documentation for new `hasAuditFields` object format in README, getting started guide, and schema types docs
+- Add examples demonstrating UUID, integer, and custom type configurations for audit fields
+
+### 🧪 Tests
+
+- Add 11 new test cases for `hasAuditFields` covering object format, backward compatibility, and edge cases
+- All 37 `schemaBuilder` tests passing
 
 ---
 
