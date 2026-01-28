@@ -445,9 +445,14 @@ function createColumnSet(schema, pgp, logger = null) {
 
   const hasAuditFields = columnsetColumns.length !== schema.columns.length;
 
-  // Validate that audit fields hav been added correctly
-  if (Object.prototype.hasOwnProperty.call(schema, 'hasAuditFields') && hasAuditFields !== schema.hasAuditFields) {
-    const message = hasAuditFields ? 'Cannot use create_at, created_by, updated_at, updated_by in your schema definition' : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
+  // Validate that audit fields have been added correctly
+  // Support both boolean and object format for hasAuditFields
+  const schemaHasAuditFieldsEnabled = typeof schema.hasAuditFields === 'boolean'
+    ? schema.hasAuditFields
+    : schema.hasAuditFields?.enabled === true;
+
+  if (Object.prototype.hasOwnProperty.call(schema, 'hasAuditFields') && hasAuditFields !== schemaHasAuditFieldsEnabled) {
+    const message = hasAuditFields ? 'Cannot use created_at, created_by, updated_at, updated_by in your schema definition' : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
     throw new SchemaDefinitionError(message);
   }
 
