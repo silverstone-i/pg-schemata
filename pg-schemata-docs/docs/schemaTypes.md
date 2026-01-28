@@ -2,75 +2,74 @@
 
 ## ColumnDefinition
 
-Type: [Object][9]
+Type: [Object][11]
 
 ### Properties
 
-*   `name` **[string][10]** The name of the column.
-*   `type` **[string][10]** PostgreSQL data type (e.g., 'text', 'uuid', 'integer', 'varchar', 'jsonb').
+*   `name` **[string][12]** The name of the column.
+*   `type` **[string][12]** PostgreSQL data type (e.g., 'text', 'uuid', 'integer', 'varchar', 'jsonb').
 *   `generated` **(`"always"` | `"by default"`)?** Marks the column as a generated column.
-*   `expression` **[string][10]?** SQL expression used for the generated column.
-*   `stored` **[boolean][11]?** Whether the generated column should be stored.
-*   `notNull` **[boolean][11]?** Whether the column accepts null values. Defaults to false.
+*   `expression` **[string][12]?** SQL expression used for the generated column.
+*   `stored` **[boolean][13]?** Whether the generated column should be stored.
+*   `notNull` **[boolean][13]?** Whether the column accepts null values. Defaults to false.
 *   `default` **any?** Default value for the column. Can be a literal or SQL expression.
-*   `immutable` **[boolean][11]?** If true, the column cannot be updated after creation. Defaults to false.
-*   `colProps` **[Object][9]?** Extended column behavior modifiers.
+*   `immutable` **[boolean][13]?** If true, the column cannot be updated after creation. Defaults to false.
+*   `colProps` **[Object][11]?** Extended column behavior modifiers.
 
-    *   `colProps.mod` **[string][10]?** pg-promise format modifier.
-    *   `colProps.cnd` **[boolean][11]?** Use in conditional update clause.
-    *   `colProps.def` **[string][10]?** Override default value.
+    *   `colProps.mod` **[string][12]?** pg-promise format modifier.
+    *   `colProps.cnd` **[boolean][13]?** Use in conditional update clause.
+    *   `colProps.def` **[string][12]?** Override default value.
     *   `colProps.validator` **any?** Custom Zod validator for this column.
 
 ## ConstraintDefinition
 
-Type: [Object][9]
+Type: [Object][11]
 
 ### Properties
 
 *   `type` **(`"PrimaryKey"` | `"ForeignKey"` | `"Unique"` | `"Check"` | `"Index"`)** Type of constraint.
-*   `columns` **[Array][12]<[string][10]>** List of column names the constraint applies to.
-*   `references` **{table: [string][10], columns: [Array][12]<[string][10]>}?** For foreign keys.
-*   `onDelete` **[string][10]?** Optional ON DELETE behavior (e.g., 'CASCADE').
-*   `expression` **[string][10]?** SQL expression for check constraints.
+*   `columns` **[Array][14]<[string][12]>** List of column names the constraint applies to.
+*   `references` **{table: [string][12], columns: [Array][14]<[string][12]>}?** For foreign keys.
+*   `onDelete` **[string][12]?** Optional ON DELETE behavior (e.g., 'CASCADE').
+*   `expression` **[string][12]?** SQL expression for check constraints.
 
 ## Constraints
 
-Type: [Object][9]
+Type: [Object][11]
 
 ### Properties
 
-*   `primaryKey` **[Array][12]<[string][10]>?** Column names used as the primary key.
-*   `unique` **[Array][12]<[Array][12]<[string][10]>>?** List of unique constraints (single or composite).
-*   `foreignKeys` **[Array][12]<[ConstraintDefinition][3]>?** Array of foreign key definitions.
-*   `checks` **[Array][12]<[ConstraintDefinition][3]>?** Array of SQL check expressions.
-*   `indexes` **[Array][12]<[ConstraintDefinition][3]>?** Index definitions for query optimization.
+*   `primaryKey` **[Array][14]<[string][12]>?** Column names used as the primary key.
+*   `unique` **[Array][14]<[Array][14]<[string][12]>>?** List of unique constraints (single or composite).
+*   `foreignKeys` **[Array][14]<[ConstraintDefinition][3]>?** Array of foreign key definitions.
+*   `checks` **[Array][14]<[ConstraintDefinition][3]>?** Array of SQL check expressions.
+*   `indexes` **[Array][14]<[ConstraintDefinition][3]>?** Index definitions for query optimization.
 
 ## AuditFieldsConfig
 
-Type: [Object][9]
-
-Configuration for audit fields when using object format.
+Type: [Object][11]
 
 ### Properties
 
-*   `enabled` **[boolean][11]** Whether to include audit fields.
-*   `userFields` **[Object][9]?** Configuration for user tracking fields (created\_by, updated\_by).
-    *   `userFields.type` **[string][10]?** PostgreSQL data type for user fields (e.g., 'uuid', 'varchar(50)', 'int'). Defaults to 'varchar(50)'.
-    *   `userFields.nullable` **[boolean][11]?** Whether user fields can be null. Defaults to true.
+*   `enabled` **[boolean][13]** Whether to include audit fields.
+*   `userFields` **[Object][11]?** Configuration for user tracking fields (created\_by, updated\_by).
+
+    *   `userFields.type` **[string][12]?** PostgreSQL data type for user fields (e.g., 'uuid', 'varchar(50)', 'int'). Defaults to 'varchar(50)'.
+    *   `userFields.nullable` **[boolean][13]?** Whether user fields can be null. Defaults to true.
     *   `userFields.default` **any?** Default value for user fields. Defaults to null.
 
 ## TableSchema
 
-Type: [Object][9]
+Type: [Object][11]
 
 ### Properties
 
-*   `dbSchema` **[string][10]** PostgreSQL schema name (e.g., 'public').
-*   `table` **[string][10]** Table name.
-*   `hasAuditFields` **([boolean][11] | [AuditFieldsConfig][13])?** Whether to include created\_at/updated\_at/by fields. Accepts boolean for backward compatibility or object for configuration.
-*   `softDelete` **[boolean][11]?** Whether to use a soft delete strategy.
-*   `version` **[string][10]?** Optional schema version string.
-*   `columns` **[Array][12]<[ColumnDefinition][1]>** List of column definitions.
+*   `dbSchema` **[string][12]** PostgreSQL schema name (e.g., 'public').
+*   `table` **[string][12]** Table name.
+*   `hasAuditFields` **([boolean][13] | [AuditFieldsConfig][7])?** Whether to include created\_at/updated\_at/by fields. Accepts boolean for backward compatibility or object for configuration.
+*   `softDelete` **[boolean][13]?** Whether to use a soft delete strategy.
+*   `version` **[string][12]?** Optional schema version string.
+*   `columns` **[Array][14]<[ColumnDefinition][1]>** List of column definitions.
 *   `constraints` **[Constraints][5]?** Table-level constraints.
 
 [1]: #columndefinition
@@ -85,16 +84,18 @@ Type: [Object][9]
 
 [6]: #properties-2
 
-[7]: #tableschema
+[7]: #auditfieldsconfig
 
 [8]: #properties-3
 
-[9]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object
+[9]: #tableschema
 
-[10]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String
+[10]: #properties-4
 
-[11]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Boolean
+[11]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object
 
-[12]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array
+[12]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String
 
-[13]: #auditfieldsconfig
+[13]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Boolean
+
+[14]: https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array
