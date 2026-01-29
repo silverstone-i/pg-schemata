@@ -32,13 +32,15 @@ import { DB } from '../DB.js';
  * @param {Object<string, Function>} options.models Map of repository names to their constructors
  * @param {string} [options.schema='public'] Target Postgres schema
  * @param {string[]} [options.extensions=['pgcrypto']] PostgreSQL extensions to enable before creating tables
+ * @param {object} [options.db] Optional pg-promise transaction/connection to use (avoids nested transaction deadlock)
  * @returns {Promise<void>}
  */
-export async function bootstrap({ models, schema = 'public', extensions = ['pgcrypto'] }) {
+export async function bootstrap({ models, schema = 'public', extensions = ['pgcrypto'], db = null }) {
   if (!models || typeof models !== 'object') {
     throw new TypeError('models option must be an object mapping names to Model classes');
   }
-  await DB.db.tx(async t => {
+
+  async function doBootstrap(t) {
     // Enable PostgreSQL extensions if specified
     if (extensions && Array.isArray(extensions)) {
       for (const extension of extensions) {
@@ -58,5 +60,12 @@ export async function bootstrap({ models, schema = 'public', extensions = ['pgcr
         await instance.createTable();
       }
     }
-  });
+  }
+
+  // Use provided transaction or create a new one
+  if (db) {
+    await doBootstrap(db);
+  } else {
+    await DB.db.tx(doBootstrap);
+  }
 }

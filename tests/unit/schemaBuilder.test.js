@@ -252,6 +252,99 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).not.toContain('CREATE INDEX');
     });
+
+    it('should generate UNIQUE constraint with NULLS NOT DISTINCT (PostgreSQL 15+)', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'external_id', type: 'varchar(255)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          unique: [{ columns: ['external_id'], nullsNotDistinct: true }],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
+      expect(sql).toMatch(/CONSTRAINT "uidx_users_external_id_[a-z0-9]{6}" UNIQUE NULLS NOT DISTINCT \("external_id"\)/);
+    });
+
+    it('should generate UNIQUE constraint with custom name and NULLS NOT DISTINCT', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'accounts',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'tenant_id', type: 'uuid' },
+          { name: 'code', type: 'varchar(50)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          unique: [
+            {
+              columns: ['tenant_id', 'code'],
+              nullsNotDistinct: true,
+              name: 'uq_accounts_tenant_code',
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain('CONSTRAINT "uq_accounts_tenant_code" UNIQUE NULLS NOT DISTINCT ("tenant_id", "code")');
+    });
+
+    it('should support mixed unique constraint formats (simple array and object)', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'items',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'email', type: 'varchar(255)' },
+          { name: 'external_ref', type: 'varchar(100)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          unique: [
+            ['email'], // Simple array format
+            { columns: ['external_ref'], nullsNotDistinct: true }, // Object format
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      // Simple format should work as before (no NULLS NOT DISTINCT)
+      expect(sql).toMatch(/CONSTRAINT "uidx_items_email_[a-z0-9]{6}" UNIQUE \("email"\)/);
+      // Object format with nullsNotDistinct
+      expect(sql).toMatch(/CONSTRAINT "uidx_items_external_ref_[a-z0-9]{6}" UNIQUE NULLS NOT DISTINCT \("external_ref"\)/);
+    });
+
+    it('should generate standard UNIQUE when nullsNotDistinct is false or not specified in object format', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'products',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'sku', type: 'varchar(50)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          unique: [{ columns: ['sku'], nullsNotDistinct: false }],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      // Should NOT contain NULLS NOT DISTINCT
+      expect(sql).toMatch(/CONSTRAINT "uidx_products_sku_[a-z0-9]{6}" UNIQUE \("sku"\)/);
+      expect(sql).not.toContain('NULLS NOT DISTINCT');
+    });
   });
 
   describe('addAuditFields', () => {

@@ -90,13 +90,16 @@ function createTableSQL(schema, logger = null) {
           if (builtins.has(fnName.toLowerCase()) || /\b\w+\.\w+\(\)/.test(match)) {
             return match;
           }
-          return `public.${fnName}()`;
+          // Don't add schema prefix - PostgreSQL will find functions in the search_path
+          return match;
         });
 
         // Quote unquoted, non-function, non-numeric strings
         const isSQLFunction = /\b\w+\(.*\)/.test(defaultValue);
         const isNumeric = /^-?\d+(\.\d+)?$/.test(defaultValue);
-        if (!isSQLFunction && !isNumeric && !/^'.*'$/.test(defaultValue)) {
+        // Also check for quoted strings with type casts like '{}'::uuid[]
+        const isQuotedWithCast = /^'.*'::\w+/.test(defaultValue);
+        if (!isSQLFunction && !isNumeric && !isQuotedWithCast && !/^'.*'$/.test(defaultValue)) {
           defaultValue = `'${defaultValue}'`;
         }
       }
@@ -115,12 +118,23 @@ function createTableSQL(schema, logger = null) {
   }
 
   // Handle UNIQUE constraints with generated names
-  // Unique Constraints
+  // Unique Constraints - supports both string[] (simple) and object (with options) formats
   if (constraints.unique) {
-    for (const uniqueCols of constraints.unique) {
+    for (const uniqueDef of constraints.unique) {
+      // Support both string[] and UniqueConstraintDefinition object formats
+      const isObject = !Array.isArray(uniqueDef);
+      const uniqueCols = isObject ? uniqueDef.columns : uniqueDef;
+      const nullsNotDistinct = isObject && uniqueDef.nullsNotDistinct;
+
       const hash = createHash(table + uniqueCols.join('_'));
-      const constraintName = `uidx_${table}_${uniqueCols.join('_')}_${hash}`;
-      tableConstraints.push(`CONSTRAINT "${constraintName}" UNIQUE (${uniqueCols.map(c => `"${c}"`).join(', ')})`);
+      const constraintName = isObject && uniqueDef.name ? uniqueDef.name : `uidx_${table}_${uniqueCols.join('_')}_${hash}`;
+
+      let clause = `CONSTRAINT "${constraintName}" UNIQUE`;
+      if (nullsNotDistinct) {
+        clause += ' NULLS NOT DISTINCT';
+      }
+      clause += ` (${uniqueCols.map(c => `"${c}"`).join(', ')})`;
+      tableConstraints.push(clause);
     }
   }
 

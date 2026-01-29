@@ -59,18 +59,35 @@ export interface ConstraintDefinition {
 }
 
 /**
+ * @typedef {Object} UniqueConstraintDefinition
+ * Represents a unique constraint with optional modifiers (PostgreSQL 15+).
+ *
+ * @property {Array<string>} columns - List of column names the unique constraint applies to.
+ * @property {boolean} [nullsNotDistinct] - If true, NULL values are treated as equal for uniqueness (PostgreSQL 15+).
+ * @property {string} [name] - Optional custom constraint name. If not provided, a name will be auto-generated.
+ */
+export interface UniqueConstraintDefinition {
+  columns: string[];
+  nullsNotDistinct?: boolean;
+  name?: string;
+}
+
+/**
  * @typedef {Object} Constraints
  * Container for all structural and relational constraints applied to a table.
  *
  * @property {Array<string>} [primaryKey] - Column names used as the primary key.
- * @property {Array<Array<string>>} [unique] - List of unique constraints (single or composite).
+ * @property {Array<Array<string>|UniqueConstraintDefinition>} [unique] - List of unique constraints.
+ *   Supports both simple format (array of column names) and object format with options.
+ *   Example simple: [['email'], ['tenant_id', 'code']]
+ *   Example with options: [{ columns: ['email'], nullsNotDistinct: true }]
  * @property {Array<ConstraintDefinition>} [foreignKeys] - Array of foreign key definitions.
  * @property {Array<ConstraintDefinition>} [checks] - Array of SQL check expressions.
  * @property {Array<ConstraintDefinition>} [indexes] - Index definitions for query optimization.
  */
 export interface Constraints {
   primaryKey?: string[];
-  unique?: string[][];
+  unique?: (string[] | UniqueConstraintDefinition)[];
   foreignKeys?: ConstraintDefinition[];
   checks?: ConstraintDefinition[];
   indexes?: ConstraintDefinition[];

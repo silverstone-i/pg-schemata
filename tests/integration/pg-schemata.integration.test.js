@@ -42,19 +42,11 @@ describe('pg-schemata integration', () => {
   it('should create a table successfully', async () => {
     const createSQL = createTableSQL(db.users.schema);
 
-    try {
-      await db.none(createSQL);
-    } catch (error) {
-      console.error('Error creating table:', error);
-    }
+    await db.none(createSQL);
 
-    try {
-      const tableExists = await db.oneOrNone(`
-        SELECT to_regclass('test_schema.test_users') as table_name;
-      `);
-      expect(tableExists.table_name).toBe('test_schema.test_users');
-    } catch (error) {
-      console.error('Error testing if table exists:', error);
-    }
+    const tableExists = await db.oneOrNone(`
+      SELECT to_regclass('test_schema.test_users') as table_name;
+    `);
+    expect(tableExists.table_name).toBe('test_schema.test_users');
   });
 });

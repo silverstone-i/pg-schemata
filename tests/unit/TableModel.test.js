@@ -211,10 +211,10 @@ describe('TableModel (Unit)', () => {
     // ================================
     describe('upsert', () => {
       test('should upsert a single record successfully', async () => {
-        const mockRecord = { id: 1, email: 'test@example.com' };
+        const mockRecord = { id: 1, email: 'test@example.com', password: 'secret' };
         mockDb.one.mockResolvedValue(mockRecord);
 
-        const result = await model.upsert({ email: 'test@example.com', name: 'Test User' }, ['email']);
+        const result = await model.upsert({ email: 'test@example.com', password: 'secret' }, ['email']);
 
         expect(mockDb.one).toHaveBeenCalled();
         expect(result).toEqual(mockRecord);
@@ -281,7 +281,7 @@ describe('TableModel (Unit)', () => {
           throw err;
         });
 
-        await expect(model.upsert({ email: 'test@example.com' }, ['email'])).rejects.toThrow('db error');
+        await expect(model.upsert({ email: 'test@example.com', password: 'secret' }, ['email'])).rejects.toThrow('db error');
         expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
       });
     });
@@ -298,8 +298,8 @@ describe('TableModel (Unit)', () => {
 
       test('should bulk upsert multiple records in transaction', async () => {
         const records = [
-          { email: 'user1@example.com', name: 'User 1' },
-          { email: 'user2@example.com', name: 'User 2' },
+          { email: 'user1@example.com', password: 'pass1' },
+          { email: 'user2@example.com', password: 'pass2' },
         ];
 
         const result = await model.bulkUpsert(records, ['email']);
@@ -310,8 +310,8 @@ describe('TableModel (Unit)', () => {
 
       test('should return records when returning columns specified', async () => {
         const records = [
-          { email: 'user1@example.com', name: 'User 1' },
-          { email: 'user2@example.com', name: 'User 2' },
+          { email: 'user1@example.com', password: 'pass1' },
+          { email: 'user2@example.com', password: 'pass2' },
         ];
 
         const result = await model.bulkUpsert(records, ['email'], null, ['id', 'email']);
@@ -379,7 +379,7 @@ describe('TableModel (Unit)', () => {
         const auditSchema = { ...mockSchema, hasAuditFields: true };
         const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
 
-        await auditModel.bulkUpsert([{ email: 'test@example.com' }], ['email']);
+        await auditModel.bulkUpsert([{ email: 'test@example.com', password: 'secret' }], ['email']);
 
         expect(mockDb.tx).toHaveBeenCalled();
         const txFunction = mockDb.tx.mock.calls[0][0];
@@ -399,7 +399,7 @@ describe('TableModel (Unit)', () => {
           throw err;
         });
 
-        await expect(model.bulkUpsert([{ email: 'test@example.com' }], ['email'])).rejects.toThrow('db error');
+        await expect(model.bulkUpsert([{ email: 'test@example.com', password: 'secret' }], ['email'])).rejects.toThrow('db error');
         expect(spyHandleDbError).toHaveBeenCalledWith(TEST_ERROR);
       });
 

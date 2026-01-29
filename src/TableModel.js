@@ -40,6 +40,19 @@ class TableModel extends QueryModel {
 
     super(db, pgp, schema, logger);
 
+    // Determine default value for audit user fields based on schema configuration
+    // Use the schema's userFields.default if provided, otherwise fall back to null
+    const auditConfig = this._schema.hasAuditFields;
+    if (typeof auditConfig === 'object' && auditConfig.enabled) {
+      // Use explicit default from schema, or null if not specified
+      this._auditUserDefault = auditConfig.userFields?.default ?? null;
+    } else if (auditConfig === true) {
+      // Boolean format: use 'system' for backward compatibility
+      this._auditUserDefault = 'system';
+    } else {
+      this._auditUserDefault = null;
+    }
+
     // Auto-generate Zod validators if not provided
     if (!this._schema.validators) {
       this._schema.validators = generateZodFromTableSchema(this._schema);
@@ -79,7 +92,9 @@ class TableModel extends QueryModel {
     if (Object.keys(safeDto).length === 0) {
       return Promise.reject(new SchemaDefinitionError('DTO must contain at least one valid column'));
     }
-    if (!safeDto.created_by) safeDto.created_by = 'system';
+    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
+      safeDto.created_by = this._auditUserDefault;
+    }
     let query;
     try {
       query = this.pgp.helpers.insert(safeDto, this.cs.insert) + ' RETURNING *';
@@ -145,7 +160,9 @@ class TableModel extends QueryModel {
       return Promise.reject(error);
     }
     const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
-    if (!safeDto.updated_by) safeDto.updated_by = 'system';
+    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
+      safeDto.updated_by = this._auditUserDefault;
+    }
     const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
     const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
     const query =
@@ -183,7 +200,9 @@ class TableModel extends QueryModel {
     }
 
     const safeDto = this.sanitizeDto(dto);
-    if (!safeDto.created_by) safeDto.created_by = 'system';
+    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
+      safeDto.created_by = this._auditUserDefault;
+    }
 
     const insertCs = new this.pgp.helpers.ColumnSet(Object.keys(safeDto), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
@@ -233,7 +252,9 @@ class TableModel extends QueryModel {
 
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
-      if (!sanitized.created_by) sanitized.created_by = 'system';
+      if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
+        sanitized.created_by = this._auditUserDefault;
+      }
       return sanitized;
     });
 
@@ -300,9 +321,10 @@ class TableModel extends QueryModel {
    * @param {string} updatedBy - User performing the update.
    * @returns {Promise<Object|null>} Updated row.
    */
-  async touch(id, updatedBy = 'system') {
+  async touch(id, updatedBy = null) {
     // Route through update(), which already applies soft delete check
-    return this.update(id, { updated_by: updatedBy });
+    const effectiveUpdatedBy = updatedBy ?? this._auditUserDefault;
+    return this.update(id, effectiveUpdatedBy ? { updated_by: effectiveUpdatedBy } : {});
   }
 
   /**
@@ -345,7 +367,9 @@ class TableModel extends QueryModel {
 
     const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
 
-    if (!safeUpdates.updated_by) safeUpdates.updated_by = 'system';
+    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeUpdates, 'updated_by')) {
+      safeUpdates.updated_by = this._auditUserDefault;
+    }
     const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
@@ -390,7 +414,9 @@ class TableModel extends QueryModel {
 
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
-      if (!sanitized.created_by) sanitized.created_by = 'system';
+      if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
+        sanitized.created_by = this._auditUserDefault;
+      }
       return sanitized;
     });
 
@@ -458,7 +484,9 @@ class TableModel extends QueryModel {
         throw new SchemaDefinitionError(`Invalid ID in record: ${JSON.stringify(dto)}`);
       }
       const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
-      if (!safeDto.updated_by) safeDto.updated_by = 'system';
+      if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
+      safeDto.updated_by = this._auditUserDefault;
+    }
       delete safeDto.id;
       const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
       const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
