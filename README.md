@@ -93,6 +93,22 @@ hasAuditFields: {
 }
 ```
 
+**💡 Tip:** Unique constraints support both simple array format and object format with PostgreSQL 15+ `NULLS NOT DISTINCT`:
+
+```javascript
+constraints: {
+  primaryKey: ['id'],
+  unique: [
+    ['email'],                                    // Simple format
+    {                                             // Object format with options
+      columns: ['tenant_id', 'email'],
+      nullsNotDistinct: true,                     // Treat NULLs as equal
+      name: 'uq_tenant_email'                     // Optional custom name
+    }
+  ]
+}
+```
+
 ---
 
 ### 2. Create a Model

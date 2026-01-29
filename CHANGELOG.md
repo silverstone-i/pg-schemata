@@ -8,6 +8,30 @@ Latest commit: `07234a8`
 
 ---
 
+## [v1.2.1] - 26-01-29
+
+### 🚀 Features
+
+- **UNIQUE NULLS NOT DISTINCT Support**: Add PostgreSQL 15+ `NULLS NOT DISTINCT` modifier for unique constraints
+  - Treats NULL values as equal for uniqueness purposes (standard behavior treats NULLs as always distinct)
+  - Supports both simple array format and new object format for unique constraints
+  - New format: `unique: [{ columns: ['tenant_id', 'email'], nullsNotDistinct: true, name: 'custom_name' }]`
+  - Optional custom constraint naming via `name` property
+  - TypeScript types updated with new `UniqueConstraintDefinition` interface
+  - Full backward compatibility with existing array-only format
+
+### 🐛 Fixes
+
+- **Function Call Prefix**: Remove automatic `public.` schema prefix from function calls in default values, allowing PostgreSQL to resolve functions via `search_path`
+- **Integration Tests**: Fix error-swallowing try/catch blocks in integration tests that masked actual test failures
+
+### 🧪 Tests
+
+- Add 5 new test cases for `NULLS NOT DISTINCT` covering object format, custom names, mixed formats, and edge cases
+- All 250 tests passing
+
+---
+
 ## [v1.2.0] - 26-01-28
 
 ### 🚀 Features
