@@ -4,7 +4,18 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `07234a8`
+Latest commit: `c22c921`
+
+---
+
+## [v1.2.2] - 26-02-02
+
+### 🛠 Refactors
+
+- **Excel Library Migration**: Replace `exceljs` with `@nap-sft/xlsxjs` for spreadsheet import/export functionality (`07dc564`)
+  - Updated import statements in `TableModel.js`
+  - Updated test mocks to use the new package name
+  - fixed outdated dependencies in excelJS by removing the inflight dependency and refcatoring the code.  This is for a specific internal requirement during development.  The excelJS package does not use these libraries in production
 
 ---
 
