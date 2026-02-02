@@ -556,7 +556,7 @@ describe('TableModel (Unit)', () => {
   // ================================
   // Mock exceljs for importFromSpreadsheet tests
   // ================================
-  vi.mock('xlsxjs', () => {
+  vi.mock('@nap-sft/xlsxjs', () => {
     const mockGetRow = rowNumber => {
       const rows = {
         1: { values: [undefined, 'email'], actualCellCount: 1 },
