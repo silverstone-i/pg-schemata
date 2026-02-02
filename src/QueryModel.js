@@ -269,7 +269,7 @@ class QueryModel {
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
     const { includeDeactivated, ...rest } = options;
     const rows = await this.findWhere(where, joinType, { ...rest, includeDeactivated });
-    const ExcelJS = (await import('exceljs')).default;
+    const ExcelJS = (await import('xlsxjs')).default;
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(this._schema.table);
 
