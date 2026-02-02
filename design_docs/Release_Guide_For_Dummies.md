@@ -133,7 +133,6 @@ npm run lint
 
 ```bash
 git checkout dev
-git pull origin dev
 git merge <feature-branch>        # e.g., git merge xlsx
 ```
 
@@ -149,7 +148,7 @@ git push origin --delete <feature-branch>  # Delete remote feature branch (optio
 
 ### 4.2 Release Candidate Workflow
 
-Use this workflow when you want testers to validate before the final release.
+Use this workflow when you want to validate before the final release.
 
 #### Step 1: Create the release branch from dev
 
@@ -193,13 +192,10 @@ git push origin vX.Y.Z-rc.0
 
 See [5.1 Publishing a Release Candidate](#51-publishing-a-release-candidate).
 
-#### Step 6: Create PR to main
+#### Step 6: Test the RC
 
-1. Go to GitHub and create a PR from `release/X.Y.Z` → `main`
-2. Title: `Release X.Y.Z`
-3. Include changelog highlights in the description
-4. Wait for CI to pass
-5. Self-review or request review
+- Install and test the RC in a separate project
+- Run any manual validation needed
 
 #### Step 7: If issues are found, iterate
 
@@ -220,20 +216,17 @@ npm publish --tag rc
 
 ### 4.3 Promoting RC to Final Release
 
-After the RC has been validated and the PR is approved:
+After the RC has been validated:
 
-#### Step 1: Merge the PR on GitHub
-
-Use "Merge commit" or "Squash and merge" depending on your preference.
-
-#### Step 2: Update local main
+#### Step 1: Merge release branch into main
 
 ```bash
 git checkout main
 git pull origin main
+git merge release/X.Y.Z
 ```
 
-#### Step 3: Bump to final version
+#### Step 2: Bump to final version
 
 ```bash
 npm version X.Y.Z --no-git-tag-version   # Removes the -rc.N suffix
@@ -245,7 +238,7 @@ Or use the appropriate command:
 npm version patch --no-git-tag-version   # If coming from X.Y.Z-rc.N
 ```
 
-#### Step 4: Commit and tag
+#### Step 3: Commit and tag
 
 ```bash
 git add package.json package-lock.json
@@ -253,7 +246,7 @@ git commit -m "X.Y.Z"
 git tag vX.Y.Z
 ```
 
-#### Step 5: Push and publish
+#### Step 4: Push and publish
 
 ```bash
 git push origin main
@@ -262,7 +255,7 @@ git push origin vX.Y.Z
 
 See [5.2 Publishing a Final Release](#52-publishing-a-final-release).
 
-#### Step 6: Clean up
+#### Step 5: Clean up release branch
 
 ```bash
 git branch -d release/X.Y.Z
@@ -285,33 +278,30 @@ npm test
 npm run lint
 ```
 
-#### Step 2: Create PR from dev to main
-
-1. Go to GitHub and create a PR from `dev` → `main`
-2. Title: `Release X.Y.Z`
-3. Include changelog highlights
-4. Wait for CI and review
-
-#### Step 3: Merge the PR on GitHub
-
-#### Step 4: Bump version on main
+#### Step 2: Merge dev into main
 
 ```bash
 git checkout main
 git pull origin main
+git merge dev
+```
+
+#### Step 3: Bump version
+
+```bash
 npm version patch --no-git-tag-version   # or minor/major as appropriate
 ```
 
-#### Step 5: Update changelog and commit
+#### Step 4: Update changelog and commit
 
 ```bash
-# Update CHANGELOG.md with the new version
+# Update CHANGELOG.md with the new version (if not already done)
 git add package.json package-lock.json CHANGELOG.md
 git commit -m "X.Y.Z"
 git tag vX.Y.Z
 ```
 
-#### Step 6: Push and publish
+#### Step 5: Push and publish
 
 ```bash
 git push origin main
@@ -402,7 +392,7 @@ npm dist-tag add pg-schemata@X.Y.Z latest
 npm dist-tag rm pg-schemata rc
 ```
 
-#### Create GitHub release
+#### (Optional) Create GitHub release
 
 1. Go to Releases → Draft a new release
 2. Select the final tag (e.g., `v1.2.2`)
@@ -456,11 +446,11 @@ git checkout dev && git pull origin dev
 git merge <feature-branch>
 git push origin dev
 
-# Option A: Direct release
+# Option A: Direct release (no RC)
 git checkout main && git pull origin main
 git merge dev
 npm version patch --no-git-tag-version
-# Update CHANGELOG.md
+# Update CHANGELOG.md if needed
 git add -A && git commit -m "X.Y.Z"
 git tag vX.Y.Z
 git push origin main && git push origin vX.Y.Z
@@ -475,7 +465,7 @@ git tag vX.Y.Z-rc.0
 git push --set-upstream origin release/X.Y.Z
 git push origin vX.Y.Z-rc.0
 npm publish --tag rc
-# ... create PR, review, merge, then promote to final ...
+# ... test, then promote to final (see section 4.3) ...
 ```
 
 ### Version bump cheat sheet
