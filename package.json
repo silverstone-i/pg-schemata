@@ -34,8 +34,8 @@
     "url": "git+https://github.com/silverstone-i/pg-schemata.git"
   },
   "dependencies": {
+    "@nap-sft/xlsxjs": "^1.0.0",
     "dotenv": "^16.5.0",
-    "exceljs": "^4.4.0",
     "lodash": "^4.17.21",
     "lru-cache": "^11.1.0",
     "pg-promise": "^11.13.0",
@@ -52,9 +52,6 @@
     "vitest": "^3.1.4"
   },
   "overrides": {
-    "exceljs": {
-      "glob": "^11.0.0"
-    },
     "rimraf": "^6.0.1",
     "unzipper": {
       "fstream": "github:isaacs/fstream#semver:^1.0.12"
