@@ -8,6 +8,18 @@ Latest commit: `c22c921`
 
 ---
 
+## [v1.2.3] - 2026-02-02
+
+### 🐛 Fixes
+
+- **Excel Import Path Fix**: Correct `xlsxjs` import to `@nap-sft/xlsxjs` in `QueryModel.exportToSpreadsheet` method, which was missed during v1.2.2 migration
+
+### 📝 Docs
+
+- **Release Guide Updates**: Modernize Git commands from `git checkout` to `git switch` and add PR workflow options throughout the guide
+
+---
+
 ## [v1.2.2] - 2026-02-02
 
 ### 🛠 Refactors
