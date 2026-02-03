@@ -1,4 +1,4 @@
-# pg-schemata Release Guide (For Dummies)
+# 🛠️ pg-schemata Release Guide (For Dummies)
 
 This playbook walks you through the complete release process for pg-schemata.
 Every step is spelled out with explanations so you always know *why* you are typing a command.
@@ -95,7 +95,7 @@ Run these commands before starting any release process:
 
 ```bash
 git status                  # Confirm working tree is clean
-git checkout dev            # Switch to dev branch (or your starting branch)
+git switch dev              # Switch to dev branch (or your starting branch)
 git pull origin dev         # Pull latest changes
 npm ci                      # Install exact dependency versions
 npm test                    # Run automated tests
@@ -115,9 +115,9 @@ When your feature branch is ready to be integrated:
 #### Step 1: Ensure your feature branch is up to date
 
 ```bash
-git checkout dev
+git switch dev
 git pull origin dev
-git checkout <feature-branch>     # e.g., git checkout xlsx
+git switch <feature-branch>       # e.g., git switch xlsx
 git rebase dev                    # Rebase onto latest dev (or merge if preferred)
 ```
 
@@ -131,17 +131,27 @@ npm run lint
 
 #### Step 3: Merge into dev
 
+**Option A: Direct merge (local)**
+
 ```bash
-git checkout dev
+git switch dev
 git merge <feature-branch>        # e.g., git merge xlsx
+```
+
+**Option B: Pull Request (recommended for team collaboration)**
+
+```bash
+git push origin <feature-branch>  # Push feature branch to remote
+# Then create a PR from <feature-branch> → dev on GitHub
+gh pr create --base dev --head <feature-branch> --title "Feature: description"
 ```
 
 #### Step 4: Push and clean up
 
 ```bash
-git push origin dev
+git push origin dev               # Skip if you merged via PR
 git branch -d <feature-branch>    # Delete local feature branch
-git push origin --delete <feature-branch>  # Delete remote feature branch (optional)
+git push origin --delete <feature-branch>  # Delete remote feature branch (optional, PR may auto-delete)
 ```
 
 ---
@@ -153,9 +163,9 @@ Use this workflow when you want to validate before the final release.
 #### Step 1: Create the release branch from dev
 
 ```bash
-git checkout dev
+git switch dev
 git pull origin dev
-git checkout -b release/X.Y.Z     # e.g., release/1.2.2
+git switch -c release/X.Y.Z       # e.g., release/1.2.2
 ```
 
 #### Step 2: Bump to RC version
@@ -201,7 +211,7 @@ See [5.1 Publishing a Release Candidate](#51-publishing-a-release-candidate).
 
 ```bash
 # Fix issues on the release branch
-git checkout release/X.Y.Z
+git switch release/X.Y.Z
 # ... make fixes ...
 npm version prerelease --preid=rc --no-git-tag-version  # Bumps rc.0 → rc.1
 git add -A
@@ -220,10 +230,22 @@ After the RC has been validated:
 
 #### Step 1: Merge release branch into main
 
+**Option A: Direct merge (local)**
+
 ```bash
-git checkout main
+git switch main
 git pull origin main
 git merge release/X.Y.Z
+```
+
+**Option B: Pull Request (recommended for audit trail)**
+
+```bash
+git push origin release/X.Y.Z     # Ensure release branch is pushed
+gh pr create --base main --head release/X.Y.Z --title "Release X.Y.Z"
+# After PR is approved and merged, pull main locally:
+git switch main
+git pull origin main
 ```
 
 #### Step 2: Bump to final version
@@ -271,7 +293,7 @@ Use this workflow for simple, low-risk releases (small bug fixes, documentation 
 #### Step 1: Ensure dev is ready
 
 ```bash
-git checkout dev
+git switch dev
 git pull origin dev
 npm ci
 npm test
@@ -280,10 +302,21 @@ npm run lint
 
 #### Step 2: Merge dev into main
 
+**Option A: Direct merge (local)**
+
 ```bash
-git checkout main
+git switch main
 git pull origin main
 git merge dev
+```
+
+**Option B: Pull Request (recommended for audit trail)**
+
+```bash
+gh pr create --base main --head dev --title "Release X.Y.Z"
+# After PR is approved and merged, pull main locally:
+git switch main
+git pull origin main
 ```
 
 #### Step 3: Bump version
@@ -408,7 +441,7 @@ npm dist-tag rm pg-schemata rc
 ### 6.1 Sync dev with main
 
 ```bash
-git checkout dev
+git switch dev
 git pull origin dev
 git merge --ff-only main    # Fast-forward dev to include release
 git push origin dev
@@ -442,13 +475,13 @@ mkdocs gh-deploy            # If using MkDocs for GitHub Pages
 
 ```bash
 # You're on feature branch (e.g., xlsx) and ready to release
-git checkout dev && git pull origin dev
-git merge <feature-branch>
+git switch dev && git pull origin dev
+git merge <feature-branch>         # Or use PR: gh pr create --base dev --head <feature-branch>
 git push origin dev
 
 # Option A: Direct release (no RC)
-git checkout main && git pull origin main
-git merge dev
+git switch main && git pull origin main
+git merge dev                      # Or use PR: gh pr create --base main --head dev
 npm version patch --no-git-tag-version
 # Update CHANGELOG.md if needed
 git add -A && git commit -m "X.Y.Z"
@@ -457,7 +490,7 @@ git push origin main && git push origin vX.Y.Z
 npm publish --tag latest
 
 # Option B: Release candidate first
-git checkout -b release/X.Y.Z
+git switch -c release/X.Y.Z
 npm version prepatch --preid=rc --no-git-tag-version
 # Update CHANGELOG.md
 git add -A && git commit -m "chore: bump version to vX.Y.Z-rc.0"

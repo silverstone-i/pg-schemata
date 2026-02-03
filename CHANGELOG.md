@@ -8,18 +8,30 @@ Latest commit: `c22c921`
 
 ---
 
-## [v1.2.2] - 26-02-02
+## [v1.2.3] - 2026-02-02
+
+### 🐛 Fixes
+
+- **Excel Import Path Fix**: Correct `xlsxjs` import to `@nap-sft/xlsxjs` in `QueryModel.exportToSpreadsheet` method, which was missed during v1.2.2 migration
+
+### 📝 Docs
+
+- **Release Guide Updates**: Modernize Git commands from `git checkout` to `git switch` and add PR workflow options throughout the guide
+
+---
+
+## [v1.2.2] - 2026-02-02
 
 ### 🛠 Refactors
 
 - **Excel Library Migration**: Replace `exceljs` with `@nap-sft/xlsxjs` for spreadsheet import/export functionality (`07dc564`)
   - Updated import statements in `TableModel.js`
   - Updated test mocks to use the new package name
-  - fixed outdated dependencies in excelJS by removing the inflight dependency and refcatoring the code.  This is for a specific internal requirement during development.  The excelJS package does not use these libraries in production
+  - Migrated from `exceljs` to `@nap-sft/xlsxjs` to address dependency concerns with outdated transitive dependencies.
 
 ---
 
-## [v1.2.1] - 26-01-29
+## [v1.2.1] - 2026-01-29
 
 ### 🚀 Features
 
@@ -43,7 +55,7 @@ Latest commit: `c22c921`
 
 ---
 
-## [v1.2.0] - 26-01-28
+## [v1.2.0] - 2026-01-28
 
 ### 🚀 Features
 
