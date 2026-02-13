@@ -4,7 +4,29 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `acbf08c`
+Latest commit: `a585055`
+
+---
+
+## [v1.3.0] - 2026-02-13
+
+### 🚀 Features
+
+- **Audit Actor Resolver**: Add configurable `auditActorResolver` callback for dynamic actor injection in CRUD operations
+  - Registered via `DB.init()` options to resolve the current actor at query time for `created_by`/`updated_by` audit fields
+  - Replaces the need for consumer-side prototype patching
+  - Takes priority over the static `_auditUserDefault` fallback
+
+### 🐛 Fixes
+
+- **Upsert Audit Fields**: `upsert` and `bulkUpsert` now include `updated_by` in the `ON CONFLICT SET` clause
+- **Soft Delete Audit Fields**: `removeWhere` and `restoreWhere` now set `updated_by` and `updated_at` when audit fields are enabled
+
+### 🧪 Tests
+
+- Add unit tests for `auditActorResolver` module
+- Add soft-delete integration tests for audit field behavior
+- Update existing TableModel integration and unit tests
 
 ---
 
