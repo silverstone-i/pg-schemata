@@ -1,5 +1,6 @@
 import { createTestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
+import { setAuditActorResolver, clearAuditActorResolver } from '../../src/auditActorResolver.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -166,5 +167,63 @@ describe('Soft delete integration tests', () => {
 
     const all = await model.findWhere([], 'AND', { includeDeactivated: true });
     expect(all.filter(r => r.deactivated_at !== null).length).toBeGreaterThanOrEqual(2);
+  });
+
+  describe('audit actor resolver integration', () => {
+    afterEach(() => {
+      clearAuditActorResolver();
+    });
+
+    test('removeWhere sets updated_by when resolver provides an actor', async () => {
+      const row = await model.insert({
+        email: 'audit-remove@example.com',
+        tenant_id: TENANT_ID,
+        created_by: 'original-author',
+      });
+
+      setAuditActorResolver(() => 'delete-actor');
+      await model.removeWhere({ id: row.id });
+
+      const found = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
+      expect(found.length).toBe(1);
+      expect(found[0].deactivated_at).not.toBeNull();
+      expect(found[0].updated_by).toBe('delete-actor');
+    });
+
+    test('restoreWhere sets updated_by when resolver provides an actor', async () => {
+      const row = await model.insert({
+        email: 'audit-restore@example.com',
+        tenant_id: TENANT_ID,
+        created_by: 'original-author',
+      });
+
+      await model.removeWhere({ id: row.id });
+
+      setAuditActorResolver(() => 'restore-actor');
+      await model.restoreWhere({ id: row.id });
+
+      const found = await model.findWhere([{ id: row.id }]);
+      expect(found.length).toBe(1);
+      expect(found[0].updated_by).toBe('restore-actor');
+    });
+
+    test('removeWhere omits updated_by when no resolver is set', async () => {
+      const row = await model.insert({
+        email: 'no-resolver-remove@example.com',
+        tenant_id: TENANT_ID,
+        created_by: 'tester',
+        updated_by: 'tester',
+      });
+
+      clearAuditActorResolver();
+      await model.removeWhere({ id: row.id });
+
+      const found = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
+      expect(found.length).toBe(1);
+      expect(found[0].deactivated_at).not.toBeNull();
+      // updated_by should remain unchanged since no resolver and _auditUserDefault is 'system'
+      // (testUserSchema has hasAuditFields: true which defaults to 'system')
+      expect(found[0].updated_by).toBe('system');
+    });
   });
 });

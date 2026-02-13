@@ -16,6 +16,7 @@ import ExcelJS from '@nap-sft/xlsxjs';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
+import { getAuditActor } from './auditActorResolver.js';
 
 /**
  * TableModel extends QueryModel to provide full read/write support for a PostgreSQL table.
@@ -60,6 +61,18 @@ class TableModel extends QueryModel {
   }
 
   /**
+   * Resolves the current audit actor.  Priority:
+   * 1. auditActorResolver callback (if registered and returns non-null)
+   * 2. _auditUserDefault (static fallback from schema config)
+   *
+   * @returns {string|null}
+   * @private
+   */
+  _resolveAuditActor() {
+    return getAuditActor() ?? this._auditUserDefault;
+  }
+
+  /**
    * Inserts a single row into the table after validation and sanitization.
    * @param {Object} dto - Data to insert.
    * @returns {Promise<Object>} The inserted row.
@@ -93,7 +106,7 @@ class TableModel extends QueryModel {
       return Promise.reject(new SchemaDefinitionError('DTO must contain at least one valid column'));
     }
     if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
-      safeDto.created_by = this._auditUserDefault;
+      safeDto.created_by = this._resolveAuditActor();
     }
     let query;
     try {
@@ -161,7 +174,7 @@ class TableModel extends QueryModel {
     }
     const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
     if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
-      safeDto.updated_by = this._auditUserDefault;
+      safeDto.updated_by = this._resolveAuditActor();
     }
     const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
     const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
@@ -200,27 +213,37 @@ class TableModel extends QueryModel {
     }
 
     const safeDto = this.sanitizeDto(dto);
-    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
-      safeDto.created_by = this._auditUserDefault;
+    if (this._schema.hasAuditFields) {
+      if (!Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
+        safeDto.created_by = this._resolveAuditActor();
+      }
+      if (!Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
+        safeDto.updated_by = safeDto.created_by;
+      }
     }
 
     const insertCs = new this.pgp.helpers.ColumnSet(Object.keys(safeDto), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
 
-    const columnsToUpdate = updateColumns || Object.keys(safeDto).filter(col => !conflictColumns.includes(col) && col !== 'id');
+    const auditExclude = this._schema.hasAuditFields ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
+    const columnsToUpdate = (updateColumns || Object.keys(safeDto).filter(col => !conflictColumns.includes(col) && col !== 'id'))
+      .filter(col => !auditExclude.includes(col));
 
-    if (columnsToUpdate.length === 0) {
+    const auditUpdate = this._schema.hasAuditFields ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
+    const setParts = [
+      ...(columnsToUpdate.length ? [columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ')] : []),
+      ...(auditUpdate ? [auditUpdate] : []),
+    ];
+
+    if (setParts.length === 0) {
       throw new SchemaDefinitionError('No columns available for update on conflict');
     }
-
-    const updateSet = columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ');
-    const timestampUpdate = this._schema.hasAuditFields ? ', updated_at = NOW()' : '';
 
     const query = `
       ${this.pgp.helpers.insert(safeDto, insertCs)}
       ON CONFLICT (${conflictColumns.join(', ')})
-      DO UPDATE SET ${updateSet}${timestampUpdate}
+      DO UPDATE SET ${setParts.join(', ')}
       RETURNING *
     `;
 
@@ -252,8 +275,13 @@ class TableModel extends QueryModel {
 
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
-      if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
-        sanitized.created_by = this._auditUserDefault;
+      if (this._schema.hasAuditFields) {
+        if (!Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
+          sanitized.created_by = this._resolveAuditActor();
+        }
+        if (!Object.prototype.hasOwnProperty.call(sanitized, 'updated_by')) {
+          sanitized.updated_by = sanitized.created_by;
+        }
       }
       return sanitized;
     });
@@ -262,20 +290,26 @@ class TableModel extends QueryModel {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
 
-    const columnsToUpdate = updateColumns || Object.keys(safeRecords[0]).filter(col => !conflictColumns.includes(col) && col !== 'id');
+    const auditExclude = this._schema.hasAuditFields ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
+    const columnsToUpdate = (updateColumns || Object.keys(safeRecords[0]).filter(col => !conflictColumns.includes(col) && col !== 'id'))
+      .filter(col => !auditExclude.includes(col));
 
-    if (columnsToUpdate.length === 0) {
+    const auditUpdate = this._schema.hasAuditFields ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
+    const setParts = [
+      ...(columnsToUpdate.length ? [columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ')] : []),
+      ...(auditUpdate ? [auditUpdate] : []),
+    ];
+
+    if (setParts.length === 0) {
       throw new SchemaDefinitionError('No columns available for update on conflict');
     }
 
-    const updateSet = columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ');
-    const timestampUpdate = this._schema.hasAuditFields ? ', updated_at = NOW()' : '';
     const returningClause = returning ? ` RETURNING ${returning.join(', ')}` : '';
 
     const query = `
       ${this.pgp.helpers.insert(safeRecords, insertCs)}
       ON CONFLICT (${conflictColumns.join(', ')})
-      DO UPDATE SET ${updateSet}${timestampUpdate}
+      DO UPDATE SET ${setParts.join(', ')}
       ${returningClause}
     `;
 
@@ -323,7 +357,7 @@ class TableModel extends QueryModel {
    */
   async touch(id, updatedBy = null) {
     // Route through update(), which already applies soft delete check
-    const effectiveUpdatedBy = updatedBy ?? this._auditUserDefault;
+    const effectiveUpdatedBy = updatedBy ?? this._resolveAuditActor();
     return this.update(id, effectiveUpdatedBy ? { updated_by: effectiveUpdatedBy } : {});
   }
 
@@ -368,7 +402,7 @@ class TableModel extends QueryModel {
     const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
 
     if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeUpdates, 'updated_by')) {
-      safeUpdates.updated_by = this._auditUserDefault;
+      safeUpdates.updated_by = this._resolveAuditActor();
     }
     const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
@@ -415,7 +449,7 @@ class TableModel extends QueryModel {
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
       if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
-        sanitized.created_by = this._auditUserDefault;
+        sanitized.created_by = this._resolveAuditActor();
       }
       return sanitized;
     });
@@ -485,7 +519,7 @@ class TableModel extends QueryModel {
       }
       const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
       if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
-      safeDto.updated_by = this._auditUserDefault;
+      safeDto.updated_by = this._resolveAuditActor();
     }
       delete safeDto.id;
       const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
@@ -598,7 +632,17 @@ class TableModel extends QueryModel {
     const softCheck = 'deactivated_at IS NULL';
     const prefix = clause ? `${clause} AND ` : '';
     clause = `${prefix}${softCheck}`;
-    const query = `UPDATE ${this.schemaName}.${this.tableName} SET deactivated_at = NOW() WHERE ${clause}`;
+
+    let setClause = 'deactivated_at = NOW()';
+    if (this._schema.hasAuditFields) {
+      const actor = this._resolveAuditActor();
+      if (actor != null) {
+        values.push(actor);
+        setClause += `, updated_by = $${values.length}, updated_at = NOW()`;
+      }
+    }
+
+    const query = `UPDATE ${this.schemaName}.${this.tableName} SET ${setClause} WHERE ${clause}`;
     return this.db.result(query, values, r => r.rowCount);
   }
 
@@ -612,7 +656,17 @@ class TableModel extends QueryModel {
       return Promise.reject(new Error('Soft delete is not enabled for this table.'));
     }
     const { clause, values } = this.buildWhereClause(where, true, [], 'AND', true);
-    const query = `UPDATE ${this.schemaName}.${this.tableName} SET deactivated_at = NULL WHERE ${clause}`;
+
+    let setClause = 'deactivated_at = NULL';
+    if (this._schema.hasAuditFields) {
+      const actor = this._resolveAuditActor();
+      if (actor != null) {
+        values.push(actor);
+        setClause += `, updated_by = $${values.length}, updated_at = NOW()`;
+      }
+    }
+
+    const query = `UPDATE ${this.schemaName}.${this.tableName} SET ${setClause} WHERE ${clause}`;
     return this.db.result(query, values, r => r.rowCount);
   }
 

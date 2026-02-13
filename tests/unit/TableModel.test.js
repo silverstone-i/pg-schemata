@@ -264,7 +264,7 @@ describe('TableModel (Unit)', () => {
         expect(query).not.toContain('status = EXCLUDED.status');
       });
 
-      test('should add timestamp update when hasAuditFields is true', async () => {
+      test('should add audit update fields when hasAuditFields is true', async () => {
         const auditSchema = { ...mockSchema, hasAuditFields: true };
         const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
         mockDb.one.mockResolvedValue({ id: 1 });
@@ -273,6 +273,7 @@ describe('TableModel (Unit)', () => {
 
         const query = mockDb.one.mock.calls[0][0];
         expect(query).toContain('updated_at = NOW()');
+        expect(query).toContain('updated_by = EXCLUDED.updated_by');
       });
 
       test('should call handleDbError on database error', async () => {
@@ -375,7 +376,7 @@ describe('TableModel (Unit)', () => {
         expect(query).not.toContain('status = EXCLUDED.status');
       });
 
-      test('should add timestamp update when hasAuditFields is true', async () => {
+      test('should add audit update fields when hasAuditFields is true', async () => {
         const auditSchema = { ...mockSchema, hasAuditFields: true };
         const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
 
@@ -391,6 +392,7 @@ describe('TableModel (Unit)', () => {
 
         const query = mockTx.result.mock.calls[0][0];
         expect(query).toContain('updated_at = NOW()');
+        expect(query).toContain('updated_by = EXCLUDED.updated_by');
       });
 
       test('should call handleDbError on database error', async () => {
