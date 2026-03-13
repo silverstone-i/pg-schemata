@@ -12,7 +12,8 @@
 import QueryModel from './QueryModel.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
 import { createTableSQL } from './utils/schemaBuilder.js';
-import ExcelJS from '@nap-sft/xlsxjs';
+import { readFileSync } from 'node:fs';
+import { WorkbookReader } from 'tablsx';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
@@ -560,29 +561,28 @@ class TableModel extends QueryModel {
       throw new SchemaDefinitionError('File path must be a valid string');
     }
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(filePath);
-    const worksheet = workbook.worksheets[sheetIndex];
+    const buffer = readFileSync(filePath);
+    const reader = WorkbookReader.fromBuffer(buffer);
 
-    if (!worksheet) {
-      throw new SchemaDefinitionError(`Sheet index ${sheetIndex} is out of bounds. Found ${workbook.worksheets.length} sheets.`);
+    if (sheetIndex < 0 || sheetIndex >= reader.sheetCount) {
+      throw new SchemaDefinitionError(`Sheet index ${sheetIndex} is out of bounds. Found ${reader.sheetCount} sheets.`);
     }
 
+    const sheet = reader.sheet(sheetIndex);
     const rows = [];
     let headers = [];
 
-    for (let rowNumber = 1; rowNumber <= worksheet.rowCount; rowNumber++) {
-      const row = worksheet.getRow(rowNumber);
-      const values = row.values;
+    for (let i = 0; i < sheet.rowCount; i++) {
+      const cellRow = sheet.getRow(i);
 
-      if (rowNumber === 1) {
-        headers = values.slice(1); // skip the empty 0 index
+      if (i === 0) {
+        headers = cellRow.map(cell => cell.value);
         continue;
       }
 
       const obj = {};
-      headers.forEach((header, i) => {
-        obj[header] = values[i + 1];
+      headers.forEach((header, idx) => {
+        obj[header] = cellRow[idx]?.value;
       });
 
       const transformed = callbackFn ? await callbackFn(obj) : obj;

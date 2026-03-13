@@ -269,20 +269,20 @@ class QueryModel {
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
     const { includeDeactivated, ...rest } = options;
     const rows = await this.findWhere(where, joinType, { ...rest, includeDeactivated });
-    const ExcelJS = (await import('@nap-sft/xlsxjs')).default;
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(this._schema.table);
+    const { WorkbookBuilder, writeXlsx } = await import('tablsx');
+    const { writeFileSync } = await import('node:fs');
+    const wb = WorkbookBuilder.create();
+    const sheet = wb.sheet(this._schema.table);
 
     if (!rows.length) {
-      worksheet.addRow(['No data found']);
+      sheet.addRow(['No data found']);
     } else {
-      worksheet.columns = Object.keys(rows[0]).map(key => ({ header: key, key }));
-      rows.forEach(row => {
-        worksheet.addRow(row);
-      });
+      sheet.setHeaders(Object.keys(rows[0]));
+      sheet.addObjects(rows);
     }
 
-    await workbook.xlsx.writeFile(filePath);
+    const bytes = writeXlsx(wb.build());
+    writeFileSync(filePath, bytes);
 
     logMessage({
       logger: this.logger,
