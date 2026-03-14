@@ -4,7 +4,20 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `a585055`
+Latest commit: `bdc0054`
+
+---
+
+## [v1.3.1] - 2026-03-14
+
+### 🛠 Refactors
+
+- **Excel Library Migration**: Replace `@nap-sft/xlsxjs` with `tablsx` for spreadsheet read/write functionality
+
+### 📚 Documentation
+
+- **VitePress Migration**: Migrate documentation from MkDocs to VitePress with new guide and reference pages
+- **PRD & ADRs**: Add Product Requirements Document with Architecture Decision Records and project rules
 
 ---
 
