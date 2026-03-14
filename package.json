@@ -48,7 +48,7 @@
     "@vitest/ui": "^3.1.4",
     "eslint": "^9.24.0",
     "express": "^5.1.0",
-    "vitepress": "^1.6.4",
+    "vitepress": "^2.0.0-alpha.12",
     "vitest": "^3.1.4"
   }
 }

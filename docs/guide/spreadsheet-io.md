@@ -1,6 +1,6 @@
 # Spreadsheet I/O
 
-pg-schemata can import data from and export data to Excel `.xlsx` files using [tablsx](https://github.com/silverstone-i/tablsx).
+pg-schemata can import data from and export data to Excel `.xlsx` files using [@nap-sft/tablsx](https://github.com/silverstone-i/tablsx).
 
 ## Export to spreadsheet
 
@@ -90,7 +90,7 @@ const result = await db().users.importFromSpreadsheet(
 
 ## How it works
 
-- **Export** uses `findWhere` to query rows, then builds a workbook with `tablsx`'s `WorkbookBuilder` and writes it with `writeXlsx`
-- **Import** reads the file with `tablsx`'s `WorkbookReader`, converts rows to objects using the header row, applies the optional transform callback, then calls `bulkInsert`
+- **Export** uses `findWhere` to query rows, then builds a workbook with `@nap-sft/tablsx`'s `WorkbookBuilder` and writes it with `writeXlsx`
+- **Import** reads the file with `@nap-sft/tablsx`'s `WorkbookReader`, converts rows to objects using the header row, applies the optional transform callback, then calls `bulkInsert`
 - All validation, sanitization, and audit field population from `bulkInsert` applies during import
 - Soft delete rules apply — imported records cannot include `deactivated_at`

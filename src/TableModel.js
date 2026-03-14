@@ -13,7 +13,7 @@ import QueryModel from './QueryModel.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
 import { createTableSQL } from './utils/schemaBuilder.js';
 import { readFileSync } from 'node:fs';
-import { WorkbookReader } from 'tablsx';
+import { WorkbookReader } from '@nap-sft/tablsx';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';

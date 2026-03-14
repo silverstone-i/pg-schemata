@@ -562,7 +562,7 @@ describe('TableModel (Unit)', () => {
     readFileSync: vi.fn(() => Buffer.from('mock')),
   }));
 
-  vi.mock('tablsx', () => ({
+  vi.mock('@nap-sft/tablsx', () => ({
     WorkbookReader: {
       fromBuffer: vi.fn(() => ({
         sheetCount: 1,

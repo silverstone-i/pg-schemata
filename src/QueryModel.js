@@ -269,7 +269,7 @@ class QueryModel {
   async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
     const { includeDeactivated, ...rest } = options;
     const rows = await this.findWhere(where, joinType, { ...rest, includeDeactivated });
-    const { WorkbookBuilder, writeXlsx } = await import('tablsx');
+    const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
     const { writeFileSync } = await import('node:fs');
     const wb = WorkbookBuilder.create();
     const sheet = wb.sheet(this._schema.table);

@@ -101,7 +101,7 @@ The following are implementation details and may change without a major version 
 | pg-promise | Database driver | See ADR-0001 |
 | zod | DTO validation | See ADR-0006 |
 | lodash | cloneDeep, isPlainObject | Minimal usage; candidate for removal |
-| tablsx | Excel I/O | See ADR-0009 |
+| @nap-sft/tablsx | Excel I/O | See ADR-0009 |
 | lru-cache | ColumnSet caching | See ADR-0008 |
 
 ---
@@ -359,7 +359,7 @@ exportToSpreadsheet(
 ) → Promise<{ exported: number, filePath: string }>
 ```
 
-Queries via `findWhere`, then uses `tablsx` (`WorkbookBuilder.create()`, `sheet.setHeaders()`, `sheet.addObjects()`, `writeXlsx()`) to write `.xlsx`. Uses `writeFileSync`.
+Queries via `findWhere`, then uses `@nap-sft/tablsx` (`WorkbookBuilder.create()`, `sheet.setHeaders()`, `sheet.addObjects()`, `writeXlsx()`) to write `.xlsx`. Uses `writeFileSync`.
 
 ---
 
@@ -681,7 +681,7 @@ importFromSpreadsheet(
 ```
 
 **Behavior:**
-1. Reads file via `readFileSync`, parses via `tablsx.WorkbookReader.fromBuffer()`
+1. Reads file via `readFileSync`, parses via `@nap-sft/tablsx.WorkbookReader.fromBuffer()`
 2. Validates sheet index is in bounds
 3. First row is treated as headers; subsequent rows are mapped to objects
 4. Each row is optionally transformed via `callbackFn` (supports async callbacks)
