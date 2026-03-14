@@ -34,7 +34,7 @@ export function clearAuditActorResolver() {
 
 /**
  * Returns the current actor by invoking the registered resolver, or null
- * if no resolver is set or the resolver returns a falsy value.
+ * if no resolver is set or the resolver returns a nullish value.
  *
  * @returns {string|null}
  */

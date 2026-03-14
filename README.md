@@ -4,7 +4,7 @@
 [![build status](https://img.shields.io/github/actions/workflow/status/silverstone-i/pg-schemata/ci.yml?branch=main)](https://github.com/silverstone-i/pg-schemata/actions)
 [![license](https://img.shields.io/npm/l/pg-schemata.svg)](LICENSE)
 [![postgresql](https://img.shields.io/badge/PostgreSQL-✔️-blue)](https://www.postgresql.org/)
-[![node](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen)](https://nodejs.org/)
+[![node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 
 ---
 
@@ -214,7 +214,7 @@ npm run docs:preview  # preview the build
 
 ## 🧠 Requirements
 
-- Node.js >= 16
+- Node.js >= 18
 - PostgreSQL >= 12
 
 ---

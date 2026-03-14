@@ -5,6 +5,9 @@
   "description": "A lightweight Postgres-first ORM layer built on top of pg-promise",
   "main": "src/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "types": "src/schemaTypes.d.ts",
   "files": [
     "src",

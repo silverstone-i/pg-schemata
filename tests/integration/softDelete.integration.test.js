@@ -221,8 +221,8 @@ describe('Soft delete integration tests', () => {
       const found = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
       expect(found.length).toBe(1);
       expect(found[0].deactivated_at).not.toBeNull();
-      // updated_by should remain unchanged since no resolver and _auditUserDefault is 'system'
-      // (testUserSchema has hasAuditFields: true which defaults to 'system')
+      // No resolver is registered, so _resolveAuditActor() falls back to the schema default ('system')
+      // and actively sets updated_by to 'system' (testUserSchema has hasAuditFields: true)
       expect(found[0].updated_by).toBe('system');
     });
   });

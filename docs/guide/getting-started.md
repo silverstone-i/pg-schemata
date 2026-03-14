@@ -4,7 +4,7 @@
 
 ## Requirements
 
-- Node.js 16 or newer
+- Node.js 18 or newer
 - PostgreSQL 12 or newer
 - `pg-promise` as a peer dependency
 

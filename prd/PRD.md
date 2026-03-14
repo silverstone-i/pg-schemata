@@ -89,7 +89,7 @@ The following are implementation details and may change without a major version 
 
 | Requirement | Value |
 |-------------|-------|
-| Runtime | Node.js >= 16 |
+| Runtime | Node.js >= 18 |
 | Database | PostgreSQL >= 12 |
 | Module System | ESM only (`"type": "module"`) |
 | Peer Dependency | pg-promise >= 11.x |

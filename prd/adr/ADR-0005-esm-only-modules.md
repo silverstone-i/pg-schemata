@@ -17,5 +17,5 @@ ESM only. The ecosystem is trending this direction, and pg-promise 11.x supports
 
 ## Consequences
 
-- **Accepted trade-off:** CommonJS consumers must use dynamic `import()`. Requires Node.js >= 16.
+- **Accepted trade-off:** CommonJS consumers must use dynamic `import()`. Requires Node.js >= 18.
 - **Benefit:** Aligns with ecosystem direction. Enables top-level await and tree-shaking.
