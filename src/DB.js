@@ -10,6 +10,7 @@
  */
 
 import pgPromise from 'pg-promise';
+import { setAuditActorResolver } from './auditActorResolver.js';
 
 /**
  * DB is a singleton utility class that initializes and provides access
@@ -40,10 +41,12 @@ class DB {
    * @param {object|string} connection - A pg-promise-compatible connection object or string.
    * @param {Object<string, Function>} repositories - A map of repository names to their constructors.
    * @param {object} [logger=null] - Optional logger passed to each repository.
+   * @param {object} [options={}] - Optional configuration.
+   * @param {() => string|null} [options.auditActorResolver] - Callback returning the current actor ID for audit fields.
    * @returns {typeof DB} The initialized DB class (for chaining or access).
    * @throws {Error} If connection or repositories are invalid.
   */
-  static init(connection, repositories, logger = null) {
+  static init(connection, repositories, logger = null, options = {}) {
     if (!DB.db) {
       // Only initialize once to enforce singleton pattern
 
@@ -73,6 +76,11 @@ class DB {
       DB.pgp = pgPromise(initOptions);
       // Create the database instance using the provided connection
       DB.db = DB.pgp(connection);
+
+      // Register audit actor resolver if provided
+      if (options.auditActorResolver) {
+        setAuditActorResolver(options.auditActorResolver);
+      }
     }
 
     return DB;

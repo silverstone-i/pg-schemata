@@ -69,23 +69,50 @@ describe('TableModel Integration', () => {
       );
       expect(upserted.created_by).toBe('audit-tester');
       expect(upserted.updated_at).toBeDefined();
+      expect(upserted.updated_by).toBe('audit-tester');
+    });
+
+    test('should set updated_by on conflict', async () => {
+      await model.insert({
+        email: 'upsert-audit@example.com',
+        name: 'Original',
+        created_by: 'original-author',
+        tenant_id: TENANT_ID,
+      });
+      const upserted = await model.upsert(
+        {
+          email: 'upsert-audit@example.com',
+          name: 'Updated',
+          created_by: 'original-author',
+          updated_by: 'new-editor',
+          tenant_id: TENANT_ID,
+        },
+        ['email', 'tenant_id']
+      );
+      expect(upserted.name).toBe('Updated');
+      expect(upserted.created_by).toBe('original-author');
+      expect(upserted.updated_by).toBe('new-editor');
     });
 
     test('should throw if conflictColumns is empty', async () => {
       await expect(model.upsert({ email: 'fail@example.com' }, [])).rejects.toThrow('Conflict columns must be a non-empty array');
     });
 
-    test('should throw if no columns available for update', async () => {
+    test('should still update audit fields when only conflict columns are provided', async () => {
       // Insert user with only conflict columns
       await model.insert({
         email: 'upsert4@example.com',
         created_by: 'system',
         tenant_id: TENANT_ID,
       });
-      // Upsert with only conflict columns, no update columns
-      await expect(
-        model.upsert({ email: 'upsert4@example.com', created_by: 'system', tenant_id: TENANT_ID }, ['email', 'created_by', 'tenant_id'])
-      ).rejects.toThrow('No columns available for update on conflict');
+      // Upsert with only conflict columns — audit fields (updated_at, updated_by) still get updated
+      const upserted = await model.upsert(
+        { email: 'upsert4@example.com', tenant_id: TENANT_ID },
+        ['email', 'tenant_id']
+      );
+      expect(upserted.email).toBe('upsert4@example.com');
+      expect(upserted.updated_at).toBeDefined();
+      expect(upserted.updated_by).toBeDefined();
     });
 
     test('should use custom updateColumns when provided', async () => {
@@ -142,14 +169,13 @@ describe('TableModel Integration', () => {
       await expect(model.bulkUpsert([{ email: 'failbulk@example.com' }], [])).rejects.toThrow('Conflict columns must be a non-empty array');
     });
 
-    test('should throw if no columns available for update', async () => {
+    test('should still update audit fields when only conflict columns are provided', async () => {
       await model.insert({ email: 'bulkup5@example.com', created_by: 'system', tenant_id: TENANT_ID });
-      await expect(
-        model.bulkUpsert(
-          [{ email: 'bulkup5@example.com', created_by: 'system', tenant_id: TENANT_ID }],
-          ['email', 'created_by', 'tenant_id']
-        )
-      ).rejects.toThrow('No columns available for update on conflict');
+      const result = await model.bulkUpsert(
+        [{ email: 'bulkup5@example.com', tenant_id: TENANT_ID }],
+        ['email', 'tenant_id']
+      );
+      expect(result).toBeGreaterThanOrEqual(1);
     });
 
     test('should use custom updateColumns in bulkUpsert', async () => {

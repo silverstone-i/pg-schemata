@@ -264,7 +264,7 @@ describe('TableModel (Unit)', () => {
         expect(query).not.toContain('status = EXCLUDED.status');
       });
 
-      test('should add timestamp update when hasAuditFields is true', async () => {
+      test('should add audit update fields when hasAuditFields is true', async () => {
         const auditSchema = { ...mockSchema, hasAuditFields: true };
         const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
         mockDb.one.mockResolvedValue({ id: 1 });
@@ -273,6 +273,7 @@ describe('TableModel (Unit)', () => {
 
         const query = mockDb.one.mock.calls[0][0];
         expect(query).toContain('updated_at = NOW()');
+        expect(query).toContain('updated_by = EXCLUDED.updated_by');
       });
 
       test('should call handleDbError on database error', async () => {
@@ -375,7 +376,7 @@ describe('TableModel (Unit)', () => {
         expect(query).not.toContain('status = EXCLUDED.status');
       });
 
-      test('should add timestamp update when hasAuditFields is true', async () => {
+      test('should add audit update fields when hasAuditFields is true', async () => {
         const auditSchema = { ...mockSchema, hasAuditFields: true };
         const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
 
@@ -391,6 +392,7 @@ describe('TableModel (Unit)', () => {
 
         const query = mockTx.result.mock.calls[0][0];
         expect(query).toContain('updated_at = NOW()');
+        expect(query).toContain('updated_by = EXCLUDED.updated_by');
       });
 
       test('should call handleDbError on database error', async () => {
@@ -556,37 +558,30 @@ describe('TableModel (Unit)', () => {
   // ================================
   // Mock exceljs for importFromSpreadsheet tests
   // ================================
-  vi.mock('@nap-sft/xlsxjs', () => {
-    const mockGetRow = rowNumber => {
-      const rows = {
-        1: { values: [undefined, 'email'], actualCellCount: 1 },
-        2: { values: [undefined, 'x@test.com'], actualCellCount: 1 },
-      };
-      return rows[rowNumber] || { values: [] };
-    };
+  vi.mock('node:fs', () => ({
+    readFileSync: vi.fn(() => Buffer.from('mock')),
+  }));
 
-    const mockWorksheet = {
-      getRow: vi.fn(mockGetRow),
-      actualRowCount: 2,
-      eachRow: vi.fn(callback => {
-        const rows = [{ values: [undefined, 'email'] }, { values: [undefined, 'x@test.com'] }];
-        rows.forEach((row, index) => callback(row, index + 1));
-      }),
-    };
-
-    const mockWorkbook = {
-      worksheets: [mockWorksheet],
-      xlsx: {
-        readFile: vi.fn().mockResolvedValue(undefined),
-      },
-    };
-
-    return {
-      default: {
-        Workbook: vi.fn().mockImplementation(() => mockWorkbook),
-      },
-    };
-  });
+  vi.mock('@nap-sft/tablsx', () => ({
+    WorkbookReader: {
+      fromBuffer: vi.fn(() => ({
+        sheetCount: 1,
+        sheet: vi.fn(index => {
+          if (index < 0 || index >= 1) return undefined;
+          return {
+            rowCount: 2,
+            getRow: vi.fn(i => {
+              const rows = [
+                [{ value: 'email' }],
+                [{ value: 'x@test.com' }],
+              ];
+              return rows[i] || [];
+            }),
+          };
+        }),
+      })),
+    },
+  }));
 
   describe('importFromSpreadsheet', () => {
     test('should throw if sheet index is invalid', async () => {
