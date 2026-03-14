@@ -18,7 +18,9 @@
     "nodejs"
   ],
   "scripts": {
-    "docs": "documentation build src/index.js -f md -o pg-schemata-docs/documentation/pg-schemata.md && documentation build src/schemaTypes.d.ts -f md -o pg-schemata-docs/documentation/schemaTypes.md && node ./pg-schemata-docs/sanitizeToc.js",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "lint": "eslint .",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
@@ -46,6 +48,7 @@
     "@vitest/ui": "^3.1.4",
     "eslint": "^9.24.0",
     "express": "^5.1.0",
+    "vitepress": "^1.6.4",
     "vitest": "^3.1.4"
   }
 }
