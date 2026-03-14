@@ -4,7 +4,7 @@
 [![build status](https://img.shields.io/github/actions/workflow/status/silverstone-i/pg-schemata/ci.yml?branch=main)](https://github.com/silverstone-i/pg-schemata/actions)
 [![license](https://img.shields.io/npm/l/pg-schemata.svg)](LICENSE)
 [![postgresql](https://img.shields.io/badge/PostgreSQL-✔️-blue)](https://www.postgresql.org/)
-[![node](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen)](https://nodejs.org/)
+[![node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 
 ---
 
@@ -60,7 +60,7 @@ npm install pg-schemata pg-promise
 
 See the supported modifiers used in `findWhere`, `updateWhere`, and other conditional methods:
 
-➡️ [WHERE Clause Modifiers Reference](https://silverstone-i.github.io/pg-schemata/where-modifiers/)
+➡️ [WHERE Clause Modifiers Reference](https://silverstone-i.github.io/pg-schemata/guide/where-modifiers)
 
 ### 1. Define a Table Schema
 
@@ -185,14 +185,21 @@ console.log(`Applied ${applied.length} migration(s)`);
 
 ## 🛠️ Planned Enhancements
 
-See [Planned Enhancements](./design_docs/PlannedEnhancements.md). Suggestions welcome!!! 🙂
+See the [Roadmap](./prd/PRD.md#8-roadmap) in the PRD. Suggestions welcome!!! 🙂
 
 ---
 
 ## 📘 Documentation
 
-Documentation is generated using [MkDocs](https://www.mkdocs.org/).  
-To contribute to or build the documentation site locally, see the guide: [Docs Setup](https://silverstone-i.github.io/pg-schemata/docs-setup/).
+Full documentation is available at [silverstone-i.github.io/pg-schemata](https://silverstone-i.github.io/pg-schemata/).
+
+To build the docs locally:
+
+```bash
+npm run docs:dev      # local dev server
+npm run docs:build    # production build
+npm run docs:preview  # preview the build
+```
 
 ---
 
@@ -207,7 +214,7 @@ To contribute to or build the documentation site locally, see the guide: [Docs S
 
 ## 🧠 Requirements
 
-- Node.js >= 16
+- Node.js >= 18
 - PostgreSQL >= 12
 
 ---

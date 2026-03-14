@@ -1,0 +1,40 @@
+# Publishes release candidates to npm with the "rc" dist-tag.
+# Triggered automatically when an RC tag (e.g. v1.2.3-rc.0) is pushed.
+#
+# Prerequisites:
+#   - NPM_TOKEN must be configured in the repository's GitHub Secrets
+
+name: Publish RC
+
+on:
+  push:
+    tags:
+      - 'v*-rc.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test:unit
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Publish to npm (rc)
+        run: npm publish --tag rc
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
