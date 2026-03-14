@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ['main']
+    branches: ['**']
   pull_request:
-    branches: ['main']
+    branches: ['**']
 
 jobs:
   unit-tests:
@@ -24,6 +24,9 @@ jobs:
 
       - name: Run unit tests
         run: npm run test:unit
+
+      - name: Run linting
+        run: npm run lint
 
   docs-build:
     runs-on: ubuntu-latest

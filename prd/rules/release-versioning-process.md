@@ -19,12 +19,20 @@ pg-schemata follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PAT
 ## Branch Flow
 
 ```
-feature branch -> dev -> release/X.Y.Z (RC) -> main (final) -> back to dev
+feature branch --PR--> dev --PR--> release/X.Y.Z (RC) --PR--> main (final)
+                                                                  |
+                                                                  v
+                                                             sync to dev
 ```
 
 Alternative (simple releases):
 ```
-feature branch -> dev -> main (final) -> back to dev
+feature branch --PR--> dev --PR--> main (final) --> sync to dev
+```
+
+Hotfix:
+```
+main --> hotfix/X.Y.Z --PR--> main --> sync to dev
 ```
 
 ### Branch Roles
@@ -35,6 +43,7 @@ feature branch -> dev -> main (final) -> back to dev
 | `dev` | Integration branch — features merge here first |
 | `release/X.Y.Z` | Release candidate branch for pre-release validation |
 | `main` | Production-ready code only |
+| `hotfix/X.Y.Z` | Urgent fixes applied directly from main |
 
 ---
 
@@ -80,52 +89,82 @@ All version bumps use `--no-git-tag-version` to prevent npm from creating tags a
 ## Release Stages
 
 ### Feature -> Dev
-1. Rebase feature branch onto latest dev
-2. Run tests and lint on feature branch
-3. Merge into dev (direct or via PR)
-4. Push dev, clean up feature branch
 
-### Dev -> RC (when validation needed)
-1. Create `release/X.Y.Z` branch from dev
-2. Bump to RC version
+1. Rebase feature branch onto latest dev
+2. Run tests and lint locally
+3. Open PR: `feature/xxx` -> `dev`
+   - PR title must follow Conventional Commits
+   - Required CI checks must pass
+4. Self-approve and merge PR
+5. Delete feature branch (auto-deleted by GitHub setting)
+
+### Dev -> RC
+
+1. Cut `release/X.Y.Z` from dev
+2. Bump to RC version: `npm version prepatch|preminor|premajor --preid=rc --no-git-tag-version`
 3. Update CHANGELOG.md
 4. Commit: `"chore: bump version to vX.Y.Z-rc.0"`
-5. Tag: `vX.Y.Z-rc.0`
-6. Push branch and tag
-7. Publish to npm with `--tag rc`
+5. Create tag: `vX.Y.Z-rc.0`
+6. Push branch and tag — CI publishes to npm `--tag rc` automatically
+7. Open Draft PR: `release/X.Y.Z` -> `main`
+
+### RC Iteration (if issues found)
+
+1. Fix directly on the `release/X.Y.Z` branch
+2. Push fix commits (no publish triggered — no tag)
+3. When ready for next RC: `npm version prerelease --preid=rc --no-git-tag-version`
+4. Commit: `"chore: bump version to vX.Y.Z-rc.N"`
+5. Create tag: `vX.Y.Z-rc.N`
+6. Push tag — CI publishes updated RC to npm automatically
 
 ### RC -> Final
-1. Merge `release/X.Y.Z` into main (direct or via PR)
-2. Bump to final version: `npm version X.Y.Z --no-git-tag-version`
-3. Commit: `"X.Y.Z"`
-4. Tag: `vX.Y.Z`
-5. Push main and tag
-6. Publish to npm with `--tag latest`
-7. Delete release branch
 
-### Dev -> Main (direct, no RC)
-1. Merge dev into main
-2. Bump version
-3. Update CHANGELOG.md
-4. Commit: `"X.Y.Z"`
-5. Tag: `vX.Y.Z`
-6. Push and publish
+1. On `release/X.Y.Z` branch: `npm version X.Y.Z --no-git-tag-version`
+2. Update CHANGELOG.md (final entry)
+3. Commit: `"X.Y.Z"`
+4. Mark Draft PR as Ready for Review
+5. CI checks pass, self-approve, merge into main
+6. Create tag: `vX.Y.Z` on main
+7. Push tag — CI publishes to npm `--tag latest` automatically
+8. Release branch is auto-deleted by GitHub
+
+### Dev -> Main (simple, no RC)
+
+1. Bump version on dev: `npm version patch|minor|major --no-git-tag-version`
+2. Update CHANGELOG.md
+3. Commit: `"X.Y.Z"`
+4. Open PR: `dev` -> `main`
+5. CI checks pass, self-approve, merge
+6. Create tag: `vX.Y.Z` on main
+7. Push tag — CI publishes to npm `--tag latest` automatically
+
+### Hotfix
+
+1. Cut `hotfix/X.Y.Z` from main (not dev)
+2. Apply fix
+3. Bump: `npm version patch --no-git-tag-version`
+4. Update CHANGELOG.md
+5. Commit: `"X.Y.Z"`
+6. Open PR: `hotfix/X.Y.Z` -> `main`
+   - Push additional fix commits to the same branch if issues are found pre-merge
+   - No tags on the hotfix branch — no publish is triggered until after merge
+7. CI checks pass, self-approve, merge into main
+8. Create tag: `vX.Y.Z` on main
+9. Push tag — CI publishes to npm `--tag latest` automatically
+10. Sync fix back to dev: `git switch dev && git merge --ff-only main && git push origin dev`
 
 ---
 
 ## npm Publishing
 
-### Release Candidate
-```bash
-npm publish --tag rc
-```
-Users install RCs explicitly: `npm install pg-schemata@rc`
+Publishing is CI-driven via tag push — never run `npm publish` manually.
 
-### Final Release
-```bash
-npm publish --tag latest
-```
-This is what users get with `npm install pg-schemata`.
+| Tag pattern | Workflow | npm dist-tag |
+|-------------|----------|--------------|
+| `vX.Y.Z-rc.N` | `publish-rc.yml` | `rc` |
+| `vX.Y.Z` | `publish-release.yml` | `latest` |
+
+Users install RCs explicitly: `npm install pg-schemata@rc`
 
 ### Verification
 ```bash
@@ -138,8 +177,34 @@ npm view pg-schemata dist-tags
 ## Post-Release
 
 1. Sync dev with main: `git switch dev && git merge --ff-only main && git push origin dev`
+   - If dev has diverged: `git switch dev && git merge main && git push origin dev`
 2. Update documentation if applicable: `npm run docs`
 3. Monitor for issues
+
+---
+
+## GitHub Repository Settings
+
+These settings must be configured manually in the GitHub repository.
+
+### Branch Protection: `main`
+
+- [ ] Require a pull request before merging
+- [ ] Require status checks to pass before merging (require the `CI` workflow)
+- [ ] Do not allow bypassing the above settings
+
+### Branch Protection: `dev`
+
+- [ ] Require a pull request before merging
+- [ ] Require status checks to pass before merging (require the `CI` workflow)
+
+### General Settings
+
+- [ ] Enable "Automatically delete head branches"
+
+### Secrets
+
+- [ ] `NPM_TOKEN` — npm access token with publish permissions, added to repository secrets
 
 ---
 
@@ -152,5 +217,9 @@ npm view pg-schemata dist-tags
 5. Tag format: `vX.Y.Z` (with `v` prefix)
 6. Always run the pre-flight checklist before any release
 7. After promoting to main, always sync dev back with `--ff-only` (or regular merge if dev has diverged)
-8. Never publish directly from a feature branch
+8. Never publish directly from a feature branch or hotfix branch
 9. RC publishes use `--tag rc`; final publishes use `--tag latest`
+10. Every merge into main must go through a PR with passing CI checks
+11. Every merge into dev from a feature branch must go through a PR with passing CI checks
+12. Tags are created only after a PR is merged — never on a branch pre-merge (RC tags on release branches are the only exception)
+13. npm publishes are CI-driven via tag push — never run `npm publish` manually
