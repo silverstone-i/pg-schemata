@@ -185,7 +185,7 @@ console.log(`Applied ${applied.length} migration(s)`);
 
 ## 🛠️ Planned Enhancements
 
-See [Planned Enhancements](./design_docs/PlannedEnhancements.md). Suggestions welcome!!! 🙂
+See the [Roadmap](./prd/PRD.md#8-roadmap) in the PRD. Suggestions welcome!!! 🙂
 
 ---
 
