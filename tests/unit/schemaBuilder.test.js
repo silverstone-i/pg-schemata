@@ -88,6 +88,94 @@ describe('Schema Utilities', () => {
       expect(normalizeSQL(sql)).toMatch(/CONSTRAINT "fk_posts_[a-z0-9]{6}" FOREIGN KEY \("user_id", "tenant_id"\) REFERENCES "public"\."users" \("id", "tenant_id"\)/);
     });
 
+    it('should resolve cross-schema FK target via dotted references.table', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['country_id'],
+              references: { table: 'admin.countries', columns: ['id'] },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
+    });
+
+    it('should resolve cross-schema FK target via explicit references.schema', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['country_id'],
+              references: { schema: 'admin', table: 'countries', columns: ['id'] },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
+    });
+
+    it('should fall back to own schemaName for bare same-schema FK references', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'user_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['user_id'],
+              references: { table: 'users', columns: ['id'] },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "public"\."users"/);
+    });
+
+    it('should let dotted references.table win when both dotted form and schema are supplied', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['country_id'],
+              references: { schema: 'ignored', table: 'admin.countries', columns: ['id'] },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
+    });
+
     it('should throw an error for invalid foreign key reference', () => {
       const schema = {
         schemaName: 'public',

@@ -149,7 +149,14 @@ function createTableSQL(schema, logger = null) {
       const hash = createHash(table + fk.references.table + fk.columns.join('_'));
       const constraintName = `fk_${table}_${hash}`;
 
-      const [refSchema, refTable] = fk.references.table.includes('.') ? fk.references.table.split('.') : [schemaName, fk.references.table];
+      let refSchema;
+      let refTable;
+      if (fk.references.table.includes('.')) {
+        [refSchema, refTable] = fk.references.table.split('.');
+      } else {
+        refSchema = fk.references.schema ?? schemaName;
+        refTable = fk.references.table;
+      }
 
       tableConstraints.push(`CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` + `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` + (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') + (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : ''));
     }
