@@ -176,6 +176,24 @@ describe('Schema Utilities', () => {
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
     });
 
+    it('should produce identical constraint names for dotted FKs regardless of references.schema', () => {
+      const baseSchema = (refs) => ({
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: { foreignKeys: [{ columns: ['country_id'], references: refs }] },
+      });
+
+      const sqlWithoutSchema = createTableSQL(baseSchema({ table: 'admin.countries', columns: ['id'] }));
+      const sqlWithIgnoredSchema = createTableSQL(baseSchema({ schema: 'ignored', table: 'admin.countries', columns: ['id'] }));
+
+      const nameOf = sql => sql.match(/CONSTRAINT "(fk_orders_[a-z0-9]{6})"/)[1];
+      expect(nameOf(sqlWithoutSchema)).toBe(nameOf(sqlWithIgnoredSchema));
+    });
+
     it('should throw on a multi-dot references.table value', () => {
       const schema = {
         schemaName: 'tenant_a',

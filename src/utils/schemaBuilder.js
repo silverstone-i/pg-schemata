@@ -146,9 +146,10 @@ function createTableSQL(schema, logger = null) {
         throw new SchemaDefinitionError(`Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`);
       }
 
+      const isDotted = fk.references.table.includes('.');
       let refSchema;
       let refTable;
-      if (fk.references.table.includes('.')) {
+      if (isDotted) {
         const dotIdx = fk.references.table.indexOf('.');
         const left = fk.references.table.slice(0, dotIdx);
         const right = fk.references.table.slice(dotIdx + 1);
@@ -162,7 +163,11 @@ function createTableSQL(schema, logger = null) {
         refTable = fk.references.table;
       }
 
-      const hash = createHash(table + fk.references.table + (fk.references.schema ?? '') + fk.columns.join('_'));
+      // Hash only mixes in references.schema when it actually drives resolution
+      // (i.e. the table is not dotted). Dotted form ignores references.schema, so
+      // it must not affect the constraint name either.
+      const hashSchemaPart = !isDotted && fk.references.schema ? fk.references.schema : '';
+      const hash = createHash(table + fk.references.table + hashSchemaPart + fk.columns.join('_'));
       const constraintName = `fk_${table}_${hash}`;
 
       tableConstraints.push(`CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` + `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` + (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') + (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : ''));

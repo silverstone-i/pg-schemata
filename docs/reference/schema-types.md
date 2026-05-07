@@ -99,6 +99,9 @@ interface ConstraintDefinition {
   type: 'PrimaryKey' | 'ForeignKey' | 'Unique' | 'Check' | 'Index';
   columns: string[];
   references?: { table: string; columns: string[]; schema?: string };
+  // For foreign keys. `schema` qualifies the target schema; alternatively,
+  // `table` may be dotted (e.g. 'admin.countries'), which takes precedence
+  // over `schema` when both are supplied.
   onDelete?: string;
   expression?: string;
 }
