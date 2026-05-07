@@ -178,7 +178,7 @@ npm view pg-schemata dist-tags
 
 1. Sync dev with main: `git switch dev && git merge --ff-only main && git push origin dev`
    - If dev has diverged: `git switch dev && git merge main && git push origin dev`
-2. Update documentation if applicable: `npm run docs`
+2. Update documentation if applicable: `npm run docs:build`
 3. Monitor for issues
 
 ---
