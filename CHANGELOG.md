@@ -4,7 +4,22 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `bdc0054`
+Latest commit: `bd52f65`
+
+---
+
+## [v1.3.2] - 2026-05-07
+
+### 🐛 Fixes
+
+- **Cross-Schema Foreign Keys**: `createTableSQL` now honors a target schema on foreign key constraints
+  - Add optional `references.schema` to `ConstraintDefinition` for explicit cross-schema FK targets
+  - Bare `references.table` falls back to `references.schema` (or the owning schema if absent)
+  - Dotted `references.table` (e.g. `'admin.countries'`) still takes precedence when both forms are supplied
+
+### 🛠 Chores
+
+- **Dependencies**: Update `@nap-sft/tablsx` to `0.1.3`
 
 ---
 

@@ -98,7 +98,7 @@ A single constraint definition.
 interface ConstraintDefinition {
   type: 'PrimaryKey' | 'ForeignKey' | 'Unique' | 'Check' | 'Index';
   columns: string[];
-  references?: { table: string; columns: string[] };
+  references?: { table: string; columns: string[]; schema?: string };
   onDelete?: string;
   expression?: string;
 }
