@@ -16,6 +16,9 @@ Latest commit: `bd52f65`
   - Add optional `references.schema` to `ConstraintDefinition` for explicit cross-schema FK targets
   - Bare `references.table` falls back to `references.schema` (or the owning schema if absent)
   - Dotted `references.table` (e.g. `'admin.countries'`) still takes precedence when both forms are supplied
+  - Constraint-name hash now incorporates `references.schema` when present, preventing collisions for FKs differing only by target schema (existing constraint names unchanged for bare/dotted forms)
+  - Multi-dot `references.table` values (e.g. `'a.b.c'`) now throw `SchemaDefinitionError` instead of silently truncating
+  - `createTableSQL` accepts `schemaName` as an alias for `dbSchema`, matching `createIndexesSQL`
 
 ### 🛠 Chores
 

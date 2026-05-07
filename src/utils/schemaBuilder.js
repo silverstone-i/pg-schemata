@@ -70,7 +70,7 @@ function resolveIndexes(schema) {
 function createTableSQL(schema, logger = null) {
   // Extract schema components: schema name, table name, columns, and constraints
   const { dbSchema, table, columns, constraints = {} } = schema;
-  const schemaName = dbSchema || 'public';
+  const schemaName = dbSchema || schema.schemaName || 'public';
 
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
@@ -146,17 +146,24 @@ function createTableSQL(schema, logger = null) {
         throw new SchemaDefinitionError(`Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`);
       }
 
-      const hash = createHash(table + fk.references.table + fk.columns.join('_'));
-      const constraintName = `fk_${table}_${hash}`;
-
       let refSchema;
       let refTable;
       if (fk.references.table.includes('.')) {
-        [refSchema, refTable] = fk.references.table.split('.');
+        const dotIdx = fk.references.table.indexOf('.');
+        const left = fk.references.table.slice(0, dotIdx);
+        const right = fk.references.table.slice(dotIdx + 1);
+        if (!left || !right || right.includes('.')) {
+          throw new SchemaDefinitionError(`Invalid foreign key reference for table ${table}: expected '<schema>.<table>', got '${fk.references.table}'`);
+        }
+        refSchema = left;
+        refTable = right;
       } else {
         refSchema = fk.references.schema ?? schemaName;
         refTable = fk.references.table;
       }
+
+      const hash = createHash(table + fk.references.table + (fk.references.schema ?? '') + fk.columns.join('_'));
+      const constraintName = `fk_${table}_${hash}`;
 
       tableConstraints.push(`CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` + `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` + (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') + (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : ''));
     }
