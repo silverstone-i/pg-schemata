@@ -176,6 +176,87 @@ describe('Schema Utilities', () => {
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
     });
 
+    it('should produce identical constraint names for dotted FKs regardless of references.schema', () => {
+      const baseSchema = (refs) => ({
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: { foreignKeys: [{ columns: ['country_id'], references: refs }] },
+      });
+
+      const sqlWithoutSchema = createTableSQL(baseSchema({ table: 'admin.countries', columns: ['id'] }));
+      const sqlWithIgnoredSchema = createTableSQL(baseSchema({ schema: 'ignored', table: 'admin.countries', columns: ['id'] }));
+
+      const nameOf = sql => sql.match(/CONSTRAINT "(fk_orders_[a-z0-9]{6})"/)[1];
+      expect(nameOf(sqlWithoutSchema)).toBe(nameOf(sqlWithIgnoredSchema));
+    });
+
+    it('should throw on a multi-dot references.table value', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['country_id'],
+              references: { table: 'a.b.c', columns: ['id'] },
+            },
+          ],
+        },
+      };
+
+      expect(() => createTableSQL(schema)).toThrow(/expected '<schema>\.<table>'/);
+    });
+
+    it('should produce distinct constraint names for FKs differing only by references.schema', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'a_country_id', type: 'int', notNull: true },
+          { name: 'b_country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            { columns: ['a_country_id'], references: { schema: 'admin', table: 'countries', columns: ['id'] } },
+            { columns: ['b_country_id'], references: { schema: 'archive', table: 'countries', columns: ['id'] } },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+      const names = [...sql.matchAll(/CONSTRAINT "(fk_orders_[a-z0-9]{6})"/g)].map(m => m[1]);
+      expect(names).toHaveLength(2);
+      expect(names[0]).not.toBe(names[1]);
+    });
+
+    it('should resolve bare references.table against non-public owning schemaName', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'user_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            { columns: ['user_id'], references: { table: 'users', columns: ['id'] } },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "tenant_a"\."users"/);
+    });
+
     it('should throw an error for invalid foreign key reference', () => {
       const schema = {
         schemaName: 'public',
