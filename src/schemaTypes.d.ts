@@ -43,7 +43,7 @@ export interface ColumnDefinition {
  *
  * @property {'PrimaryKey'|'ForeignKey'|'Unique'|'Check'|'Index'} type - Type of constraint.
  * @property {Array<string>} columns - List of column names the constraint applies to.
- * @property {{ table: string, columns: Array<string> }} [references] - For foreign keys.
+ * @property {{ table: string, columns: Array<string>, schema?: string }} [references] - For foreign keys. `schema` qualifies the target schema; alternatively, `table` may be dotted (e.g. `'admin.foo'`), which takes precedence.
  * @property {string} [onDelete] - Optional ON DELETE behavior (e.g., 'CASCADE').
  * @property {string} [expression] - SQL expression for check constraints.
  */
@@ -53,6 +53,7 @@ export interface ConstraintDefinition {
   references?: {
     table: string;
     columns: string[];
+    schema?: string;
   };
   onDelete?: string;
   expression?: string;
