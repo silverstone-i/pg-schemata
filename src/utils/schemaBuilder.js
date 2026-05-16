@@ -542,10 +542,12 @@ function createColumnSet(schema, pgp, logger = null) {
   });
 
   // Create separate ColumnSet variants for insert and update to include audit fields.
-  // The insert variant carries both `created_by` and `updated_by` so the new mirror-on-
-  // insert behavior in TableModel.insert/bulkInsert actually persists `updated_by` —
-  // pg-promise omits any column not in the ColumnSet, so the DTO assignment alone
-  // wouldn't reach the SQL.
+  // The insert variant carries both `created_by` and `updated_by` so the mirror-on-
+  // insert behavior in TableModel.insert() (which uses this.cs.insert) actually
+  // persists `updated_by` — pg-promise omits any column not in the ColumnSet, so
+  // the DTO assignment alone wouldn't reach the SQL.
+  // bulkInsert() builds its own ColumnSet from the safeRecords keys and does not
+  // depend on this cs.insert.
   if (hasAuditFields) {
     cs.insert = cs[schema.table].extend(['created_by', 'updated_by']);
     cs.update = cs[schema.table].extend([

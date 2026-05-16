@@ -74,6 +74,22 @@ class TableModel extends QueryModel {
   }
 
   /**
+   * True when this table's schema enables audit fields. `hasAuditFields` may
+   * be either a boolean or an object `{ enabled, userFields?, ... }`; this
+   * helper normalizes both shapes so CRUD paths agree with addAuditFields()
+   * and createColumnSet() (which both gate on === true / .enabled === true).
+   *
+   * @returns {boolean}
+   * @private
+   */
+  _auditEnabled() {
+    const cfg = this._schema.hasAuditFields;
+    if (cfg === true) return true;
+    if (cfg && typeof cfg === 'object') return cfg.enabled === true;
+    return false;
+  }
+
+  /**
    * Inserts a single row into the table after validation and sanitization.
    * @param {Object} dto - Data to insert.
    * @returns {Promise<Object>} The inserted row.
@@ -106,7 +122,7 @@ class TableModel extends QueryModel {
     if (Object.keys(safeDto).length === 0) {
       return Promise.reject(new SchemaDefinitionError('DTO must contain at least one valid column'));
     }
-    if (this._schema.hasAuditFields) {
+    if (this._auditEnabled()) {
       if (!Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
         safeDto.created_by = this._resolveAuditActor();
       }
@@ -182,7 +198,7 @@ class TableModel extends QueryModel {
       return Promise.reject(error);
     }
     const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
-    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
+    if (this._auditEnabled() && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
       safeDto.updated_by = this._resolveAuditActor();
     }
     const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
@@ -222,7 +238,7 @@ class TableModel extends QueryModel {
     }
 
     const safeDto = this.sanitizeDto(dto);
-    if (this._schema.hasAuditFields) {
+    if (this._auditEnabled()) {
       if (!Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
         safeDto.created_by = this._resolveAuditActor();
       }
@@ -235,11 +251,11 @@ class TableModel extends QueryModel {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
 
-    const auditExclude = this._schema.hasAuditFields ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
+    const auditExclude = this._auditEnabled() ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
     const columnsToUpdate = (updateColumns || Object.keys(safeDto).filter(col => !conflictColumns.includes(col) && col !== 'id'))
       .filter(col => !auditExclude.includes(col));
 
-    const auditUpdate = this._schema.hasAuditFields ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
+    const auditUpdate = this._auditEnabled() ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
     const setParts = [
       ...(columnsToUpdate.length ? [columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ')] : []),
       ...(auditUpdate ? [auditUpdate] : []),
@@ -284,7 +300,7 @@ class TableModel extends QueryModel {
 
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
-      if (this._schema.hasAuditFields) {
+      if (this._auditEnabled()) {
         if (!Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
           sanitized.created_by = this._resolveAuditActor();
         }
@@ -299,11 +315,11 @@ class TableModel extends QueryModel {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
 
-    const auditExclude = this._schema.hasAuditFields ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
+    const auditExclude = this._auditEnabled() ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
     const columnsToUpdate = (updateColumns || Object.keys(safeRecords[0]).filter(col => !conflictColumns.includes(col) && col !== 'id'))
       .filter(col => !auditExclude.includes(col));
 
-    const auditUpdate = this._schema.hasAuditFields ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
+    const auditUpdate = this._auditEnabled() ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
     const setParts = [
       ...(columnsToUpdate.length ? [columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ')] : []),
       ...(auditUpdate ? [auditUpdate] : []),
@@ -410,7 +426,7 @@ class TableModel extends QueryModel {
 
     const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
 
-    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeUpdates, 'updated_by')) {
+    if (this._auditEnabled() && !Object.prototype.hasOwnProperty.call(safeUpdates, 'updated_by')) {
       safeUpdates.updated_by = this._resolveAuditActor();
     }
     const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
@@ -457,7 +473,7 @@ class TableModel extends QueryModel {
 
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
-      if (this._schema.hasAuditFields) {
+      if (this._auditEnabled()) {
         if (!Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
           sanitized.created_by = this._resolveAuditActor();
         }
@@ -534,7 +550,7 @@ class TableModel extends QueryModel {
         throw new SchemaDefinitionError(`Invalid ID in record: ${JSON.stringify(dto)}`);
       }
       const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
-      if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
+      if (this._auditEnabled() && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
       safeDto.updated_by = this._resolveAuditActor();
     }
       delete safeDto.id;
@@ -649,7 +665,7 @@ class TableModel extends QueryModel {
     clause = `${prefix}${softCheck}`;
 
     let setClause = 'deactivated_at = NOW()';
-    if (this._schema.hasAuditFields) {
+    if (this._auditEnabled()) {
       const actor = this._resolveAuditActor();
       if (actor != null) {
         values.push(actor);
@@ -673,7 +689,7 @@ class TableModel extends QueryModel {
     const { clause, values } = this.buildWhereClause(where, true, [], 'AND', true);
 
     let setClause = 'deactivated_at = NULL';
-    if (this._schema.hasAuditFields) {
+    if (this._auditEnabled()) {
       const actor = this._resolveAuditActor();
       if (actor != null) {
         values.push(actor);
