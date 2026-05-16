@@ -33,6 +33,8 @@ export default [
       "node_modules/**",
       "pg-schemata-docs/**",
       "Examples/**",
+      "docs/.vitepress/dist/**",
+      "docs/.vitepress/cache/**",
     ],
   },
   {
