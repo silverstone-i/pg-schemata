@@ -4,7 +4,24 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `bd52f65`
+Latest commit: `7194475`
+
+---
+
+## [v1.3.3] - 2026-05-15
+
+### 🐛 Fixes
+
+- **Audit Fields on Insert**: `insert` and `bulkInsert` now auto-fill `updated_by` when audit fields are enabled, matching the behavior of `update`/`bulkUpdate` and `upsert`/`bulkUpsert`
+
+### 🛠 Chores
+
+- **TypeScript Config**: Set `moduleResolution` to `Bundler` in `tsconfig.json`
+- **ESLint**: Ignore `docs/.vitepress/dist` and `docs/.vitepress/cache` build output
+
+### 🎨 Style
+
+- Reformat `src/TableModel.js` (no behavior changes)
 
 ---
 
