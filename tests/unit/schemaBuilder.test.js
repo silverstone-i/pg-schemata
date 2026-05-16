@@ -815,7 +815,9 @@ describe('Schema Utilities', () => {
       expect(columnSet).toHaveProperty('insert');
       expect(columnSet).toHaveProperty('update');
       expect(mockExtend).toHaveBeenCalledTimes(2);
-      expect(columnSet.insert.extendedWith).toContain('created_by');
+      expect(columnSet.insert.extendedWith).toEqual(
+        expect.arrayContaining(['created_by', 'updated_by']),
+      );
       expect(columnSet.update.extendedWith).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

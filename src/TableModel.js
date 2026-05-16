@@ -74,6 +74,22 @@ class TableModel extends QueryModel {
   }
 
   /**
+   * True when this table's schema enables audit fields. `hasAuditFields` may
+   * be either a boolean or an object `{ enabled, userFields?, ... }`; this
+   * helper normalizes both shapes so CRUD paths agree with addAuditFields()
+   * and createColumnSet() (which both gate on === true / .enabled === true).
+   *
+   * @returns {boolean}
+   * @private
+   */
+  _auditEnabled() {
+    const cfg = this._schema.hasAuditFields;
+    if (cfg === true) return true;
+    if (cfg && typeof cfg === 'object') return cfg.enabled === true;
+    return false;
+  }
+
+  /**
    * Inserts a single row into the table after validation and sanitization.
    * @param {Object} dto - Data to insert.
    * @returns {Promise<Object>} The inserted row.
@@ -106,8 +122,16 @@ class TableModel extends QueryModel {
     if (Object.keys(safeDto).length === 0) {
       return Promise.reject(new SchemaDefinitionError('DTO must contain at least one valid column'));
     }
-    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
-      safeDto.created_by = this._resolveAuditActor();
+    if (this._auditEnabled()) {
+      if (!Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
+        safeDto.created_by = this._resolveAuditActor();
+      }
+      // Mirror created_by → updated_by on initial insert so both audit
+      // columns are populated consistently. Matches the pattern upsert()
+      // already follows. Callers can still override updated_by explicitly.
+      if (!Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
+        safeDto.updated_by = safeDto.created_by;
+      }
     }
     let query;
     try {
@@ -137,7 +161,7 @@ class TableModel extends QueryModel {
     const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1${softCheck}`;
     try {
-      return await this.db.result(query, [id], r => r.rowCount);
+      return await this.db.result(query, [id], (r) => r.rowCount);
     } catch (err) {
       this.handleDbError(err);
     }
@@ -174,7 +198,7 @@ class TableModel extends QueryModel {
       return Promise.reject(error);
     }
     const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
-    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
+    if (this._auditEnabled() && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
       safeDto.updated_by = this._resolveAuditActor();
     }
     const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
@@ -188,7 +212,7 @@ class TableModel extends QueryModel {
       condition +
       ' RETURNING *';
     try {
-      const result = await this.db.result(query, undefined, r => ({
+      const result = await this.db.result(query, undefined, (r) => ({
         rowCount: r.rowCount,
         row: r.rows?.[0] ?? null,
       }));
@@ -214,7 +238,7 @@ class TableModel extends QueryModel {
     }
 
     const safeDto = this.sanitizeDto(dto);
-    if (this._schema.hasAuditFields) {
+    if (this._auditEnabled()) {
       if (!Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
         safeDto.created_by = this._resolveAuditActor();
       }
@@ -227,13 +251,14 @@ class TableModel extends QueryModel {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
 
-    const auditExclude = this._schema.hasAuditFields ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
-    const columnsToUpdate = (updateColumns || Object.keys(safeDto).filter(col => !conflictColumns.includes(col) && col !== 'id'))
-      .filter(col => !auditExclude.includes(col));
+    const auditExclude = this._auditEnabled() ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
+    const columnsToUpdate = (updateColumns || Object.keys(safeDto).filter((col) => !conflictColumns.includes(col) && col !== 'id')).filter(
+      (col) => !auditExclude.includes(col),
+    );
 
-    const auditUpdate = this._schema.hasAuditFields ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
+    const auditUpdate = this._auditEnabled() ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
     const setParts = [
-      ...(columnsToUpdate.length ? [columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ')] : []),
+      ...(columnsToUpdate.length ? [columnsToUpdate.map((col) => `${col} = EXCLUDED.${col}`).join(', ')] : []),
       ...(auditUpdate ? [auditUpdate] : []),
     ];
 
@@ -274,9 +299,9 @@ class TableModel extends QueryModel {
       throw new SchemaDefinitionError('Expected returning to be an array of column names');
     }
 
-    const safeRecords = records.map(dto => {
+    const safeRecords = records.map((dto) => {
       const sanitized = this.sanitizeDto(dto);
-      if (this._schema.hasAuditFields) {
+      if (this._auditEnabled()) {
         if (!Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
           sanitized.created_by = this._resolveAuditActor();
         }
@@ -291,13 +316,14 @@ class TableModel extends QueryModel {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
 
-    const auditExclude = this._schema.hasAuditFields ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
-    const columnsToUpdate = (updateColumns || Object.keys(safeRecords[0]).filter(col => !conflictColumns.includes(col) && col !== 'id'))
-      .filter(col => !auditExclude.includes(col));
+    const auditExclude = this._auditEnabled() ? ['created_at', 'created_by', 'updated_at', 'updated_by'] : [];
+    const columnsToUpdate = (
+      updateColumns || Object.keys(safeRecords[0]).filter((col) => !conflictColumns.includes(col) && col !== 'id')
+    ).filter((col) => !auditExclude.includes(col));
 
-    const auditUpdate = this._schema.hasAuditFields ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
+    const auditUpdate = this._auditEnabled() ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
     const setParts = [
-      ...(columnsToUpdate.length ? [columnsToUpdate.map(col => `${col} = EXCLUDED.${col}`).join(', ')] : []),
+      ...(columnsToUpdate.length ? [columnsToUpdate.map((col) => `${col} = EXCLUDED.${col}`).join(', ')] : []),
       ...(auditUpdate ? [auditUpdate] : []),
     ];
 
@@ -315,11 +341,11 @@ class TableModel extends QueryModel {
     `;
 
     try {
-      return await this.db.tx(async t => {
+      return await this.db.tx(async (t) => {
         if (returning) {
           return await t.any(query);
         }
-        return await t.result(query, [], r => r.rowCount);
+        return await t.result(query, [], (r) => r.rowCount);
       });
     } catch (err) {
       this.handleDbError(err);
@@ -344,7 +370,7 @@ class TableModel extends QueryModel {
     }
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     try {
-      return await this.db.result(query, values, r => r.rowCount);
+      return await this.db.result(query, values, (r) => r.rowCount);
     } catch (err) {
       this.handleDbError(err);
     }
@@ -373,7 +399,7 @@ class TableModel extends QueryModel {
   async updateWhere(where, updates, options = {}) {
     const { includeDeactivated = false } = options;
 
-    const isNonEmpty = val => (Array.isArray(val) ? val.length > 0 : isPlainObject(val) ? Object.keys(val).length > 0 : false);
+    const isNonEmpty = (val) => (Array.isArray(val) ? val.length > 0 : isPlainObject(val) ? Object.keys(val).length > 0 : false);
 
     if (!isNonEmpty(where)) {
       throw new SchemaDefinitionError('WHERE clause must be a non-empty object or non-empty array');
@@ -402,7 +428,7 @@ class TableModel extends QueryModel {
 
     const safeUpdates = this.sanitizeDto(updates, { includeImmutable: false });
 
-    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeUpdates, 'updated_by')) {
+    if (this._auditEnabled() && !Object.prototype.hasOwnProperty.call(safeUpdates, 'updated_by')) {
       safeUpdates.updated_by = this._resolveAuditActor();
     }
     const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
@@ -415,7 +441,7 @@ class TableModel extends QueryModel {
 
     const query = `${setClause} WHERE ${clause}`;
     try {
-      const result = await this.db.result(query, values, r => r.rowCount);
+      const result = await this.db.result(query, values, (r) => r.rowCount);
       return result;
     } catch (err) {
       this.handleDbError(err);
@@ -447,10 +473,17 @@ class TableModel extends QueryModel {
       this.validateDto(records, this._schema.validators.insertValidator, 'Insert DTO');
     }
 
-    const safeRecords = records.map(dto => {
+    const safeRecords = records.map((dto) => {
       const sanitized = this.sanitizeDto(dto);
-      if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
-        sanitized.created_by = this._resolveAuditActor();
+      if (this._auditEnabled()) {
+        if (!Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
+          sanitized.created_by = this._resolveAuditActor();
+        }
+        // Mirror created_by → updated_by on insert so both audit columns are
+        // populated consistently (matches insert() and upsert()).
+        if (!Object.prototype.hasOwnProperty.call(sanitized, 'updated_by')) {
+          sanitized.updated_by = sanitized.created_by;
+        }
       }
       return sanitized;
     });
@@ -467,20 +500,21 @@ class TableModel extends QueryModel {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
 
-    const query = this.pgp.helpers.insert(safeRecords, cs) + (Array.isArray(returning) && returning.length > 0 ? ` RETURNING ${returning.join(', ')}` : '');
+    const query =
+      this.pgp.helpers.insert(safeRecords, cs) + (Array.isArray(returning) && returning.length > 0 ? ` RETURNING ${returning.join(', ')}` : '');
 
     try {
       if (tx) {
         if (returning) {
           return await tx.any(query);
         }
-        return await tx.result(query, [], r => r.rowCount);
+        return await tx.result(query, [], (r) => r.rowCount);
       } else {
-        return await this.db.tx(async t => {
+        return await this.db.tx(async (t) => {
           if (returning) {
             return await t.any(query);
           }
-          return await t.result(query, [], r => r.rowCount);
+          return await t.result(query, [], (r) => r.rowCount);
         });
       }
     } catch (err) {
@@ -513,15 +547,15 @@ class TableModel extends QueryModel {
       this.validateDto(records, this._schema.validators.updateValidator, 'Update DTO');
     }
 
-    const queries = records.map(dto => {
+    const queries = records.map((dto) => {
       const id = dto.id;
       if (!isValidId(id)) {
         throw new SchemaDefinitionError(`Invalid ID in record: ${JSON.stringify(dto)}`);
       }
       const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
-      if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
-      safeDto.updated_by = this._resolveAuditActor();
-    }
+      if (this._auditEnabled() && !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
+        safeDto.updated_by = this._resolveAuditActor();
+      }
       delete safeDto.id;
       const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
       const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
@@ -537,9 +571,11 @@ class TableModel extends QueryModel {
 
     try {
       if (tx) {
-        return await tx.batch(queries.map(q => (returning ? tx.any(q.query, [q.id]) : tx.result(q.query, [q.id], r => r.rowCount))));
+        return await tx.batch(queries.map((q) => (returning ? tx.any(q.query, [q.id]) : tx.result(q.query, [q.id], (r) => r.rowCount))));
       } else {
-        return await this.db.tx(async t => t.batch(queries.map(q => (returning ? t.any(q.query, [q.id]) : t.result(q.query, [q.id], r => r.rowCount)))));
+        return await this.db.tx(async (t) =>
+          t.batch(queries.map((q) => (returning ? t.any(q.query, [q.id]) : t.result(q.query, [q.id], (r) => r.rowCount)))),
+        );
       }
     } catch (err) {
       this.handleDbError(err);
@@ -576,7 +612,7 @@ class TableModel extends QueryModel {
       const cellRow = sheet.getRow(i);
 
       if (i === 0) {
-        headers = cellRow.map(cell => cell.value);
+        headers = cellRow.map((cell) => cell.value);
         continue;
       }
 
@@ -634,7 +670,7 @@ class TableModel extends QueryModel {
     clause = `${prefix}${softCheck}`;
 
     let setClause = 'deactivated_at = NOW()';
-    if (this._schema.hasAuditFields) {
+    if (this._auditEnabled()) {
       const actor = this._resolveAuditActor();
       if (actor != null) {
         values.push(actor);
@@ -643,7 +679,7 @@ class TableModel extends QueryModel {
     }
 
     const query = `UPDATE ${this.schemaName}.${this.tableName} SET ${setClause} WHERE ${clause}`;
-    return this.db.result(query, values, r => r.rowCount);
+    return this.db.result(query, values, (r) => r.rowCount);
   }
 
   /**
@@ -658,7 +694,7 @@ class TableModel extends QueryModel {
     const { clause, values } = this.buildWhereClause(where, true, [], 'AND', true);
 
     let setClause = 'deactivated_at = NULL';
-    if (this._schema.hasAuditFields) {
+    if (this._auditEnabled()) {
       const actor = this._resolveAuditActor();
       if (actor != null) {
         values.push(actor);
@@ -667,7 +703,7 @@ class TableModel extends QueryModel {
     }
 
     const query = `UPDATE ${this.schemaName}.${this.tableName} SET ${setClause} WHERE ${clause}`;
-    return this.db.result(query, values, r => r.rowCount);
+    return this.db.result(query, values, (r) => r.rowCount);
   }
 
   /**

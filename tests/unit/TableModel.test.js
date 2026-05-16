@@ -98,6 +98,40 @@ describe('TableModel (Unit)', () => {
         });
         await expect(model.insert({ invalid: 'value' })).rejects.toThrow('DTO must contain at least one valid column');
       });
+
+      test('mirrors created_by → updated_by when hasAuditFields and updated_by not supplied', async () => {
+        const auditSchema = {
+          ...mockSchema,
+          hasAuditFields: true,
+          columns: [...mockSchema.columns, { name: 'created_by' }, { name: 'updated_by' }],
+        };
+        const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
+        auditModel._resolveAuditActor = vi.fn(() => 'actor-uuid');
+        mockDb.one.mockResolvedValue({ id: 1 });
+
+        await auditModel.insert({ email: 'test@example.com' });
+
+        const dtoPassedToInsert = mockPgp.helpers.insert.mock.calls.at(-1)[0];
+        expect(dtoPassedToInsert.created_by).toBe('actor-uuid');
+        expect(dtoPassedToInsert.updated_by).toBe('actor-uuid');
+      });
+
+      test('preserves explicit updated_by when caller supplies it on insert', async () => {
+        const auditSchema = {
+          ...mockSchema,
+          hasAuditFields: true,
+          columns: [...mockSchema.columns, { name: 'created_by' }, { name: 'updated_by' }],
+        };
+        const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
+        auditModel._resolveAuditActor = vi.fn(() => 'actor-uuid');
+        mockDb.one.mockResolvedValue({ id: 1 });
+
+        await auditModel.insert({ email: 'test@example.com', updated_by: 'explicit-actor' });
+
+        const dtoPassedToInsert = mockPgp.helpers.insert.mock.calls.at(-1)[0];
+        expect(dtoPassedToInsert.created_by).toBe('actor-uuid');
+        expect(dtoPassedToInsert.updated_by).toBe('explicit-actor');
+      });
     });
 
     describe('Update', () => {
@@ -165,6 +199,34 @@ describe('TableModel (Unit)', () => {
 
       test('should throw if records is not an array', async () => {
         await expect(model.bulkInsert('invalid')).rejects.toThrow('Records must be a non-empty array');
+      });
+
+      test('mirrors created_by → updated_by on every record when hasAuditFields', async () => {
+        const auditSchema = {
+          ...mockSchema,
+          hasAuditFields: true,
+          columns: [...mockSchema.columns, { name: 'created_by' }, { name: 'updated_by' }],
+        };
+        const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
+        auditModel._resolveAuditActor = vi.fn(() => 'actor-uuid');
+        mockDb.tx = vi.fn(fn =>
+          fn({
+            none: mockDb.none,
+            result: mockDb.result,
+          })
+        );
+
+        await auditModel.bulkInsert([
+          { email: 'a@test.com' },
+          { email: 'b@test.com', updated_by: 'explicit-actor' },
+        ]);
+
+        const recordsPassedToInsert = mockPgp.helpers.insert.mock.calls.at(-1)[0];
+        expect(recordsPassedToInsert[0].created_by).toBe('actor-uuid');
+        expect(recordsPassedToInsert[0].updated_by).toBe('actor-uuid');
+        // Explicit updated_by on a single record is respected.
+        expect(recordsPassedToInsert[1].created_by).toBe('actor-uuid');
+        expect(recordsPassedToInsert[1].updated_by).toBe('explicit-actor');
       });
     });
 
