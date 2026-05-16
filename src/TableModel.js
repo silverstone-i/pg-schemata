@@ -106,8 +106,16 @@ class TableModel extends QueryModel {
     if (Object.keys(safeDto).length === 0) {
       return Promise.reject(new SchemaDefinitionError('DTO must contain at least one valid column'));
     }
-    if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
-      safeDto.created_by = this._resolveAuditActor();
+    if (this._schema.hasAuditFields) {
+      if (!Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
+        safeDto.created_by = this._resolveAuditActor();
+      }
+      // Mirror created_by → updated_by on initial insert so both audit
+      // columns are populated consistently. Matches the pattern upsert()
+      // already follows. Callers can still override updated_by explicitly.
+      if (!Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')) {
+        safeDto.updated_by = safeDto.created_by;
+      }
     }
     let query;
     try {
@@ -449,8 +457,15 @@ class TableModel extends QueryModel {
 
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
-      if (this._schema.hasAuditFields && !Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
-        sanitized.created_by = this._resolveAuditActor();
+      if (this._schema.hasAuditFields) {
+        if (!Object.prototype.hasOwnProperty.call(sanitized, 'created_by')) {
+          sanitized.created_by = this._resolveAuditActor();
+        }
+        // Mirror created_by → updated_by on insert so both audit columns are
+        // populated consistently (matches insert() and upsert()).
+        if (!Object.prototype.hasOwnProperty.call(sanitized, 'updated_by')) {
+          sanitized.updated_by = sanitized.created_by;
+        }
       }
       return sanitized;
     });
