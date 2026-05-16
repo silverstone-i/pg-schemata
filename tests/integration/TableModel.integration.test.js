@@ -207,6 +207,54 @@ describe('TableModel Integration', () => {
     expect(found.email).toBe('test@example.com');
   });
 
+  test('insert mirrors created_by → updated_by when caller omits updated_by', async () => {
+    // Regression: prior to the mirror-on-insert fix, updated_by was dropped
+    // entirely from the INSERT (ColumnSet only extended created_by), so this
+    // assertion would land null even though the application code intended to
+    // populate both columns. Reproduces end-to-end against a real DB.
+    const row = await model.insert({
+      email: 'mirror@example.com',
+      created_by: 'mirror-actor',
+      tenant_id: TENANT_ID,
+    });
+    const found = await model.findById(row.id);
+    expect(found.created_by).toBe('mirror-actor');
+    expect(found.updated_by).toBe('mirror-actor');
+  });
+
+  test('insert preserves explicit updated_by when caller supplies it', async () => {
+    const row = await model.insert({
+      email: 'mirror-explicit@example.com',
+      created_by: 'mirror-creator',
+      updated_by: 'mirror-updater',
+      tenant_id: TENANT_ID,
+    });
+    const found = await model.findById(row.id);
+    expect(found.created_by).toBe('mirror-creator');
+    expect(found.updated_by).toBe('mirror-updater');
+  });
+
+  test('bulkInsert mirrors created_by → updated_by per record', async () => {
+    const inserted = await model.bulkInsert(
+      [
+        { email: 'bulk-mirror-a@example.com', created_by: 'bulk-actor', tenant_id: TENANT_ID },
+        { email: 'bulk-mirror-b@example.com', created_by: 'bulk-actor', updated_by: 'bulk-explicit', tenant_id: TENANT_ID },
+      ],
+      ['id', 'email'],
+    );
+    const ids = inserted.map((r) => r.id);
+    const rows = await ctx.db.any(
+      `SELECT email, created_by, updated_by FROM "${model.schema.dbSchema}"."${model.schema.table}" WHERE id IN ($1:csv) ORDER BY email`,
+      [ids],
+    );
+    expect(rows[0].email).toBe('bulk-mirror-a@example.com');
+    expect(rows[0].created_by).toBe('bulk-actor');
+    expect(rows[0].updated_by).toBe('bulk-actor');     // mirrored
+    expect(rows[1].email).toBe('bulk-mirror-b@example.com');
+    expect(rows[1].created_by).toBe('bulk-actor');
+    expect(rows[1].updated_by).toBe('bulk-explicit');  // explicit wins
+  });
+
   test('manual update for user email', async () => {
     const user = await model.insert({
       email: 'manual@test.com',
