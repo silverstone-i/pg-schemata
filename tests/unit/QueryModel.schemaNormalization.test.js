@@ -93,3 +93,27 @@ describe('column defaults through the real ColumnSet (N3)', () => {
     expect(sql).toBe('insert into "public"."n3_defaults"("name","status") values(\'x\',\'o\'\'k\')');
   });
 });
+
+describe('buildValuesClause (issue 13)', () => {
+  beforeEach(() => {
+    columnSetCache.clear();
+  });
+
+  it('produces a VALUES clause from the table ColumnSet', () => {
+    const model = new QueryModel(stubDb, pgp, {
+      dbSchema: 'public',
+      table: 'bvc_rows',
+      hasAuditFields: false,
+      softDelete: false,
+      columns: [
+        { name: 'name', type: 'text', notNull: true },
+        { name: 'note', type: 'text' },
+      ],
+      constraints: { primaryKey: ['name'] },
+    });
+
+    expect(model.buildValuesClause([{ name: 'a', note: "o'k" }, { name: 'b', note: null }]))
+      .toBe("('a','o''k'),('b',null)");
+    expect(model.buildValuesClause([])).toBe('');
+  });
+});

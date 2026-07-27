@@ -410,7 +410,9 @@ class QueryModel {
    */
   buildValuesClause(data) {
     if (!Array.isArray(data) || data.length === 0) return '';
-    return this.pgp.helpers.values(data, this.cs);
+    // this.cs is the container { [table], insert, update }; helpers.values
+    // needs the ColumnSet itself (issue 13).
+    return this.pgp.helpers.values(data, this.cs[this._schema.table]);
   }
 
   /**
