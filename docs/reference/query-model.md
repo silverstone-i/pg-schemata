@@ -66,7 +66,7 @@ Finds rows matching conditions with full query options.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `conditions` | `Object[]` | `[]` | Array of condition objects |
+| `conditions` | `Object[] \| Object` | `[]` | Condition objects; a single plain object is treated as a one-element array |
 | `joinType` | `string` | `'AND'` | `'AND'` or `'OR'` |
 | `options.columnWhitelist` | `string[]` | `null` | Columns to return |
 | `options.filters` | `object` | `{}` | Additional filter object |
@@ -118,10 +118,12 @@ Counts rows matching conditions.
 
 | Parameter | Type | Default |
 |---|---|---|
-| `conditions` | `Object[]` | `[]` |
+| `conditions` | `Object[] \| Object` | `[]` |
 | `joinType` | `string` | `'AND'` |
 | `options.filters` | `object` | `{}` |
 | `options.includeDeactivated` | `boolean` | `false` |
+
+A single plain object is treated as a one-element array. Anything else throws `SchemaDefinitionError`.
 
 **Returns:** `Promise<number>`
 
@@ -177,7 +179,17 @@ Generates a SQL-safe VALUES clause using the model's ColumnSet.
 
 Escapes a column or table name using pg-promise.
 
+### forSchema(name)
+
+Returns a model bound to the given schema without mutating this instance. Clones are cached per `(instance, schema)` pair, and the returned model's ColumnSet is built for the target schema.
+
+**Returns:** This instance if already bound to `name`, otherwise a cached clone
+
 ### setSchemaName(name)
+
+::: warning Deprecated
+Mutates the instance in place and races under concurrent requests. Use `forSchema()`.
+:::
 
 Changes the PostgreSQL schema and regenerates the ColumnSet.
 
@@ -185,7 +197,7 @@ Changes the PostgreSQL schema and regenerates the ColumnSet.
 
 ### reload(id, options?)
 
-Reloads a record by ID. Alias for `findById`.
+Reloads a record by ID. Pass `{ includeDeactivated: true }` to include soft-deleted records; `findById` does not take options.
 
 ### exportToSpreadsheet(filePath, where?, joinType?, options?)
 

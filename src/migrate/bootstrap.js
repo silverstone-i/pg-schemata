@@ -52,9 +52,9 @@ export async function bootstrap({ models, schema = 'public', extensions = ['pgcr
       const ModelClass = models[key];
       // Skip values that are not classes
       if (typeof ModelClass !== 'function') continue;
-      const instance = new ModelClass(t, DB.pgp);
-      if (schema && typeof instance.setSchemaName === 'function') {
-        instance.setSchemaName(schema);
+      let instance = new ModelClass(t, DB.pgp);
+      if (schema && typeof instance.forSchema === 'function') {
+        instance = instance.forSchema(schema);
       }
       if (typeof instance.createTable === 'function') {
         await instance.createTable();

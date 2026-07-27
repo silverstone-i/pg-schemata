@@ -22,7 +22,10 @@ export async function createTestContext(schema, seed = null) {
 
   // console.log(`🧪 Using schema: ${schemaCopy.dbSchema}`);
   await db.none(`DROP SCHEMA IF EXISTS "${schemaCopy.dbSchema}" CASCADE; CREATE SCHEMA IF NOT EXISTS "${schemaCopy.dbSchema}"`);
-  await db.none(createTableSQL(schemaCopy));
+  // Build the table from the model's normalized schema (audit + soft-delete
+  // columns applied). The harness previously passed schemaCopy here and only
+  // worked because the constructor used to mutate it as a side effect.
+  await db.none(createTableSQL(db.model.schema));
 
   if (typeof seed === 'function') {
     await seed(db);

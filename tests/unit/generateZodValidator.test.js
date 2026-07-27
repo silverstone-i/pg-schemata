@@ -124,4 +124,44 @@ describe('generateZodFromTableSchema', () => {
     });
     expect(invalid.success).toBe(false);
   });
+
+  it('validates integer, bigint, timestamptz, numeric(p,s) and bare varchar instead of z.any() (suggestion 3)', () => {
+    const schema = {
+      table: 'wide_types',
+      columns: [
+        { name: 'a_integer', type: 'integer', notNull: true },
+        { name: 'a_bigint', type: 'bigint', notNull: true },
+        { name: 'a_smallint', type: 'smallint', notNull: true },
+        { name: 'a_tstz', type: 'timestamptz', notNull: true },
+        { name: 'a_numeric', type: 'numeric(10,2)', notNull: true },
+        { name: 'a_varchar', type: 'varchar', notNull: true },
+        { name: 'a_double', type: 'double precision', notNull: true },
+      ],
+      constraints: {},
+    };
+
+    const { insertValidator } = generateZodFromTableSchema(schema);
+
+    expect(insertValidator.safeParse({
+      a_integer: 1,
+      a_bigint: '9007199254740993',
+      a_smallint: 2,
+      a_tstz: '2026-01-01T00:00:00Z',
+      a_numeric: 1.25,
+      a_varchar: 'x',
+      a_double: 0.5,
+    }).success).toBe(true);
+
+    // The review's repro: garbage previously passed because every one of
+    // these types fell through to z.any().
+    expect(insertValidator.safeParse({
+      a_integer: 'NOT A NUMBER',
+      a_bigint: {},
+      a_smallint: [],
+      a_tstz: 'garbage',
+      a_numeric: 'NaN-ish',
+      a_varchar: 42,
+      a_double: 'zero',
+    }).success).toBe(false);
+  });
 });

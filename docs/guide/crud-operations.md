@@ -157,3 +157,28 @@ await db().users.truncate();
 ```
 
 Runs `TRUNCATE TABLE ... RESTART IDENTITY CASCADE`.
+
+## Transactions
+
+Every mutating method accepts `options.tx`, a pg-promise task or transaction context. All statements from that call run on the supplied context:
+
+```js
+await db().tx(async (t) => {
+  const user = await db().users.insert(req.body, { tx: t });
+  await db().profiles.insert({ user_id: user.id }, { tx: t });
+  // both statements commit or roll back together
+});
+```
+
+pg-promise also re-attaches every registered repository to each task and transaction context, so `t.<repo>` is bound to the transaction without any option:
+
+```js
+await db().tx(async (t) => {
+  const user = await t.users.insert(req.body);
+  await t.profiles.insert({ user_id: user.id });
+});
+```
+
+::: warning Deprecated
+Assigning `model.tx = t` also works and is now honored by every mutating method (previously only the bulk methods read it, so a mixed flow was only half-transactional). It mutates shared state, though — on a repository shared across requests the assignment leaks between them. Prefer `options.tx` or `t.<repo>`. Removal is planned for 2.0.0.
+:::

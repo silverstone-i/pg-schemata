@@ -23,6 +23,11 @@ import { logMessage } from './pg-util.js';
 
 const columnSetCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
 // Cache for storing generated ColumnSets to avoid redundant computations
+
+// Raw-type sentinel used as the ColumnSet `def` for columns with a SQL
+// default: pg-promise emits the bare DEFAULT keyword when the property is
+// missing from the DTO, letting Postgres apply the column default.
+const RAW_DEFAULT = { rawType: true, toPostgres: () => 'DEFAULT' };
 // and improve performance
 /**
  * Creates a short MD5-based hash of the input string.
@@ -84,23 +89,15 @@ function createTableSQL(schema, logger = null) {
     if (col.default !== undefined) {
       let defaultValue = col.default;
       if (typeof defaultValue === 'string') {
-        const builtins = new Set(['now', 'current_timestamp']);
-
-        defaultValue = defaultValue.replace(/\b([a-z_][a-z0-9_]*)\s*\(\)/gi, (match, fnName) => {
-          if (builtins.has(fnName.toLowerCase()) || /\b\w+\.\w+\(\)/.test(match)) {
-            return match;
-          }
-          // Don't add schema prefix - PostgreSQL will find functions in the search_path
-          return match;
-        });
-
         // Quote unquoted, non-function, non-numeric strings
         const isSQLFunction = /\b\w+\(.*\)/.test(defaultValue);
         const isNumeric = /^-?\d+(\.\d+)?$/.test(defaultValue);
         // Also check for quoted strings with type casts like '{}'::uuid[]
         const isQuotedWithCast = /^'.*'::\w+/.test(defaultValue);
         if (!isSQLFunction && !isNumeric && !isQuotedWithCast && !/^'.*'$/.test(defaultValue)) {
-          defaultValue = `'${defaultValue}'`;
+          // Escape embedded quotes so a legitimate default like O'Brien
+          // produces valid DDL (issue 7).
+          defaultValue = `'${defaultValue.replace(/'/g, "''")}'`;
         }
       }
       def += ` DEFAULT ${defaultValue}`;
@@ -220,9 +217,6 @@ function createTableSQL(schema, logger = null) {
     data: { sql: finalSQL },
   });
 
-  // if (table === 'costlines') {
-  //   console.log('costlines sql', finalSQL);
-  // }
   return finalSQL;
 }
 
@@ -272,6 +266,13 @@ function addAuditFields(schema) {
       type: userFieldsConfig.type,
     };
 
+    // The userFields config option `nullable` previously went nowhere: DDL
+    // generation reads notNull, so non-nullable user fields were created
+    // nullable anyway (N6).
+    if (userFieldsConfig.nullable === false) {
+      userFieldDef.notNull = true;
+    }
+
     // Add default value
     // For backward compatibility, always default to 'system' for boolean format
     if (userFieldsConfig.default !== null) {
@@ -308,13 +309,25 @@ function addAuditFields(schema) {
     }
   }
 
+  return schema;
+}
+
+/**
+ * @private
+ *
+ * Appends the `deactivated_at` column to a table schema when soft delete is
+ * enabled and the column is not already present.
+ *
+ * @param {TableSchema} schema - The table schema to modify.
+ * @returns {TableSchema} The updated schema.
+ */
+function addSoftDeleteField(schema) {
   if (schema?.softDelete) {
-    const hasDeactivatedAt = columns.some(col => col.name === 'deactivated_at');
+    const hasDeactivatedAt = schema.columns.some(col => col.name === 'deactivated_at');
     if (!hasDeactivatedAt) {
-      columns.push({
+      schema.columns.push({
         name: 'deactivated_at',
         type: 'timestamptz',
-        nullable: true,
       });
     }
   }
@@ -506,7 +519,10 @@ function createColumnSet(schema, pgp, logger = null) {
       const columnObject = {
         name: col.name,
         ...colPropsWithoutValidator,
-        def: Object.prototype.hasOwnProperty.call(col, 'default') ? col.default : col.colProps?.def ?? undefined,
+        // `def` is a JavaScript substitution value, not raw SQL. A column with
+        // a SQL default must emit the DEFAULT keyword when absent from the DTO,
+        // not the text of its own default expression (issue N3).
+        def: Object.prototype.hasOwnProperty.call(col, 'default') ? RAW_DEFAULT : col.colProps?.def ?? undefined,
       };
 
       return columnObject;
@@ -577,4 +593,4 @@ function createColumnSet(schema, pgp, logger = null) {
   return cs;
 }
 
-export { createTableSQL, addAuditFields, createIndexesSQL, normalizeSQL, createColumnSet, columnSetCache };
+export { createTableSQL, addAuditFields, addSoftDeleteField, createIndexesSQL, normalizeSQL, createColumnSet, columnSetCache };

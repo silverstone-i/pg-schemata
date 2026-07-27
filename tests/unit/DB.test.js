@@ -101,7 +101,7 @@ class FakeSchemaRepo {
     this.db = db;
     this.pgp = pgp;
   }
-  setSchemaName(name) {
+  forSchema(name) {
     this.schema = name;
     return this;
   }

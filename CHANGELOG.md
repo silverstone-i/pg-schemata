@@ -8,6 +8,50 @@ Latest commit: `7194475`
 
 ---
 
+## [Unreleased]
+
+### ✨ Features
+
+- **`forSchema(name)`**: returns a model bound to the given schema without mutating the instance it is called on. Clones are cached (one per instance/schema pair, LRU-bounded like the ColumnSet cache) and carry a ColumnSet built for the target schema. This removes the race where two interleaved requests sharing one repository both wrote to whichever schema was set last. `callDb()` and `bootstrap()` now route through it
+
+- **`options.tx` on every mutating method**: pass a pg-promise task/transaction context (`insert(dto, { tx: t })`) to run the statement inside it. Previously only `bulkInsert`/`bulkUpdate` honored the undocumented `this.tx` property, so a flow mixing bulk and single-row calls under one assignment was only half-transactional — a rollback undid the bulk work while the single-row statements had already committed on the pool
+
+### ⚠️ Deprecations
+
+- **Column key `nullable`**: nothing ever read it — DDL and validator generation use `notNull` — so schemas written with `nullable: false` silently created fully nullable tables. `nullable: false` is now treated as `notNull: true` (one-time warning); the alias is removed in 2.0.0. The shipped `schema_migrations` schema, the example schema, and the audit `userFields.nullable` config are corrected to produce real NOT NULL columns
+- **`this.tx`**: still honored — now consistently by every mutating method instead of two — but it mutates shared instance state and leaks between concurrent requests. Use `options.tx` or the pg-promise `t.<repo>` pattern. Removal planned for 2.0.0
+- **`setSchemaName()`**: mutates the shared model instance and races under concurrent requests — the exact failure `forSchema()` eliminates. Still functional; emits a one-time warning. Removal planned for 2.0.0
+
+### 🐛 Fixes
+
+- **Column Defaults No Longer Inserted as Literal Strings**: a column with a SQL `default` that is omitted from an insert DTO now emits the `DEFAULT` keyword so Postgres applies the column default. Previously the default expression itself was inserted as data — `role` defaulting to `"'user'"` stored the five-character string `'user'` quotes included, and a `timestamptz` defaulting to `now()` failed with `22007 invalid input syntax`
+- **Double-Formatted Updates**: `bulkUpdate` and `updateWhere` executed fully-formatted statements with a values array, so pg-promise ran a second format pass over the whole query. Any stored text containing `$1` (a note like `refund $1 processed`) corrupted the statement and let data control SQL structure. Both now format once and execute with no values, matching `update()`. `bulkUpdate` also reuses one ColumnSet across records with the same key set instead of building one per row
+- **Bulk Inserts Threw on `$n` Tokens in Data**: `bulkInsert` and `bulkUpsert` passed `[]` as the values argument for already-formatted queries, so pg-promise still ran the formatter and failed with `Variable $1 out of range` on any value containing a `$n` token. Both now pass `undefined`, which skips formatting entirely
+- **`countWhere`/`findWhere` Silently Ignored Object Conditions**: passing a plain object (the shape `exists()` requires) failed the `conditions.length` check, so `countWhere({ score: 5 })` counted the whole table with no WHERE and no error. Both methods now accept an array or a plain object and throw `SchemaDefinitionError` on anything else
+- **`reload` Ignored Its Options**: `reload(id, { includeDeactivated: true })` forwarded options to `findById`, which takes only an id, so soft-deleted records could never be reloaded. It now routes through `findOneBy` and honors the flag
+- **`$max`/`$min`/`$sum` Subqueries Ignored Soft Delete**: the aggregate subquery scanned soft-deleted rows even when the outer query excluded them, so `findWhere([{ score: { $max: true } }])` returned nothing whenever the extreme value belonged to a deleted row. The subquery now applies the same `deactivated_at IS NULL` filter as the outer query
+- **Soft-Delete Guard Skipped on Filters-Only Queries**: `findWhere`/`countWhere` applied the `deactivated_at IS NULL` guard inside `buildWhereClause`, which only runs when conditions are present — `findWhere([], 'AND', { filters: {...} })` returned soft-deleted rows. The guard now lives with the callers (via a shared `softDeleteGuard()` helper) and is appended once after both the conditions and filters branches. This also removes the duplicated predicate `deleteWhere`/`removeWhere` used to emit and the dummy `{ id: { $ne: null } }` condition in `findAll`
+- **`buildValuesClause` Always Threw**: it passed the ColumnSet container `{ [table], insert, update }` where pg-promise expects a ColumnSet, so every call to this documented API failed. It now uses the table's ColumnSet
+- **Identifier Lists Validated and Escaped**: `returning`, `conflictColumns`, and `updateColumns` reached the SQL raw in `upsert`, `bulkInsert`, `bulkUpdate`, `bulkUpsert`, and `importFromSpreadsheet`. They are now validated against the schema's columns and escaped; an unknown name throws `SchemaDefinitionError`
+- **DDL Defaults With Apostrophes**: a string column default containing a quote (`O'Brien`) produced invalid `CREATE TABLE` SQL; embedded quotes are now escaped
+- **Validator Type Coverage**: `integer`, `bigint`, `smallint`, `int2/4/8`, `timestamptz`, `numeric(p,s)`, bare `varchar`, `char(n)`, `real`, and `double precision` previously fell through to `z.any()`, so garbage passed validation for those columns. All are now mapped; a genuinely unknown type still falls back to `z.any()` with a one-time warning (throws in 2.0.0). The email enhancement uses `instanceof z.ZodString` instead of the zod-3-only `_def.typeName`
+- **`findWhere` Limit/Offset Validation**: non-numeric values produced `LIMIT NaN` (invalid SQL); they now throw `SchemaDefinitionError`. The old truthiness gate also dropped `limit: 0` and `offset: 0`, which are now honored
+- **`bulkInsert` Key-Set Mismatch**: records with different column sets failed with an opaque pg-promise error deep in the batch; the mismatch is now detected up front and the error names the offending record index and both column lists
+- **Per-Tenant Migrations**: `MigrationManager.ensure()` created `schema_migrations` in `public` regardless of the configured schema, while `currentVersion()` and `applyAll()` read from the target schema — so `applyAll()` failed with `42P01` for any non-public schema. `ensure()` now binds the model to the target schema via `forSchema()`
+- **Soft Delete Without Audit Fields**: the constructor no longer skips schema normalization when `hasAuditFields` is false, so `softDelete: true` adds the `deactivated_at` column on its own. Previously every query on such a table failed with `42703 column "deactivated_at" does not exist`. The soft-delete step now lives in its own `addSoftDeleteField` helper, and the caller's schema object is cloned before normalization instead of being mutated
+
+### 🛠 Chores
+
+- **Logging Defers to the Host Logger**: `logMessage` dropped debug output when `NODE_ENV === 'production'`; the library now hands every message to the logger you supply and lets it decide levels
+- **Dead Code Removed**: the no-op builtin-function replace loop in `createTableSQL` (both branches returned `match`) and the commented-out `costlines` debug block are gone; the constructor error message no longer claims to check a primary key it never checked
+- **Dead Files Removed**: `src/utils/ddlGenerator.js` (a single comment line that shipped in the npm tarball) and the three empty `Examples/` stubs (`db.js`, `models/User.js`, `schemas/userSchema.js`) are deleted; the working examples live under `Examples/migration-tutorial/` and `Examples/pg-schemata-min-example/`
+
+### ⚡ Performance
+
+- **Validator Cache**: pg-promise rebuilds every repository for each task and transaction; Zod validators are now generated once per schema (WeakMap keyed on the schema literal) instead of on every rebuild — previously ~1.9 ms per transaction for 20 repositories
+
+---
+
 ## [v1.3.3] - 2026-05-15
 
 ### 🐛 Fixes

@@ -1,0 +1,121 @@
+# Releases automatically when a labeled PR merges into main.
+#
+# Aggregates release labels (release:patch | release:minor | release:major)
+# across every PR merged since the last release tag and applies the highest,
+# then bumps the version on main, promotes the CHANGELOG [Unreleased] section
+# to the new version, commits, tags, and publishes to npm. A merge with no
+# unreleased labels does not release.
+#
+# This workflow publishes directly rather than relying on the tag push to
+# trigger publish-release.yml: tags pushed with GITHUB_TOKEN deliberately do
+# not trigger other workflows, which also means no double publish.
+# publish-release.yml remains for manually pushed tags.
+#
+# Prerequisites:
+#   - NPM_TOKEN configured in the repository's GitHub Secrets
+#   - The three release:* labels created in the repository
+#   - Branch protection on main must allow github-actions[bot] to push
+#     (the version-bump commit lands directly on main)
+
+name: Release on Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: ['main']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      # The bump is derived from ALL PRs merged since the last release tag,
+      # not just the triggering PR. GitHub's concurrency group keeps one
+      # running and one pending run per group - a third merge replaces the
+      # pending run - so a per-PR bump could silently drop a queued release's
+      # label. With since-last-tag aggregation, whichever run executes next
+      # picks up every unreleased label and applies the highest one.
+      - name: Determine bump type from unreleased PR labels
+        id: bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          last_tag=$(git tag --list 'v[0-9]*' --sort=-v:refname | grep -v -- '-rc\.' | head -1 || true)
+          if [ -n "$last_tag" ]; then
+            since=$(git log -1 --format=%cI "$last_tag")
+            merged_labels=$(gh pr list --state merged --base main --search "merged:>$since" --json labels --jq '.[].labels[].name' || true)
+            echo "PRs merged since $last_tag ($since) carry labels: $merged_labels"
+          else
+            merged_labels=""
+            echo "No previous release tag found; using this PR's labels only"
+          fi
+          # Include the triggering PR's labels directly in case the search
+          # index has not caught up with the merge that fired this run.
+          all_labels="$merged_labels $EVENT_LABELS"
+          type=none
+          echo "$all_labels" | grep -q 'release:patch' && type=patch
+          echo "$all_labels" | grep -q 'release:minor' && type=minor
+          echo "$all_labels" | grep -q 'release:major' && type=major
+          echo "type=$type" >> "$GITHUB_OUTPUT"
+          echo "Aggregated labels: '$all_labels' -> bump: $type"
+
+      - name: Setup Node.js
+        if: steps.bump.outputs.type != 'none'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        if: steps.bump.outputs.type != 'none'
+        run: npm ci
+
+      - name: Run tests
+        if: steps.bump.outputs.type != 'none'
+        run: npm run test:unit
+
+      - name: Run linting
+        if: steps.bump.outputs.type != 'none'
+        run: npm run lint
+
+      - name: Bump version and promote changelog
+        if: steps.bump.outputs.type != 'none'
+        id: version
+        run: |
+          npm version "${{ steps.bump.outputs.type }}" --no-git-tag-version
+          version=$(node -p "require('./package.json').version")
+          if grep -q '^## \[Unreleased\]' CHANGELOG.md; then
+            sed -i "s/^## \[Unreleased\]/## [v$version] - $(date +%F)/" CHANGELOG.md
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag, and push
+        if: steps.bump.outputs.type != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json CHANGELOG.md
+          git commit -m "${{ steps.version.outputs.version }}"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin main --follow-tags
+
+      - name: Publish to npm (latest)
+        if: steps.bump.outputs.type != 'none'
+        run: npm publish --tag latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -21,11 +21,11 @@ function callDb(modelOrName, schemaName) {
   const model =
     typeof modelOrName === 'string' ? DB.db[modelOrName] : modelOrName;
 
-  if (!model || typeof model.setSchemaName !== 'function') {
+  if (!model || typeof model.forSchema !== 'function') {
     throw new Error('callDb: provided model is not schema-aware');
   }
 
-  return model.setSchemaName(schemaName);
+  return model.forSchema(schemaName);
 }
 
 export { callDb };

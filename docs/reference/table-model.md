@@ -24,13 +24,22 @@ TableModel inherits all methods from [QueryModel](/reference/query-model): `find
 
 ## Write Methods
 
-### insert(dto)
+Every write method accepts a trailing options object with `tx` — a pg-promise task or transaction context to run on. Bulk methods run directly on the supplied context instead of opening their own transaction. See [Transactions](/guide/crud-operations#transactions).
+
+```js
+await db().tx(async (t) => {
+  await db().users.insert(dto, { tx: t });
+});
+```
+
+### insert(dto, options?)
 
 Inserts a single row after validation and sanitization.
 
 | Parameter | Type | Description |
 |---|---|---|
 | `dto` | `object` | Data to insert |
+| `options.tx` | `object` | pg-promise task/transaction to run on |
 
 **Returns:** `Promise<Object>` — the inserted row (`RETURNING *`)
 **Throws:** `SchemaDefinitionError` if validation fails or DTO is empty

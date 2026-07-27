@@ -77,4 +77,87 @@ describe('QueryModel - soft delete support', () => {
     const sql = mockDb.any.mock.calls[0][0];
     expect(sql).not.toMatch(/deactivated_at IS NULL/);
   });
+
+  test('public buildWhereClause includes the soft-delete guard (PR #10 review)', () => {
+    const { clause } = model.buildWhereClause([{ email: 'x@example.com' }]);
+    expect(clause).toMatch(/deactivated_at IS NULL/);
+
+    const { clause: unguarded } = model.buildWhereClause([{ email: 'x@example.com' }], true, [], 'AND', true);
+    expect(unguarded).not.toMatch(/deactivated_at IS NULL/);
+  });
+
+  test('findWhere emits the soft-delete predicate exactly once', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.findWhere([{ email: 'x@example.com' }], 'AND', { filters: { id: 'abc' } });
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql.match(/deactivated_at IS NULL/g)).toHaveLength(1);
+  });
+
+  test('findWhere with only filters still excludes soft-deleted rows (issue 8)', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    // axerra's ViewController shape: no conditions, filters only.
+    await model.findWhere([], 'AND', { filters: { email: 'x@example.com' } });
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toMatch(/deactivated_at IS NULL/);
+  });
+
+  test('countWhere with only filters still excludes soft-deleted rows (issue 8)', async () => {
+    mockDb.one.mockResolvedValue({ count: '0' });
+
+    await model.countWhere([], 'AND', { filters: { email: 'x@example.com' } });
+
+    const sql = mockDb.one.mock.calls[0][0];
+    expect(sql).toMatch(/deactivated_at IS NULL/);
+  });
+
+  test('findAll guards without a dummy condition (issue 8)', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.findAll();
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toMatch(/WHERE deactivated_at IS NULL/);
+    expect(sql).not.toContain('IS NOT NULL');
+  });
+
+  test('$max subquery excludes soft-deleted rows (issue 11)', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.findWhere([{ id: { $max: true } }]);
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toContain('(SELECT MAX("id") FROM "test_schema"."test_users" WHERE deactivated_at IS NULL)');
+  });
+
+  test('$max subquery includes soft-deleted rows when includeDeactivated is true (issue 11)', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.findWhere([{ id: { $max: true } }], 'AND', { includeDeactivated: true });
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toContain('(SELECT MAX("id") FROM "test_schema"."test_users")');
+  });
+
+  test('reload excludes soft-deleted rows by default', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.reload('abc-123');
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toMatch(/deactivated_at IS NULL/);
+  });
+
+  test('reload honors includeDeactivated (issue 10)', async () => {
+    mockDb.any.mockResolvedValue([{ id: 4 }]);
+
+    const row = await model.reload('abc-123', { includeDeactivated: true });
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).not.toMatch(/deactivated_at IS NULL/);
+    expect(row).toEqual({ id: 4 });
+  });
 });

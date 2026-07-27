@@ -8,35 +8,41 @@ A PostgreSQL schema is a namespace within a database. Tables in different schema
 
 ## Setting the schema on a model
 
-### setSchemaName
+### forSchema
 
-Change the schema a model operates on:
+`forSchema()` returns a model bound to the given schema. The instance you call it on is never modified — each schema gets its own cached clone, so a shared repository is safe under concurrent requests:
 
 ```js
 const users = db().users;
 
-users.setSchemaName('tenant_abc');
-const rows = await users.findAll();
+const abcUsers = users.forSchema('tenant_abc');
+const rows = await abcUsers.findAll();
 // Queries tenant_abc.users
 
-users.setSchemaName('tenant_xyz');
-const rows2 = await users.findAll();
+const xyzUsers = users.forSchema('tenant_xyz');
+const rows2 = await xyzUsers.findAll();
 // Queries tenant_xyz.users
+
+// users itself is still bound to its original schema
 ```
 
-`setSchemaName()` returns the model instance for chaining:
+It chains naturally:
 
 ```js
-const rows = await db().users.setSchemaName('tenant_abc').findAll();
+const rows = await db().users.forSchema('tenant_abc').findAll();
 ```
 
-::: warning
-`setSchemaName()` mutates the model instance. If you share a model reference across requests, use `callDb()` instead.
+Clones are cached per schema, so calling `forSchema()` on every request costs one cache lookup after the first call.
+
+### setSchemaName (deprecated)
+
+::: warning Deprecated
+`setSchemaName()` mutates the model instance in place. Two interleaved requests sharing one repository race on the schema: whichever calls `setSchemaName()` last wins, and the other request reads or writes the wrong tenant's tables. Use `forSchema()` instead — it exists precisely to remove this race.
 :::
 
 ## callDb — schema-aware accessor
 
-`callDb` is a convenience function that binds a model to a specific schema:
+`callDb` is a convenience wrapper around `forSchema()` that also accepts a registered model name:
 
 ```js
 import { callDb } from 'pg-schemata';

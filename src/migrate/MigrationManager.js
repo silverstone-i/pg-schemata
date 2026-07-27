@@ -71,8 +71,10 @@ export class MigrationManager {
    * @param {object} t pg‑promise transaction or connection
    */
   async ensure(t) {
+    // migrationSchema hardcodes dbSchema 'public'; bind to the target schema
+    // so the table is created where currentVersion() and applyAll() read it.
     const migrationsRepo = new SchemaMigrations(t, DB.pgp);
-    await migrationsRepo.createTable();
+    await migrationsRepo.forSchema(this.schema).createTable();
   }
 
   /**

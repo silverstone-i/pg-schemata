@@ -9,13 +9,25 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
+import { LRUCache } from 'lru-cache';
+import { createColumnSet, addAuditFields, addSoftDeleteField } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import DatabaseError from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
 import { logMessage } from './utils/pg-util.js';
 import _ from 'lodash';
 const { cloneDeep } = _;
+
+// Cache of schema-bound clones produced by forSchema(), same bounds as the
+// ColumnSet cache in schemaBuilder. Keys are namespaced per base instance:
+// pg-promise's `extend` re-creates repositories for every task/transaction
+// with a different executor, so clones must never be shared across bases —
+// a transaction-context caller would otherwise receive a clone bound to the
+// root pool.
+const modelCloneCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
+let nextCloneCacheId = 1;
+let setSchemaNameDeprecationWarned = false;
+let nullableAliasWarned = false;
 
 /**
  * QueryModel provides reusable read-only query logic for PostgreSQL tables.
@@ -39,13 +51,20 @@ class QueryModel {
       throw new Error('Schema must be an object');
     }
     if (!db || !pgp || !schema.table || !schema.columns) {
-      throw new Error('Missing required parameters: db, pgp, schema, table, or primary key');
+      throw new Error('Missing required parameters: db, pgp, schema.table, or schema.columns');
     }
 
     this.db = db;
     this.pgp = pgp;
     this.logger = logger;
-    this._schema = cloneDeep(schema.hasAuditFields ? addAuditFields(schema) : schema);
+    // Clone before normalizing so the caller's schema object is never mutated.
+    // Both helpers guard internally, so they run unconditionally — gating on
+    // hasAuditFields here would skip the soft-delete column too (issue N1).
+    const working = cloneDeep(schema);
+    this._normalizeNullableColumns(working);
+    addAuditFields(working);
+    addSoftDeleteField(working);
+    this._schema = working;
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
@@ -87,7 +106,7 @@ class QueryModel {
    * @returns {Promise<Object[]>} List of rows.
    */
   async findAll({ limit = 50, offset = 0 } = {}) {
-    return this.findWhere([{ id: { $ne: null } }], 'AND', { limit, offset, orderBy: 'id' });
+    return this.findWhere([], 'AND', { limit, offset, orderBy: 'id' });
   }
 
   /**
@@ -126,9 +145,7 @@ class QueryModel {
    * @returns {Promise<Object[]>} Matching rows.
    */
   async findWhere(conditions = [], joinType = 'AND', { columnWhitelist = null, filters = {}, orderBy = null, limit = null, offset = null, includeDeactivated = false } = {}) {
-    if (!Array.isArray(conditions)) {
-      throw new Error('Conditions must be an array');
-    }
+    conditions = this._normalizeConditions(conditions);
 
     const table = `${this.schemaName}.${this.tableName}`;
     const selectCols = columnWhitelist?.length ? columnWhitelist.map(col => this.escapeName(col)).join(', ') : '*';
@@ -137,22 +154,28 @@ class QueryModel {
     const whereClauses = [];
 
     if (conditions.length > 0) {
-      const { clause, values: builtValues } = this.buildWhereClause(conditions, true, [], joinType, includeDeactivated === true);
+      const { clause, values: builtValues } = this._buildWhereClause(conditions, true, [], joinType, includeDeactivated === true);
       values.push(...builtValues);
       whereClauses.push(`(${clause})`);
     }
 
     if (Object.keys(filters).length) {
-      whereClauses.push(this.buildCondition([filters], 'AND', values));
+      whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
     }
+
+    const guard = this.softDeleteGuard(includeDeactivated);
+    if (guard) whereClauses.push(guard);
 
     if (whereClauses.length) queryParts.push('WHERE', whereClauses.join(' AND '));
     if (orderBy) {
       const orderClause = Array.isArray(orderBy) ? orderBy.map(col => this.escapeName(col)).join(', ') : this.escapeName(orderBy);
       queryParts.push(`ORDER BY ${orderClause}`);
     }
-    if (limit) queryParts.push(`LIMIT ${parseInt(limit, 10)}`);
-    if (offset) queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
+    // Validate instead of interpolating parseInt output: bad input produced
+    // LIMIT NaN, and the old truthiness gate dropped limit: 0 / offset: 0
+    // (suggestion 5).
+    if (limit != null) queryParts.push(`LIMIT ${this._toBoundedInt(limit, 'limit')}`);
+    if (offset != null) queryParts.push(`OFFSET ${this._toBoundedInt(offset, 'offset')}`);
 
     const query = queryParts.join(' ');
 
@@ -207,10 +230,12 @@ class QueryModel {
 
       if (Object.keys(filters).length) {
         if (filters.and || filters.or) {
-          const top = filters.and ? this.buildCondition(filters.and, 'AND', values) : this.buildCondition(filters.or, 'OR', values);
+          const top = filters.and
+            ? this.buildCondition(filters.and, 'AND', values, includeDeactivated === true)
+            : this.buildCondition(filters.or, 'OR', values, includeDeactivated === true);
           whereClauses.push(top);
         } else {
-          whereClauses.push(this.buildCondition([filters], 'AND', values));
+          whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
         }
       }
       if (this._schema.softDelete && !includeDeactivated) {
@@ -248,14 +273,18 @@ class QueryModel {
   }
 
   /**
-   * Reloads a single record by ID using findById.
+   * Reloads a single record by ID.
    * @param {string|number} id - Primary key value.
    * @param {Object} [options] - Optional flags.
    * @param {boolean} [options.includeDeactivated=false] - Whether to include soft-deleted records.
    * @returns {Promise<Object|null>} The found record or null.
+   * @throws {Error} If ID is invalid.
    */
   async reload(id, { includeDeactivated = false } = {}) {
-    return this.findById(id, { includeDeactivated });
+    // findById takes only an id, so route through findOneBy to honor options
+    // (issue 10).
+    if (!isValidId(id)) throw new Error('Invalid ID format');
+    return this.findOneBy([{ id }], { includeDeactivated });
   }
 
   /**
@@ -326,18 +355,23 @@ class QueryModel {
    * @returns {Promise<number>} Number of matching rows.
    */
   async countWhere(conditions = [], joinType = 'AND', { filters = {}, includeDeactivated = false } = {}) {
+    conditions = this._normalizeConditions(conditions);
+
     const values = [];
     const whereClauses = [];
 
     if (conditions.length > 0) {
-      const { clause, values: builtValues } = this.buildWhereClause(conditions, true, [], joinType, includeDeactivated);
+      const { clause, values: builtValues } = this._buildWhereClause(conditions, true, [], joinType, includeDeactivated);
       values.push(...builtValues);
       whereClauses.push(`(${clause})`);
     }
 
     if (Object.keys(filters).length) {
-      whereClauses.push(this.buildCondition([filters], 'AND', values));
+      whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
     }
+
+    const guard = this.softDeleteGuard(includeDeactivated);
+    if (guard) whereClauses.push(guard);
 
     const whereStr = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} ${whereStr}`;
@@ -379,7 +413,9 @@ class QueryModel {
    */
   buildValuesClause(data) {
     if (!Array.isArray(data) || data.length === 0) return '';
-    return this.pgp.helpers.values(data, this.cs);
+    // this.cs is the container { [table], insert, update }; helpers.values
+    // needs the ColumnSet itself (issue 13).
+    return this.pgp.helpers.values(data, this.cs[this._schema.table]);
   }
 
   /**
@@ -444,12 +480,53 @@ class QueryModel {
   }
 
   /**
+   * Returns a model bound to the given schema without mutating this instance.
+   *
+   * Clones are created once per (instance, schema) pair and cached, so
+   * concurrent requests targeting different schemas each hold their own
+   * model and cannot overwrite each other's schema state — the race that
+   * makes setSchemaName() unsafe on a shared repository.
+   *
+   * @param {string} name - The schema name to bind.
+   * @returns {QueryModel} This instance if already bound to `name`, otherwise a cached clone.
+   * @throws {Error} If name is invalid.
+   */
+  forSchema(name) {
+    if (typeof name !== 'string' || !name.trim()) {
+      throw new Error('Schema name must be a non-empty string');
+    }
+    if (name === this._schema.dbSchema) return this;
+
+    this._cloneCacheId ??= nextCloneCacheId++;
+    const key = `${this._cloneCacheId}::${this._schema.table}::${name}`;
+    let clone = modelCloneCache.get(key);
+    if (!clone) {
+      clone = Object.create(Object.getPrototypeOf(this));
+      Object.assign(clone, this);
+      clone._schema = { ...this._schema, dbSchema: name };
+      clone.cs = createColumnSet(clone._schema, this.pgp);
+      modelCloneCache.set(key, clone);
+    }
+    return clone;
+  }
+
+  /**
    * Sets a new schema name and regenerates the column set.
+   *
+   * @deprecated Mutates this instance in place: two interleaved requests on a
+   * shared repository race on the schema and can write to the wrong tenant.
+   * Use {@link QueryModel#forSchema} instead.
    * @param {string} name - The new schema name.
    * @returns {QueryModel} The updated model instance.
    * @throws {Error} If name is invalid.
    */
   setSchemaName(name) {
+    if (!setSchemaNameDeprecationWarned) {
+      setSchemaNameDeprecationWarned = true;
+      console.warn(
+        '[pg-schemata] setSchemaName() is deprecated: it mutates the shared model instance and races under concurrent requests. Use forSchema() instead.',
+      );
+    }
     if (typeof name !== 'string' || !name.trim()) {
       throw new Error('Schema name must be a non-empty string');
     }
@@ -471,6 +548,65 @@ class QueryModel {
   // ---------------------------------------------------------------------------
 
   /**
+   * Maps the deprecated column key `nullable` onto `notNull`.
+   *
+   * Nothing in DDL generation or validator generation ever read `nullable`,
+   * so schemas using it silently produced fully nullable tables (issue N6).
+   * `nullable: false` now means `notNull: true`; `nullable: true` matches the
+   * default and is dropped. Emits a one-time deprecation warning.
+   *
+   * @param {TableSchema} schema - Cloned schema to normalize in place.
+   */
+  _normalizeNullableColumns(schema) {
+    if (!Array.isArray(schema.columns)) return;
+    for (const col of schema.columns) {
+      if (!Object.prototype.hasOwnProperty.call(col, 'nullable')) continue;
+      if (!nullableAliasWarned) {
+        nullableAliasWarned = true;
+        console.warn(
+          `[pg-schemata] Column "${col.name}" in "${schema.table}" uses the deprecated key "nullable"; use "notNull" instead. "nullable: false" is treated as "notNull: true". This alias will be removed in 2.0.0.`,
+        );
+      }
+      if (col.nullable === false && !Object.prototype.hasOwnProperty.call(col, 'notNull')) {
+        col.notNull = true;
+      }
+      delete col.nullable;
+    }
+  }
+
+  /**
+   * Validates a LIMIT/OFFSET value as a non-negative integer.
+   * @param {number|string} value - Caller-supplied limit or offset.
+   * @param {string} label - Name used in the error message.
+   * @returns {number} The validated integer.
+   * @throws {SchemaDefinitionError} If value is not a non-negative integer.
+   */
+  _toBoundedInt(value, label) {
+    const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) {
+      throw new SchemaDefinitionError(`Invalid ${label}: ${JSON.stringify(value)}`);
+    }
+    return n;
+  }
+
+  /**
+   * Normalizes a conditions argument to an array of condition objects.
+   *
+   * A plain object is wrapped in an array so callers may pass either shape —
+   * previously an object slipped past the `conditions.length` checks and the
+   * WHERE clause was silently dropped (issue 9). Anything else throws.
+   *
+   * @param {Array<Object>|Object} conditions - Conditions in either shape.
+   * @returns {Array<Object>} Conditions as an array.
+   * @throws {SchemaDefinitionError} If conditions is neither an array nor a plain object.
+   */
+  _normalizeConditions(conditions) {
+    if (Array.isArray(conditions)) return conditions;
+    if (isPlainObject(conditions)) return Object.keys(conditions).length ? [conditions] : [];
+    throw new SchemaDefinitionError('Conditions must be an array or a plain object');
+  }
+
+  /**
    * Builds a SQL WHERE clause from conditions.
    * @param {Object|Array<Object>} where - Conditions object or array.
    * @param {boolean} [requireNonEmpty=true] - Enforce non-empty input.
@@ -481,6 +617,34 @@ class QueryModel {
    * @throws {Error} If input is invalid or empty when required.
    */
   buildWhereClause(where = {}, requireNonEmpty = true, values = [], joinType = 'AND', includeDeactivated = false) {
+    const result = this._buildWhereClause(where, requireNonEmpty, values, joinType, includeDeactivated);
+    // Documented public API: the returned clause honors includeDeactivated,
+    // matching pre-1.4 behavior for external callers.
+    const guard = this.softDeleteGuard(includeDeactivated);
+    if (guard) {
+      result.clause += result.clause ? ` AND ${guard}` : guard;
+    }
+    return result;
+  }
+
+  /**
+   * @private
+   *
+   * Core WHERE-clause builder without the soft-delete guard. Internal query
+   * methods use this and append softDeleteGuard() once themselves, because
+   * their filters branches never pass through here — injecting the guard at
+   * this layer left filters-only queries unguarded (issue 8) while other
+   * callers stacked a second copy on top (N9). includeDeactivated is still
+   * threaded into buildCondition for the aggregate subqueries.
+   *
+   * @param {Object|Array<Object>} where - Conditions object or array.
+   * @param {boolean} [requireNonEmpty=true] - Enforce non-empty input.
+   * @param {Array} [values=[]] - Array to accumulate parameter values.
+   * @param {string} [joinType='AND'] - Logical operator for combining.
+   * @param {boolean} [includeDeactivated=false] - Include soft-deleted records if true.
+   * @returns {{ clause: string, values: Array }} Clause and parameter list.
+   */
+  _buildWhereClause(where = {}, requireNonEmpty = true, values = [], joinType = 'AND', includeDeactivated = false) {
     const isValidArray = Array.isArray(where);
     const isValidObject = isPlainObject(where);
 
@@ -489,23 +653,27 @@ class QueryModel {
       if (requireNonEmpty && where.length === 0) {
         throw new Error('WHERE clause must be a non-empty array');
       }
-      clause = this.buildCondition(where, joinType, values);
+      clause = this.buildCondition(where, joinType, values, includeDeactivated);
     } else if (isValidObject) {
       const isEmptyObject = Object.keys(where).length === 0;
       if (requireNonEmpty && isEmptyObject) {
         throw new Error('WHERE clause must be a non-empty object');
       }
-      clause = this.buildCondition([where], joinType, values);
+      clause = this.buildCondition([where], joinType, values, includeDeactivated);
     } else {
       throw new Error('WHERE clause must be an array or plain object');
     }
 
-    // Refactored logic for soft delete handling
-    if (this._schema.softDelete && !includeDeactivated) {
-      clause += clause ? ' AND deactivated_at IS NULL' : 'deactivated_at IS NULL';
-    }
-
     return { clause, values };
+  }
+
+  /**
+   * The soft-delete predicate for this table, or null when it does not apply.
+   * @param {boolean} [includeDeactivated=false] - Include soft-deleted records when true.
+   * @returns {string|null} Predicate fragment or null.
+   */
+  softDeleteGuard(includeDeactivated = false) {
+    return this._schema.softDelete && includeDeactivated !== true ? 'deactivated_at IS NULL' : null;
   }
 
   /**
@@ -520,22 +688,23 @@ class QueryModel {
    * @param {Array<Object>} group - Array of condition objects.
    * @param {string} joiner - Logical joiner ('AND' or 'OR') between conditions.
    * @param {Array} values - Parameter values to be populated.
+   * @param {boolean} [includeDeactivated=false] - Include soft-deleted rows in $max/$min/$sum subqueries.
    * @returns {string} A SQL-safe WHERE fragment.
    */
-  buildCondition(group, joiner = 'AND', values = []) {
+  buildCondition(group, joiner = 'AND', values = [], includeDeactivated = false) {
     const parts = [];
     for (const item of group) {
       if (item.$and && Array.isArray(item.$and) && item.$and.length > 0) {
-        parts.push(`(${this.buildCondition(item.$and, 'AND', values)})`);
+        parts.push(`(${this.buildCondition(item.$and, 'AND', values, includeDeactivated)})`);
         continue;
       } else if (item.$or && Array.isArray(item.$or) && item.$or.length > 0) {
-        parts.push(`(${this.buildCondition(item.$or, 'OR', values)})`);
+        parts.push(`(${this.buildCondition(item.$or, 'OR', values, includeDeactivated)})`);
         continue;
       }
       if (item.and && Array.isArray(item.and) && item.and.length > 0) {
-        parts.push(`(${this.buildCondition(item.and, 'AND', values)})`);
+        parts.push(`(${this.buildCondition(item.and, 'AND', values, includeDeactivated)})`);
       } else if (item.or && Array.isArray(item.or) && item.or.length > 0) {
-        parts.push(`(${this.buildCondition(item.or, 'OR', values)})`);
+        parts.push(`(${this.buildCondition(item.or, 'OR', values, includeDeactivated)})`);
       } else {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
@@ -603,14 +772,20 @@ class QueryModel {
                 throw new SchemaDefinitionError(`$is only supports null for now`);
               }
             }
-            if ('$max' in val) {
-              parts.push(`${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName})`);
-            }
-            if ('$min' in val) {
-              parts.push(`${col} = (SELECT MIN(${col}) FROM ${this.schemaName}.${this.tableName})`);
-            }
-            if ('$sum' in val) {
-              parts.push(`${col} = (SELECT SUM(${col}) FROM ${this.schemaName}.${this.tableName})`);
+            if ('$max' in val || '$min' in val || '$sum' in val) {
+              // The subquery must apply the same soft-delete filter as the
+              // outer query, or the aggregate can land on a deleted row and
+              // the query returns nothing (issue 11).
+              const softFilter = this._schema.softDelete && !includeDeactivated ? ' WHERE deactivated_at IS NULL' : '';
+              if ('$max' in val) {
+                parts.push(`${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`);
+              }
+              if ('$min' in val) {
+                parts.push(`${col} = (SELECT MIN(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`);
+              }
+              if ('$sum' in val) {
+                parts.push(`${col} = (SELECT SUM(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`);
+              }
             }
           } else {
             if (val === null) {

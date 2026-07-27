@@ -13,7 +13,8 @@
  * @private
  *
  * Logs a formatted message with optional metadata, scoped by schema and table name.
- * Skips debug-level messages in production environments.
+ * Every message is handed to the host logger; level filtering is the
+ * logger's decision, not the library's.
  *
  * @param {Object} params - Logging parameters.
  * @param {Object} params.logger - Logger instance (e.g. Winston).
@@ -25,9 +26,6 @@
  */
 export function logMessage({ logger, level = 'debug', schema, table, message, data = null }) {
   if (!logger || typeof logger[level] !== 'function') return;
-
-  const env = process.env.NODE_ENV || 'development';
-  if (env === 'production' && level === 'debug') return;
 
   const schemaInfo = schema && table ? `[${schema}.${table}]` : '';
   const prefix = `${schemaInfo} ${typeof message === 'string' ? message : JSON.stringify(message)}`;  
