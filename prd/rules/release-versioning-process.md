@@ -82,6 +82,10 @@ Publishing is CI-driven — never run `npm publish` manually.
 
 The tag created by `release-on-merge.yml` is pushed with `GITHUB_TOKEN`, which deliberately does not trigger `publish-release.yml` — that workflow remains as the path for manually pushed tags, and there is no double publish.
 
+The bump type is aggregated across all PRs merged since the last release tag (highest label wins), so releases queued behind one another never lose a bump level.
+
+**Fork PRs**: `pull_request` workflows from forks do not receive repository secrets, so merging a fork-based PR cannot publish — the merge succeeds and the publish step fails. Release such changes by pushing the `vX.Y.Z` tag manually (`publish-release.yml` handles it), or by merging a labeled follow-up PR from a local branch.
+
 ### Verification
 
 ```bash
