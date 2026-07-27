@@ -560,6 +560,17 @@ class TableModel extends QueryModel {
       }
     }
 
+    // The ColumnSet is built from the first record, so every record must
+    // carry the same columns; fail with the offending index instead of an
+    // opaque pg-promise error (suggestion 8).
+    const expectedKeys = Object.keys(safeRecords[0]).sort().join(', ');
+    for (let i = 1; i < safeRecords.length; i++) {
+      const keys = Object.keys(safeRecords[i]).sort().join(', ');
+      if (keys !== expectedKeys) {
+        throw new SchemaDefinitionError(`Record at index ${i} has columns [${keys}], but record 0 has [${expectedKeys}]`);
+      }
+    }
+
     const cs = new this.pgp.helpers.ColumnSet(Object.keys(safeRecords[0]), {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });

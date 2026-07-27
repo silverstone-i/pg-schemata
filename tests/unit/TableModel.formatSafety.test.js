@@ -87,6 +87,14 @@ describe('no second format pass over finished statements', () => {
     expect(other._schema.validators.insertValidator).toBeDefined();
   });
 
+  it('names the offending index when bulkInsert records have mismatched keys (suggestion 8)', async () => {
+    await expect(model.bulkInsert([
+      { note: 'a' },
+      { note: 'b', id: 'aaaaaaaa-1111-2222-3333-444444444444' },
+    ])).rejects.toThrow('Record at index 1 has columns [id, note], but record 0 has [note]');
+    expect(db.calls).toHaveLength(0);
+  });
+
   it('rejects unknown identifiers in returning and conflict columns (issues 5, 6)', async () => {
     await expect(model.bulkInsert([{ note: 'x' }], ['note; DROP TABLE y; --']))
       .rejects.toThrow('Unknown column: note; DROP TABLE y; --');
