@@ -34,8 +34,6 @@ export default defineConfig({
         'src/tableSchema.js',
         'src/schemaTypes.d.ts',
         'src/types-ref.js',
-        'src/utils/ddlGenerator.js',
-        
       ],
     },
     exclude: ['node_modules', 'dist'],
