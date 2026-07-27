@@ -154,7 +154,7 @@ class QueryModel {
     const whereClauses = [];
 
     if (conditions.length > 0) {
-      const { clause, values: builtValues } = this.buildWhereClause(conditions, true, [], joinType, includeDeactivated === true);
+      const { clause, values: builtValues } = this._buildWhereClause(conditions, true, [], joinType, includeDeactivated === true);
       values.push(...builtValues);
       whereClauses.push(`(${clause})`);
     }
@@ -335,9 +335,7 @@ class QueryModel {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
     }
-    let { clause, values } = this.buildWhereClause(conditions, true, [], 'AND', options.includeDeactivated === true);
-    const guard = this.softDeleteGuard(options.includeDeactivated);
-    if (guard) clause += ` AND ${guard}`;
+    const { clause, values } = this.buildWhereClause(conditions, true, [], 'AND', options.includeDeactivated === true);
     const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${clause}) AS "exists"`;
     try {
       const result = await this.db.one(query, values);
@@ -363,7 +361,7 @@ class QueryModel {
     const whereClauses = [];
 
     if (conditions.length > 0) {
-      const { clause, values: builtValues } = this.buildWhereClause(conditions, true, [], joinType, includeDeactivated);
+      const { clause, values: builtValues } = this._buildWhereClause(conditions, true, [], joinType, includeDeactivated);
       values.push(...builtValues);
       whereClauses.push(`(${clause})`);
     }
@@ -619,6 +617,34 @@ class QueryModel {
    * @throws {Error} If input is invalid or empty when required.
    */
   buildWhereClause(where = {}, requireNonEmpty = true, values = [], joinType = 'AND', includeDeactivated = false) {
+    const result = this._buildWhereClause(where, requireNonEmpty, values, joinType, includeDeactivated);
+    // Documented public API: the returned clause honors includeDeactivated,
+    // matching pre-1.4 behavior for external callers.
+    const guard = this.softDeleteGuard(includeDeactivated);
+    if (guard) {
+      result.clause += result.clause ? ` AND ${guard}` : guard;
+    }
+    return result;
+  }
+
+  /**
+   * @private
+   *
+   * Core WHERE-clause builder without the soft-delete guard. Internal query
+   * methods use this and append softDeleteGuard() once themselves, because
+   * their filters branches never pass through here — injecting the guard at
+   * this layer left filters-only queries unguarded (issue 8) while other
+   * callers stacked a second copy on top (N9). includeDeactivated is still
+   * threaded into buildCondition for the aggregate subqueries.
+   *
+   * @param {Object|Array<Object>} where - Conditions object or array.
+   * @param {boolean} [requireNonEmpty=true] - Enforce non-empty input.
+   * @param {Array} [values=[]] - Array to accumulate parameter values.
+   * @param {string} [joinType='AND'] - Logical operator for combining.
+   * @param {boolean} [includeDeactivated=false] - Include soft-deleted records if true.
+   * @returns {{ clause: string, values: Array }} Clause and parameter list.
+   */
+  _buildWhereClause(where = {}, requireNonEmpty = true, values = [], joinType = 'AND', includeDeactivated = false) {
     const isValidArray = Array.isArray(where);
     const isValidObject = isPlainObject(where);
 
@@ -638,12 +664,6 @@ class QueryModel {
       throw new Error('WHERE clause must be an array or plain object');
     }
 
-    // The soft-delete guard is appended by callers (findWhere, countWhere,
-    // exists, updateWhere, ...), not here: the filters-only paths never went
-    // through this method, so injecting the predicate at this layer left
-    // them unguarded (issue 8) while other callers stacked a second copy on
-    // top (N9). includeDeactivated is still threaded into buildCondition for
-    // the aggregate subqueries.
     return { clause, values };
   }
 

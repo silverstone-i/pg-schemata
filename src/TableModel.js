@@ -420,12 +420,7 @@ class TableModel extends QueryModel {
    * @returns {Promise<number>} Number of rows deleted.
    */
   async deleteWhere(where, { tx } = {}) {
-    let { clause, values } = this.buildWhereClause(where);
-    if (this._schema.softDelete) {
-      const softCheck = 'deactivated_at IS NULL';
-      const prefix = clause ? `${clause} AND ` : '';
-      clause = `${prefix}${softCheck}`;
-    }
+    const { clause, values } = this.buildWhereClause(where);
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     try {
       return await this._exec(tx).result(query, values, (r) => r.rowCount);
@@ -496,8 +491,6 @@ class TableModel extends QueryModel {
     const setClause = this.pgp.helpers.update(safeUpdates, updateCs);
 
     let { clause, values } = this.buildWhereClause(where, true, [], 'AND', includeDeactivated);
-    const guard = this.softDeleteGuard(includeDeactivated);
-    if (guard) clause += ` AND ${guard}`;
 
     // The SET values are already inlined by helpers.update; format the WHERE
     // now and execute with no values so pg-promise never re-formats the
@@ -752,10 +745,7 @@ class TableModel extends QueryModel {
       error.status = 403;
       return Promise.reject(error);
     }
-    let { clause, values } = this.buildWhereClause(where);
-    const softCheck = 'deactivated_at IS NULL';
-    const prefix = clause ? `${clause} AND ` : '';
-    clause = `${prefix}${softCheck}`;
+    const { clause, values } = this.buildWhereClause(where);
 
     let setClause = 'deactivated_at = NOW()';
     if (this._auditEnabled()) {

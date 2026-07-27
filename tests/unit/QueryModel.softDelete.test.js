@@ -78,6 +78,23 @@ describe('QueryModel - soft delete support', () => {
     expect(sql).not.toMatch(/deactivated_at IS NULL/);
   });
 
+  test('public buildWhereClause includes the soft-delete guard (PR #10 review)', () => {
+    const { clause } = model.buildWhereClause([{ email: 'x@example.com' }]);
+    expect(clause).toMatch(/deactivated_at IS NULL/);
+
+    const { clause: unguarded } = model.buildWhereClause([{ email: 'x@example.com' }], true, [], 'AND', true);
+    expect(unguarded).not.toMatch(/deactivated_at IS NULL/);
+  });
+
+  test('findWhere emits the soft-delete predicate exactly once', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.findWhere([{ email: 'x@example.com' }], 'AND', { filters: { id: 'abc' } });
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql.match(/deactivated_at IS NULL/g)).toHaveLength(1);
+  });
+
   test('findWhere with only filters still excludes soft-deleted rows (issue 8)', async () => {
     mockDb.any.mockResolvedValue([]);
 
