@@ -56,6 +56,26 @@ describe('QueryModel constructor schema normalization (real schemaBuilder)', () 
     expect(names).toEqual(['id', 'message']);
   });
 
+  it('maps deprecated nullable:false onto notNull:true (N6)', () => {
+    const model = new QueryModel(stubDb, pgp, {
+      dbSchema: 'public',
+      table: 'norm_nullable',
+      hasAuditFields: false,
+      softDelete: false,
+      columns: [
+        { name: 'id', type: 'uuid', default: 'gen_random_uuid()', nullable: false },
+        { name: 'label', type: 'text', nullable: true },
+      ],
+      constraints: { primaryKey: ['id'] },
+    });
+
+    const [id, label] = model.schema.columns;
+    expect(id.notNull).toBe(true);
+    expect('nullable' in id).toBe(false);
+    expect('notNull' in label).toBe(false);
+    expect('nullable' in label).toBe(false);
+  });
+
   it('never mutates the schema object passed by the caller', () => {
     const schema = makeSchema({ hasAuditFields: true, softDelete: true }, 'norm_no_mutate');
     const before = JSON.stringify(schema);

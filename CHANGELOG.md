@@ -18,6 +18,7 @@ Latest commit: `7194475`
 
 ### ⚠️ Deprecations
 
+- **Column key `nullable`**: nothing ever read it — DDL and validator generation use `notNull` — so schemas written with `nullable: false` silently created fully nullable tables. `nullable: false` is now treated as `notNull: true` (one-time warning); the alias is removed in 2.0.0. The shipped `schema_migrations` schema, the example schema, and the audit `userFields.nullable` config are corrected to produce real NOT NULL columns
 - **`this.tx`**: still honored — now consistently by every mutating method instead of two — but it mutates shared instance state and leaks between concurrent requests. Use `options.tx` or the pg-promise `t.<repo>` pattern. Removal planned for 2.0.0
 - **`setSchemaName()`**: mutates the shared model instance and races under concurrent requests — the exact failure `forSchema()` eliminates. Still functional; emits a one-time warning. Removal planned for 2.0.0
 

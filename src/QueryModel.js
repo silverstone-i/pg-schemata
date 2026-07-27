@@ -27,6 +27,7 @@ const { cloneDeep } = _;
 const modelCloneCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
 let nextCloneCacheId = 1;
 let setSchemaNameDeprecationWarned = false;
+let nullableAliasWarned = false;
 
 /**
  * QueryModel provides reusable read-only query logic for PostgreSQL tables.
@@ -60,6 +61,7 @@ class QueryModel {
     // Both helpers guard internally, so they run unconditionally — gating on
     // hasAuditFields here would skip the soft-delete column too (issue N1).
     const working = cloneDeep(schema);
+    this._normalizeNullableColumns(working);
     addAuditFields(working);
     addSoftDeleteField(working);
     this._schema = working;
@@ -543,6 +545,33 @@ class QueryModel {
   // ---------------------------------------------------------------------------
   // 🔴 Internals
   // ---------------------------------------------------------------------------
+
+  /**
+   * Maps the deprecated column key `nullable` onto `notNull`.
+   *
+   * Nothing in DDL generation or validator generation ever read `nullable`,
+   * so schemas using it silently produced fully nullable tables (issue N6).
+   * `nullable: false` now means `notNull: true`; `nullable: true` matches the
+   * default and is dropped. Emits a one-time deprecation warning.
+   *
+   * @param {TableSchema} schema - Cloned schema to normalize in place.
+   */
+  _normalizeNullableColumns(schema) {
+    if (!Array.isArray(schema.columns)) return;
+    for (const col of schema.columns) {
+      if (!Object.prototype.hasOwnProperty.call(col, 'nullable')) continue;
+      if (!nullableAliasWarned) {
+        nullableAliasWarned = true;
+        console.warn(
+          `[pg-schemata] Column "${col.name}" in "${schema.table}" uses the deprecated key "nullable"; use "notNull" instead. "nullable: false" is treated as "notNull: true". This alias will be removed in 2.0.0.`,
+        );
+      }
+      if (col.nullable === false && !Object.prototype.hasOwnProperty.call(col, 'notNull')) {
+        col.notNull = true;
+      }
+      delete col.nullable;
+    }
+  }
 
   /**
    * Normalizes a conditions argument to an array of condition objects.

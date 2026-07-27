@@ -39,6 +39,15 @@ describe('MigrationManager', () => {
     expect(captured[0]).not.toContain('"public"."schema_migrations"');
   });
 
+  it('creates schema_migrations with NOT NULL constraints (N6)', async () => {
+    const captured = [];
+    await new MigrationManager({}).ensure(makeStubT(captured));
+
+    expect(captured[0]).toContain('"schema_name" text NOT NULL');
+    expect(captured[0]).toContain('"version" integer NOT NULL');
+    expect(captured[0]).toContain('"hash" text NOT NULL');
+  });
+
   it('ensure() defaults to public', async () => {
     const captured = [];
     const manager = new MigrationManager({});

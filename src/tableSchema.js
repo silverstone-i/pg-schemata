@@ -25,7 +25,7 @@
  * Each column is defined with:
  * - `name` (string): column name
  * - `type` (string): PostgreSQL data type (e.g. 'uuid', 'varchar(255)', 'jsonb')
- * - `nullable` (boolean): whether NULL is allowed
+ * - `notNull` (boolean): adds NOT NULL to the column DDL
  * - `default` (string): default SQL expression
  * - `immutable` (boolean): if true, excluded from updates
  * - `colProps` (object): pg-promise column options such as `mod`, `skip`, `cnd`, etc.
@@ -50,58 +50,55 @@ const tableSchema = {
       name: 'id',
       type: 'uuid',
       default: 'gen_random_uuid()',
-      nullable: false,
+      notNull: true,
       immutable: true,
       colProps: { cnd: true },
     },
     {
       name: 'tenant_id',
       type: 'uuid',
-      nullable: false,
+      notNull: true,
       colProps: { skip: c => !c.exists },
     },
     {
       name: 'email',
       type: 'varchar(255)',
-      nullable: false,
+      notNull: true,
       colProps: { skip: c => !c.exists },
     },
     {
       name: 'password_hash',
       type: 'text',
-      nullable: false,
+      notNull: true,
       colProps: { skip: c => !c.exists },
     },
     {
       name: 'first_name',
       type: 'varchar(100)',
-      nullable: true,
       colProps: { skip: c => !c.exists },
     },
     {
       name: 'last_name',
       type: 'varchar(100)',
-      nullable: true,
       colProps: { skip: c => !c.exists },
     },
     {
       name: 'address',
       type: 'jsonb',
-      nullable: true,
       colProps: { mod: ':json', skip: c => !c.exists },
     },
     {
       name: 'is_active',
       type: 'boolean',
       default: 'true',
-      nullable: false,
+      notNull: true,
       colProps: { skip: c => !c.exists },
     },
     {
       name: 'role',
       type: 'varchar(50)',
       default: `'user'`,
-      nullable: false,
+      notNull: true,
       colProps: { skip: c => !c.exists },
     },
   ],

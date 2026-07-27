@@ -42,28 +42,27 @@ export const migrationSchema = {
     {
       name: 'schema_name',
       type: 'text',
-      nullable: false,
+      notNull: true,
     },
     {
       name: 'version',
       type: 'integer',
-      nullable: false,
+      notNull: true,
     },
     {
       name: 'hash',
       type: 'text',
-      nullable: false,
+      notNull: true,
     },
     {
       name: 'label',
       type: 'text',
-      nullable: true,
     },
     {
       name: 'applied_at',
       type: 'timestamptz',
       default: 'now()',
-      nullable: false,
+      notNull: true,
     },
   ],
   constraints: {

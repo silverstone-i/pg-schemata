@@ -277,6 +277,13 @@ function addAuditFields(schema) {
       type: userFieldsConfig.type,
     };
 
+    // The userFields config option `nullable` previously went nowhere: DDL
+    // generation reads notNull, so non-nullable user fields were created
+    // nullable anyway (N6).
+    if (userFieldsConfig.nullable === false) {
+      userFieldDef.notNull = true;
+    }
+
     // Add default value
     // For backward compatibility, always default to 'system' for boolean format
     if (userFieldsConfig.default !== null) {
