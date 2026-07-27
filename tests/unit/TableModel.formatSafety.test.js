@@ -65,6 +65,22 @@ describe('no second format pass over finished statements', () => {
     expect(values).toBeUndefined();
   });
 
+  it('bulkInsert passes no values for its finished statement (N5)', async () => {
+    await model.bulkInsert([{ note: DANGEROUS }]);
+
+    const [query, values] = db.calls[0];
+    expect(query).toContain("'refund $1 processed'");
+    expect(values).toBeUndefined();
+  });
+
+  it('bulkUpsert passes no values for its finished statement (N5)', async () => {
+    await model.bulkUpsert([{ id: 'aaaaaaaa-1111-2222-3333-444444444444', note: DANGEROUS }], ['id']);
+
+    const [query, values] = db.calls[0];
+    expect(query).toContain("'refund $1 processed'");
+    expect(values).toBeUndefined();
+  });
+
   it('bulkUpdate reuses one ColumnSet across records with the same keys', async () => {
     const spy = [];
     const RealColumnSet = pgp.helpers.ColumnSet;

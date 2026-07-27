@@ -345,7 +345,9 @@ class TableModel extends QueryModel {
         if (returning) {
           return await t.any(query);
         }
-        return await t.result(query, [], (r) => r.rowCount);
+        // undefined, not []: an empty array still runs the formatter over the
+        // finished statement and throws on any $n token in the data (N5).
+        return await t.result(query, undefined, (r) => r.rowCount);
       });
     } catch (err) {
       this.handleDbError(err);
@@ -508,17 +510,19 @@ class TableModel extends QueryModel {
       this.pgp.helpers.insert(safeRecords, cs) + (Array.isArray(returning) && returning.length > 0 ? ` RETURNING ${returning.join(', ')}` : '');
 
     try {
+      // undefined, not []: an empty array still runs the formatter over the
+      // finished statement and throws on any $n token in the data (N5).
       if (tx) {
         if (returning) {
           return await tx.any(query);
         }
-        return await tx.result(query, [], (r) => r.rowCount);
+        return await tx.result(query, undefined, (r) => r.rowCount);
       } else {
         return await this.db.tx(async (t) => {
           if (returning) {
             return await t.any(query);
           }
-          return await t.result(query, [], (r) => r.rowCount);
+          return await t.result(query, undefined, (r) => r.rowCount);
         });
       }
     } catch (err) {
