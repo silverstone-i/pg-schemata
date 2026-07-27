@@ -313,6 +313,19 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('"id" serial NOT NULL DEFAULT nextval(\'products_id_seq\')');
     });
 
+    it('escapes quotes inside string defaults (issue 7)', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'people',
+        columns: [{ name: 'surname', type: 'text', default: "O'Brien" }],
+        constraints: {},
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain(`"surname" text DEFAULT 'O''Brien'`);
+    });
+
     it('should handle schema with no constraints', () => {
       const schema = {
         schemaName: 'public',

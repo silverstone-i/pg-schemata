@@ -105,7 +105,9 @@ function createTableSQL(schema, logger = null) {
         // Also check for quoted strings with type casts like '{}'::uuid[]
         const isQuotedWithCast = /^'.*'::\w+/.test(defaultValue);
         if (!isSQLFunction && !isNumeric && !isQuotedWithCast && !/^'.*'$/.test(defaultValue)) {
-          defaultValue = `'${defaultValue}'`;
+          // Escape embedded quotes so a legitimate default like O'Brien
+          // produces valid DDL (issue 7).
+          defaultValue = `'${defaultValue.replace(/'/g, "''")}'`;
         }
       }
       def += ` DEFAULT ${defaultValue}`;

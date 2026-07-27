@@ -87,6 +87,10 @@ constraints: {
 | `unique` | `(string[] \| UniqueConstraintDefinition)[]` | Unique constraints — simple arrays or objects with `nullsNotDistinct` |
 | `foreignKeys` | `ConstraintDefinition[]` | Foreign key references with optional `onDelete` behavior |
 | `checks` | `ConstraintDefinition[]` | SQL check expressions |
+
+::: info
+Check expressions and index predicates are deliberately raw SQL — they are emitted into the DDL as written. Column `default` strings, by contrast, are quoted and escaped when they are not a function call, number, or already-quoted literal.
+:::
 | `indexes` | `ConstraintDefinition[]` | Index definitions for query optimization |
 
 ## Audit fields
