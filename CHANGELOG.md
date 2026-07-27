@@ -42,6 +42,7 @@ Latest commit: `7194475`
 
 ### 🛠 Chores
 
+- **Logging Defers to the Host Logger**: `logMessage` dropped debug output when `NODE_ENV === 'production'`; the library now hands every message to the logger you supply and lets it decide levels
 - **Dead Code Removed**: the no-op builtin-function replace loop in `createTableSQL` (both branches returned `match`) and the commented-out `costlines` debug block are gone; the constructor error message no longer claims to check a primary key it never checked
 - **Dead Files Removed**: `src/utils/ddlGenerator.js` (a single comment line that shipped in the npm tarball) and the three empty `Examples/` stubs (`db.js`, `models/User.js`, `schemas/userSchema.js`) are deleted; the working examples live under `Examples/migration-tutorial/` and `Examples/pg-schemata-min-example/`
 
