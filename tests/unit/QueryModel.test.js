@@ -269,6 +269,20 @@ describe('QueryModel', () => {
       await expect(model.countWhere(42)).rejects.toThrow('Conditions must be an array or a plain object');
     });
 
+    test('findWhere rejects non-numeric limit and offset instead of emitting NaN (suggestion 5)', async () => {
+      await expect(model.findWhere([{ id: 1 }], 'AND', { limit: 'abc' })).rejects.toThrow('Invalid limit: "abc"');
+      await expect(model.findWhere([{ id: 1 }], 'AND', { offset: {} })).rejects.toThrow('Invalid offset');
+      await expect(model.findWhere([{ id: 1 }], 'AND', { limit: -1 })).rejects.toThrow('Invalid limit: -1');
+    });
+
+    test('findWhere honors limit: 0 and offset: 0 (suggestion 5)', async () => {
+      mockDb.any.mockResolvedValue([]);
+      await model.findWhere([{ id: 1 }], 'AND', { limit: 0, offset: 0 });
+      const [query] = mockDb.any.mock.calls.at(-1);
+      expect(query).toContain('LIMIT 0');
+      expect(query).toContain('OFFSET 0');
+    });
+
     test('findWhere should include basic where clause', async () => {
       mockDb.any.mockResolvedValue([{ id: 1 }]);
       const result = await model.findWhere([{ id: 1 }]);

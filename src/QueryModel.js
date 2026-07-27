@@ -171,8 +171,11 @@ class QueryModel {
       const orderClause = Array.isArray(orderBy) ? orderBy.map(col => this.escapeName(col)).join(', ') : this.escapeName(orderBy);
       queryParts.push(`ORDER BY ${orderClause}`);
     }
-    if (limit) queryParts.push(`LIMIT ${parseInt(limit, 10)}`);
-    if (offset) queryParts.push(`OFFSET ${parseInt(offset, 10)}`);
+    // Validate instead of interpolating parseInt output: bad input produced
+    // LIMIT NaN, and the old truthiness gate dropped limit: 0 / offset: 0
+    // (suggestion 5).
+    if (limit != null) queryParts.push(`LIMIT ${this._toBoundedInt(limit, 'limit')}`);
+    if (offset != null) queryParts.push(`OFFSET ${this._toBoundedInt(offset, 'offset')}`);
 
     const query = queryParts.join(' ');
 
@@ -571,6 +574,21 @@ class QueryModel {
       }
       delete col.nullable;
     }
+  }
+
+  /**
+   * Validates a LIMIT/OFFSET value as a non-negative integer.
+   * @param {number|string} value - Caller-supplied limit or offset.
+   * @param {string} label - Name used in the error message.
+   * @returns {number} The validated integer.
+   * @throws {SchemaDefinitionError} If value is not a non-negative integer.
+   */
+  _toBoundedInt(value, label) {
+    const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) {
+      throw new SchemaDefinitionError(`Invalid ${label}: ${JSON.stringify(value)}`);
+    }
+    return n;
   }
 
   /**
