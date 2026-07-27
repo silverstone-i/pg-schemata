@@ -92,7 +92,9 @@ jobs:
         if: steps.bump.outputs.type != 'none'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # npm >= 11.5.1 is required for Trusted Publishing, and current npm
+          # majors require Node 22+
+          node-version: '22'
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
