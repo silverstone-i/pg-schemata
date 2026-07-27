@@ -143,9 +143,7 @@ class QueryModel {
    * @returns {Promise<Object[]>} Matching rows.
    */
   async findWhere(conditions = [], joinType = 'AND', { columnWhitelist = null, filters = {}, orderBy = null, limit = null, offset = null, includeDeactivated = false } = {}) {
-    if (!Array.isArray(conditions)) {
-      throw new Error('Conditions must be an array');
-    }
+    conditions = this._normalizeConditions(conditions);
 
     const table = `${this.schemaName}.${this.tableName}`;
     const selectCols = columnWhitelist?.length ? columnWhitelist.map(col => this.escapeName(col)).join(', ') : '*';
@@ -343,6 +341,8 @@ class QueryModel {
    * @returns {Promise<number>} Number of matching rows.
    */
   async countWhere(conditions = [], joinType = 'AND', { filters = {}, includeDeactivated = false } = {}) {
+    conditions = this._normalizeConditions(conditions);
+
     const values = [];
     const whereClauses = [];
 
@@ -527,6 +527,23 @@ class QueryModel {
   // ---------------------------------------------------------------------------
   // 🔴 Internals
   // ---------------------------------------------------------------------------
+
+  /**
+   * Normalizes a conditions argument to an array of condition objects.
+   *
+   * A plain object is wrapped in an array so callers may pass either shape —
+   * previously an object slipped past the `conditions.length` checks and the
+   * WHERE clause was silently dropped (issue 9). Anything else throws.
+   *
+   * @param {Array<Object>|Object} conditions - Conditions in either shape.
+   * @returns {Array<Object>} Conditions as an array.
+   * @throws {SchemaDefinitionError} If conditions is neither an array nor a plain object.
+   */
+  _normalizeConditions(conditions) {
+    if (Array.isArray(conditions)) return conditions;
+    if (isPlainObject(conditions)) return Object.keys(conditions).length ? [conditions] : [];
+    throw new SchemaDefinitionError('Conditions must be an array or a plain object');
+  }
 
   /**
    * Builds a SQL WHERE clause from conditions.

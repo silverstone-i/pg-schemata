@@ -247,6 +247,28 @@ describe('QueryModel', () => {
       expect(result).toBe(42);
     });
 
+    test('countWhere applies the WHERE clause when given a plain object (issue 9)', async () => {
+      mockDb.one.mockResolvedValue({ count: '1' });
+      await model.countWhere({ email: 'a@x.com' });
+      const [query, values] = mockDb.one.mock.calls.at(-1);
+      expect(query).toContain('WHERE');
+      expect(query).toContain('"email" = $1');
+      expect(values).toEqual(['a@x.com']);
+    });
+
+    test('findWhere accepts a plain object as conditions (issue 9)', async () => {
+      mockDb.any.mockResolvedValue([]);
+      await model.findWhere({ email: 'a@x.com' });
+      const [query, values] = mockDb.any.mock.calls.at(-1);
+      expect(query).toContain('"email" = $1');
+      expect(values).toEqual(['a@x.com']);
+    });
+
+    test('findWhere and countWhere reject conditions that are neither array nor object (issue 9)', async () => {
+      await expect(model.findWhere('email = 1')).rejects.toThrow('Conditions must be an array or a plain object');
+      await expect(model.countWhere(42)).rejects.toThrow('Conditions must be an array or a plain object');
+    });
+
     test('findWhere should include basic where clause', async () => {
       mockDb.any.mockResolvedValue([{ id: 1 }]);
       const result = await model.findWhere([{ id: 1 }]);
