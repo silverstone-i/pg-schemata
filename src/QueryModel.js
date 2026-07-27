@@ -158,7 +158,7 @@ class QueryModel {
     }
 
     if (Object.keys(filters).length) {
-      whereClauses.push(this.buildCondition([filters], 'AND', values));
+      whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
     }
 
     if (whereClauses.length) queryParts.push('WHERE', whereClauses.join(' AND '));
@@ -222,10 +222,12 @@ class QueryModel {
 
       if (Object.keys(filters).length) {
         if (filters.and || filters.or) {
-          const top = filters.and ? this.buildCondition(filters.and, 'AND', values) : this.buildCondition(filters.or, 'OR', values);
+          const top = filters.and
+            ? this.buildCondition(filters.and, 'AND', values, includeDeactivated === true)
+            : this.buildCondition(filters.or, 'OR', values, includeDeactivated === true);
           whereClauses.push(top);
         } else {
-          whereClauses.push(this.buildCondition([filters], 'AND', values));
+          whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
         }
       }
       if (this._schema.softDelete && !includeDeactivated) {
@@ -357,7 +359,7 @@ class QueryModel {
     }
 
     if (Object.keys(filters).length) {
-      whereClauses.push(this.buildCondition([filters], 'AND', values));
+      whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
     }
 
     const whereStr = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
@@ -568,13 +570,13 @@ class QueryModel {
       if (requireNonEmpty && where.length === 0) {
         throw new Error('WHERE clause must be a non-empty array');
       }
-      clause = this.buildCondition(where, joinType, values);
+      clause = this.buildCondition(where, joinType, values, includeDeactivated);
     } else if (isValidObject) {
       const isEmptyObject = Object.keys(where).length === 0;
       if (requireNonEmpty && isEmptyObject) {
         throw new Error('WHERE clause must be a non-empty object');
       }
-      clause = this.buildCondition([where], joinType, values);
+      clause = this.buildCondition([where], joinType, values, includeDeactivated);
     } else {
       throw new Error('WHERE clause must be an array or plain object');
     }
@@ -599,22 +601,23 @@ class QueryModel {
    * @param {Array<Object>} group - Array of condition objects.
    * @param {string} joiner - Logical joiner ('AND' or 'OR') between conditions.
    * @param {Array} values - Parameter values to be populated.
+   * @param {boolean} [includeDeactivated=false] - Include soft-deleted rows in $max/$min/$sum subqueries.
    * @returns {string} A SQL-safe WHERE fragment.
    */
-  buildCondition(group, joiner = 'AND', values = []) {
+  buildCondition(group, joiner = 'AND', values = [], includeDeactivated = false) {
     const parts = [];
     for (const item of group) {
       if (item.$and && Array.isArray(item.$and) && item.$and.length > 0) {
-        parts.push(`(${this.buildCondition(item.$and, 'AND', values)})`);
+        parts.push(`(${this.buildCondition(item.$and, 'AND', values, includeDeactivated)})`);
         continue;
       } else if (item.$or && Array.isArray(item.$or) && item.$or.length > 0) {
-        parts.push(`(${this.buildCondition(item.$or, 'OR', values)})`);
+        parts.push(`(${this.buildCondition(item.$or, 'OR', values, includeDeactivated)})`);
         continue;
       }
       if (item.and && Array.isArray(item.and) && item.and.length > 0) {
-        parts.push(`(${this.buildCondition(item.and, 'AND', values)})`);
+        parts.push(`(${this.buildCondition(item.and, 'AND', values, includeDeactivated)})`);
       } else if (item.or && Array.isArray(item.or) && item.or.length > 0) {
-        parts.push(`(${this.buildCondition(item.or, 'OR', values)})`);
+        parts.push(`(${this.buildCondition(item.or, 'OR', values, includeDeactivated)})`);
       } else {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
@@ -682,14 +685,20 @@ class QueryModel {
                 throw new SchemaDefinitionError(`$is only supports null for now`);
               }
             }
-            if ('$max' in val) {
-              parts.push(`${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName})`);
-            }
-            if ('$min' in val) {
-              parts.push(`${col} = (SELECT MIN(${col}) FROM ${this.schemaName}.${this.tableName})`);
-            }
-            if ('$sum' in val) {
-              parts.push(`${col} = (SELECT SUM(${col}) FROM ${this.schemaName}.${this.tableName})`);
+            if ('$max' in val || '$min' in val || '$sum' in val) {
+              // The subquery must apply the same soft-delete filter as the
+              // outer query, or the aggregate can land on a deleted row and
+              // the query returns nothing (issue 11).
+              const softFilter = this._schema.softDelete && !includeDeactivated ? ' WHERE deactivated_at IS NULL' : '';
+              if ('$max' in val) {
+                parts.push(`${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`);
+              }
+              if ('$min' in val) {
+                parts.push(`${col} = (SELECT MIN(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`);
+              }
+              if ('$sum' in val) {
+                parts.push(`${col} = (SELECT SUM(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`);
+              }
             }
           } else {
             if (val === null) {

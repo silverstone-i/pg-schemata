@@ -78,6 +78,24 @@ describe('QueryModel - soft delete support', () => {
     expect(sql).not.toMatch(/deactivated_at IS NULL/);
   });
 
+  test('$max subquery excludes soft-deleted rows (issue 11)', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.findWhere([{ id: { $max: true } }]);
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toContain('(SELECT MAX("id") FROM "test_schema"."test_users" WHERE deactivated_at IS NULL)');
+  });
+
+  test('$max subquery includes soft-deleted rows when includeDeactivated is true (issue 11)', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.findWhere([{ id: { $max: true } }], 'AND', { includeDeactivated: true });
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toContain('(SELECT MAX("id") FROM "test_schema"."test_users")');
+  });
+
   test('reload excludes soft-deleted rows by default', async () => {
     mockDb.any.mockResolvedValue([]);
 
