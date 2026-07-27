@@ -51,7 +51,7 @@ class QueryModel {
       throw new Error('Schema must be an object');
     }
     if (!db || !pgp || !schema.table || !schema.columns) {
-      throw new Error('Missing required parameters: db, pgp, schema, table, or primary key');
+      throw new Error('Missing required parameters: db, pgp, schema.table, or schema.columns');
     }
 
     this.db = db;

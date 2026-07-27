@@ -89,16 +89,6 @@ function createTableSQL(schema, logger = null) {
     if (col.default !== undefined) {
       let defaultValue = col.default;
       if (typeof defaultValue === 'string') {
-        const builtins = new Set(['now', 'current_timestamp']);
-
-        defaultValue = defaultValue.replace(/\b([a-z_][a-z0-9_]*)\s*\(\)/gi, (match, fnName) => {
-          if (builtins.has(fnName.toLowerCase()) || /\b\w+\.\w+\(\)/.test(match)) {
-            return match;
-          }
-          // Don't add schema prefix - PostgreSQL will find functions in the search_path
-          return match;
-        });
-
         // Quote unquoted, non-function, non-numeric strings
         const isSQLFunction = /\b\w+\(.*\)/.test(defaultValue);
         const isNumeric = /^-?\d+(\.\d+)?$/.test(defaultValue);
@@ -227,9 +217,6 @@ function createTableSQL(schema, logger = null) {
     data: { sql: finalSQL },
   });
 
-  // if (table === 'costlines') {
-  //   console.log('costlines sql', finalSQL);
-  // }
   return finalSQL;
 }
 

@@ -47,7 +47,7 @@ describe('QueryModel', () => {
     });
 
     test('should throw if required parameters are missing', () => {
-      expect(() => new QueryModel(mockDb, mockPgp, {})).toThrow('Missing required parameters: db, pgp, schema, table, or primary key');
+      expect(() => new QueryModel(mockDb, mockPgp, {})).toThrow('Missing required parameters: db, pgp, schema.table, or schema.columns');
     });
   });
 
