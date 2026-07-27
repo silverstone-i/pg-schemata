@@ -77,4 +77,23 @@ describe('QueryModel - soft delete support', () => {
     const sql = mockDb.any.mock.calls[0][0];
     expect(sql).not.toMatch(/deactivated_at IS NULL/);
   });
+
+  test('reload excludes soft-deleted rows by default', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.reload('abc-123');
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toMatch(/deactivated_at IS NULL/);
+  });
+
+  test('reload honors includeDeactivated (issue 10)', async () => {
+    mockDb.any.mockResolvedValue([{ id: 4 }]);
+
+    const row = await model.reload('abc-123', { includeDeactivated: true });
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).not.toMatch(/deactivated_at IS NULL/);
+    expect(row).toEqual({ id: 4 });
+  });
 });

@@ -195,7 +195,7 @@ Changes the PostgreSQL schema and regenerates the ColumnSet.
 
 ### reload(id, options?)
 
-Reloads a record by ID. Alias for `findById`.
+Reloads a record by ID. Pass `{ includeDeactivated: true }` to include soft-deleted records; `findById` does not take options.
 
 ### exportToSpreadsheet(filePath, where?, joinType?, options?)
 

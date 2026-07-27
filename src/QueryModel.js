@@ -263,14 +263,18 @@ class QueryModel {
   }
 
   /**
-   * Reloads a single record by ID using findById.
+   * Reloads a single record by ID.
    * @param {string|number} id - Primary key value.
    * @param {Object} [options] - Optional flags.
    * @param {boolean} [options.includeDeactivated=false] - Whether to include soft-deleted records.
    * @returns {Promise<Object|null>} The found record or null.
+   * @throws {Error} If ID is invalid.
    */
   async reload(id, { includeDeactivated = false } = {}) {
-    return this.findById(id, { includeDeactivated });
+    // findById takes only an id, so route through findOneBy to honor options
+    // (issue 10).
+    if (!isValidId(id)) throw new Error('Invalid ID format');
+    return this.findOneBy([{ id }], { includeDeactivated });
   }
 
   /**
