@@ -316,14 +316,14 @@ describe('TableModel (Unit)', () => {
         mockDb.one.mockResolvedValue(mockRecord);
 
         await model.upsert(
-          { email: 'test@example.com', name: 'Test', status: 'active' },
+          { email: 'test@example.com', password: 'secret', status: 'active' },
           ['email'],
-          ['name'] // Only update name column
+          ['password'] // Only update password column
         );
 
         expect(mockDb.one).toHaveBeenCalled();
         const query = mockDb.one.mock.calls[0][0];
-        expect(query).toContain('name = EXCLUDED.name');
+        expect(query).toContain('"password" = EXCLUDED."password"');
         expect(query).not.toContain('status = EXCLUDED.status');
       });
 
@@ -421,9 +421,9 @@ describe('TableModel (Unit)', () => {
       });
 
       test('should use custom updateColumns when provided', async () => {
-        const records = [{ email: 'test@example.com', name: 'Test', status: 'active' }];
+        const records = [{ email: 'test@example.com', password: 'secret', status: 'active' }];
 
-        await model.bulkUpsert(records, ['email'], ['name']); // Only update name
+        await model.bulkUpsert(records, ['email'], ['password']); // Only update password
 
         expect(mockDb.tx).toHaveBeenCalled();
         // Verify the transaction function was called
@@ -435,7 +435,7 @@ describe('TableModel (Unit)', () => {
         await txFunction(mockTx);
 
         const query = mockTx.result.mock.calls[0][0];
-        expect(query).toContain('name = EXCLUDED.name');
+        expect(query).toContain('"password" = EXCLUDED."password"');
         expect(query).not.toContain('status = EXCLUDED.status');
       });
 
@@ -476,7 +476,7 @@ describe('TableModel (Unit)', () => {
 
         const spySanitizeDto = vi.spyOn(model, 'sanitizeDto').mockImplementation(dto => ({
           email: dto.email,
-          created_by: 'system',
+          password: 'sanitized',
         }));
 
         await model.bulkUpsert(records, ['email']);

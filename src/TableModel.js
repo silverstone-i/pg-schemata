@@ -100,6 +100,24 @@ class TableModel extends QueryModel {
   }
 
   /**
+   * Validates a list of column names against the schema and escapes them.
+   * Used for identifier lists (RETURNING, ON CONFLICT, DO UPDATE SET) that
+   * would otherwise reach the SQL unescaped (issues 5, 6).
+   * @param {Array<string>} names - Column names to validate.
+   * @returns {Array<string>} Escaped identifiers.
+   * @throws {SchemaDefinitionError} If a name is not a schema column.
+   */
+  _columns(names) {
+    const valid = new Set(this._schema.columns.map((c) => c.name));
+    return names.map((n) => {
+      if (!valid.has(n)) {
+        throw new SchemaDefinitionError(`Unknown column: ${n}`);
+      }
+      return this.escapeName(n);
+    });
+  }
+
+  /**
    * Inserts a single row into the table after validation and sanitization.
    * @param {Object} dto - Data to insert.
    * @param {Object} [options] - Options.
@@ -273,8 +291,9 @@ class TableModel extends QueryModel {
     );
 
     const auditUpdate = this._auditEnabled() ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
+    const escapedUpdateCols = this._columns(columnsToUpdate);
     const setParts = [
-      ...(columnsToUpdate.length ? [columnsToUpdate.map((col) => `${col} = EXCLUDED.${col}`).join(', ')] : []),
+      ...(escapedUpdateCols.length ? [escapedUpdateCols.map((col) => `${col} = EXCLUDED.${col}`).join(', ')] : []),
       ...(auditUpdate ? [auditUpdate] : []),
     ];
 
@@ -284,7 +303,7 @@ class TableModel extends QueryModel {
 
     const query = `
       ${this.pgp.helpers.insert(safeDto, insertCs)}
-      ON CONFLICT (${conflictColumns.join(', ')})
+      ON CONFLICT (${this._columns(conflictColumns).join(', ')})
       DO UPDATE SET ${setParts.join(', ')}
       RETURNING *
     `;
@@ -338,8 +357,9 @@ class TableModel extends QueryModel {
     ).filter((col) => !auditExclude.includes(col));
 
     const auditUpdate = this._auditEnabled() ? 'updated_at = NOW(), updated_by = EXCLUDED.updated_by' : '';
+    const escapedUpdateCols = this._columns(columnsToUpdate);
     const setParts = [
-      ...(columnsToUpdate.length ? [columnsToUpdate.map((col) => `${col} = EXCLUDED.${col}`).join(', ')] : []),
+      ...(escapedUpdateCols.length ? [escapedUpdateCols.map((col) => `${col} = EXCLUDED.${col}`).join(', ')] : []),
       ...(auditUpdate ? [auditUpdate] : []),
     ];
 
@@ -347,11 +367,11 @@ class TableModel extends QueryModel {
       throw new SchemaDefinitionError('No columns available for update on conflict');
     }
 
-    const returningClause = returning ? ` RETURNING ${returning.join(', ')}` : '';
+    const returningClause = returning ? ` RETURNING ${this._columns(returning).join(', ')}` : '';
 
     const query = `
       ${this.pgp.helpers.insert(safeRecords, insertCs)}
-      ON CONFLICT (${conflictColumns.join(', ')})
+      ON CONFLICT (${this._columns(conflictColumns).join(', ')})
       DO UPDATE SET ${setParts.join(', ')}
       ${returningClause}
     `;
@@ -532,7 +552,7 @@ class TableModel extends QueryModel {
     });
 
     const query =
-      this.pgp.helpers.insert(safeRecords, cs) + (Array.isArray(returning) && returning.length > 0 ? ` RETURNING ${returning.join(', ')}` : '');
+      this.pgp.helpers.insert(safeRecords, cs) + (Array.isArray(returning) && returning.length > 0 ? ` RETURNING ${this._columns(returning).join(', ')}` : '');
 
     try {
       // undefined, not []: an empty array still runs the formatter over the
@@ -604,7 +624,7 @@ class TableModel extends QueryModel {
         });
         columnSetsByKeys.set(cacheKey, updateCs);
       }
-      const returningClause = returning ? ` RETURNING ${returning.join(', ')}` : '';
+      const returningClause = returning ? ` RETURNING ${this._columns(returning).join(', ')}` : '';
       return {
         query: this.pgp.helpers.update(safeDto, updateCs) + ' ' + condition + returningClause,
       };

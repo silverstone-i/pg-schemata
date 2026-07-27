@@ -81,6 +81,19 @@ describe('no second format pass over finished statements', () => {
     expect(values).toBeUndefined();
   });
 
+  it('rejects unknown identifiers in returning and conflict columns (issues 5, 6)', async () => {
+    await expect(model.bulkInsert([{ note: 'x' }], ['note; DROP TABLE y; --']))
+      .rejects.toThrow('Unknown column: note; DROP TABLE y; --');
+    await expect(model.upsert({ id: 'aaaaaaaa-1111-2222-3333-444444444444', note: 'x' }, ['id) DO NOTHING; DROP TABLE x; --']))
+      .rejects.toThrow('Unknown column');
+    expect(db.calls).toHaveLength(0);
+  });
+
+  it('escapes valid returning columns', async () => {
+    await model.bulkInsert([{ note: 'x' }], ['note']);
+    expect(db.calls[0][0]).toContain('RETURNING "note"');
+  });
+
   it('routes mutating methods through options.tx when supplied (issue 12)', async () => {
     const txDb = makeCapturingDb();
 
