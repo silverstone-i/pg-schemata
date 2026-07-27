@@ -82,6 +82,10 @@ Publishing is CI-driven — never run `npm publish` manually.
 
 The tag created by `release-on-merge.yml` is pushed with `GITHUB_TOKEN`, which deliberately does not trigger `publish-release.yml` — that workflow remains as the path for manually pushed tags, and there is no double publish.
 
+`release-on-merge.yml` authenticates via npm Trusted Publishing (OIDC) — no token. The npm package's trusted publisher must be configured as repo `silverstone-i/pg-schemata`, workflow `release-on-merge.yml`, no environment. The tag-triggered workflows (`publish-release.yml`, `publish-rc.yml`) still authenticate with the `NPM_TOKEN` secret, since npm allows only one trusted-publisher workflow per package.
+
+**Recovery — tagged but not published**: if a release run bumps and tags but the publish step fails, do not re-merge anything. Fix the cause, then run `gh workflow run "Release on Merge"` — a manual dispatch skips the bump and tag and publishes whatever version is on `main`.
+
 The bump type is aggregated across all PRs merged since the last release tag (highest label wins), so releases queued behind one another never lose a bump level.
 
 **Fork PRs**: `pull_request` workflows from forks do not receive repository secrets, so merging a fork-based PR cannot publish — the merge succeeds and the publish step fails. Release such changes by pushing the `vX.Y.Z` tag manually (`publish-release.yml` handles it), or by merging a labeled follow-up PR from a local branch.

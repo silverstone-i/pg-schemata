@@ -11,8 +11,16 @@
 # not trigger other workflows, which also means no double publish.
 # publish-release.yml remains for manually pushed tags.
 #
+# Publishing uses npm Trusted Publishing (OIDC) - no NPM_TOKEN required.
+# The npm package must have this repo + workflow filename configured as its
+# trusted publisher.
+#
+# workflow_dispatch runs in publish-only mode: no bump, no tag - it tests and
+# publishes whatever version is on main. Use it to recover when a release run
+# bumped and tagged but the publish step failed.
+#
 # Prerequisites:
-#   - NPM_TOKEN configured in the repository's GitHub Secrets
+#   - npm Trusted Publisher: silverstone-i/pg-schemata, release-on-merge.yml
 #   - The three release:* labels created in the repository
 #   - Branch protection on main must allow github-actions[bot] to push
 #     (the version-bump commit lands directly on main)
@@ -23,9 +31,11 @@ on:
   pull_request:
     types: [closed]
     branches: ['main']
+  workflow_dispatch:
 
 permissions:
   contents: write
+  id-token: write # OIDC token for npm Trusted Publishing
 
 concurrency:
   group: release
@@ -33,7 +43,7 @@ concurrency:
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
@@ -54,6 +64,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "type=publish-only" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch: publishing the version already on main, no bump"
+            exit 0
+          fi
           last_tag=$(git tag --list 'v[0-9]*' --sort=-v:refname | grep -v -- '-rc\.' | head -1 || true)
           if [ -n "$last_tag" ]; then
             since=$(git log -1 --format=%cI "$last_tag")
@@ -94,7 +109,7 @@ jobs:
         run: npm run lint
 
       - name: Bump version and promote changelog
-        if: steps.bump.outputs.type != 'none'
+        if: contains(fromJSON('["patch","minor","major"]'), steps.bump.outputs.type)
         id: version
         run: |
           npm version "${{ steps.bump.outputs.type }}" --no-git-tag-version
@@ -105,7 +120,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Commit, tag, and push
-        if: steps.bump.outputs.type != 'none'
+        if: contains(fromJSON('["patch","minor","major"]'), steps.bump.outputs.type)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -114,8 +129,11 @@ jobs:
           git tag "v${{ steps.version.outputs.version }}"
           git push origin main --follow-tags
 
+      # Trusted Publishing needs npm >= 11.5.1; Node 20 runners bundle npm 10
+      - name: Update npm for Trusted Publishing
+        if: steps.bump.outputs.type != 'none'
+        run: npm install -g npm@latest
+
       - name: Publish to npm (latest)
         if: steps.bump.outputs.type != 'none'
         run: npm publish --tag latest
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
