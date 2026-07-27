@@ -24,25 +24,39 @@ import { z } from 'zod';
  *
  * Note: This function is used internally by TableModel to auto-generate validation schemas.
  */
+const unknownTypeWarned = new Set();
+
 function mapSqlTypeToZod(type) {
   if (/^varchar\((\d+)\)$/i.test(type)) {
     const max = parseInt(type.match(/^varchar\((\d+)\)$/i)[1], 10);
     return z.string().max(max);
-  } else if (/^text$/i.test(type)) {
+  } else if (/^(text|varchar|char\(\d+\)|character varying(\(\d+\))?)$/i.test(type)) {
     return z.string();
   } else if (/^uuid$/i.test(type)) {
     return z.string().uuid();
-  } else if (/^(int|serial)$/i.test(type)) {
+  } else if (/^(int|integer|smallint|int2|int4|serial|smallserial)$/i.test(type)) {
     return z.number().int();
-  } else if (/^numeric$/i.test(type)) {
+  } else if (/^(bigint|int8|bigserial)$/i.test(type)) {
+    // bigint columns commonly round-trip as strings to avoid precision loss
+    return z.union([z.number().int(), z.bigint(), z.string().regex(/^-?\d+$/)]);
+  } else if (/^(numeric|decimal)(\(\s*\d+\s*(,\s*\d+\s*)?\))?$/i.test(type)) {
+    return z.number();
+  } else if (/^(real|double precision|float4|float8)$/i.test(type)) {
     return z.number();
   } else if (/^boolean$/i.test(type)) {
     return z.boolean();
-  } else if (/^(timestamp|date)$/i.test(type)) {
+  } else if (/^(timestamptz|timestamp|date)(\(\d+\))?( with(out)? time zone)?$/i.test(type)) {
     return z.coerce.date();
-  } else if (/^jsonb$/i.test(type)) {
+  } else if (/^jsonb?$/i.test(type)) {
     return z.any();
   } else {
+    // Unrecognized types keep z.any() for compatibility, but say so once
+    // per type instead of silently accepting anything (suggestion 3).
+    // 2.0.0 will throw here.
+    if (!unknownTypeWarned.has(type)) {
+      unknownTypeWarned.add(type);
+      console.warn(`[pg-schemata] No validator mapping for column type "${type}"; falling back to z.any(). This will become an error in 2.0.0.`);
+    }
     return z.any();
   }
 }
@@ -56,8 +70,9 @@ function generateZodFromTableSchema(tableSchema) {
     const { name, type, notNull, default: defaultValue } = column;
     let zodType = column.colProps?.validator || mapSqlTypeToZod(type);
 
-    // Enhance email fields
-    if (name === 'email' && zodType._def.typeName === 'ZodString') {
+    // Enhance email fields. instanceof is stable across zod versions;
+    // _def.typeName is a zod 3 internal removed in zod 4 (suggestion 3).
+    if (name === 'email' && zodType instanceof z.ZodString) {
       zodType = zodType.email();
     }
 
