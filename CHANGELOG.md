@@ -12,6 +12,7 @@ Latest commit: `7194475`
 
 ### 🐛 Fixes
 
+- **Column Defaults No Longer Inserted as Literal Strings**: a column with a SQL `default` that is omitted from an insert DTO now emits the `DEFAULT` keyword so Postgres applies the column default. Previously the default expression itself was inserted as data — `role` defaulting to `"'user'"` stored the five-character string `'user'` quotes included, and a `timestamptz` defaulting to `now()` failed with `22007 invalid input syntax`
 - **Soft Delete Without Audit Fields**: the constructor no longer skips schema normalization when `hasAuditFields` is false, so `softDelete: true` adds the `deactivated_at` column on its own. Previously every query on such a table failed with `42703 column "deactivated_at" does not exist`. The soft-delete step now lives in its own `addSoftDeleteField` helper, and the caller's schema object is cloned before normalization instead of being mutated
 
 ---

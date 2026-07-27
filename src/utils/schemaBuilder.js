@@ -23,6 +23,11 @@ import { logMessage } from './pg-util.js';
 
 const columnSetCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
 // Cache for storing generated ColumnSets to avoid redundant computations
+
+// Raw-type sentinel used as the ColumnSet `def` for columns with a SQL
+// default: pg-promise emits the bare DEFAULT keyword when the property is
+// missing from the DTO, letting Postgres apply the column default.
+const RAW_DEFAULT = { rawType: true, toPostgres: () => 'DEFAULT' };
 // and improve performance
 /**
  * Creates a short MD5-based hash of the input string.
@@ -518,7 +523,10 @@ function createColumnSet(schema, pgp, logger = null) {
       const columnObject = {
         name: col.name,
         ...colPropsWithoutValidator,
-        def: Object.prototype.hasOwnProperty.call(col, 'default') ? col.default : col.colProps?.def ?? undefined,
+        // `def` is a JavaScript substitution value, not raw SQL. A column with
+        // a SQL default must emit the DEFAULT keyword when absent from the DTO,
+        // not the text of its own default expression (issue N3).
+        def: Object.prototype.hasOwnProperty.call(col, 'default') ? RAW_DEFAULT : col.colProps?.def ?? undefined,
       };
 
       return columnObject;

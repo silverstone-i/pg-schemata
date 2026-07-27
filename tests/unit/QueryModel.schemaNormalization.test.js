@@ -63,3 +63,33 @@ describe('QueryModel constructor schema normalization (real schemaBuilder)', () 
     expect(JSON.stringify(schema)).toBe(before);
   });
 });
+
+describe('column defaults through the real ColumnSet (N3)', () => {
+  beforeEach(() => {
+    columnSetCache.clear();
+  });
+
+  const schema = {
+    dbSchema: 'public',
+    table: 'n3_defaults',
+    hasAuditFields: false,
+    softDelete: false,
+    columns: [
+      { name: 'name', type: 'text', notNull: true },
+      { name: 'status', type: 'varchar(20)', default: "'live'", notNull: true },
+    ],
+    constraints: { primaryKey: ['name'] },
+  };
+
+  it('emits the DEFAULT keyword when a defaulted column is omitted from the DTO', () => {
+    const model = new QueryModel(stubDb, pgp, schema);
+    const sql = pgp.helpers.insert({ name: 'x' }, model.cs[schema.table]);
+    expect(sql).toBe('insert into "public"."n3_defaults"("name","status") values(\'x\',DEFAULT)');
+  });
+
+  it('formats a supplied value normally, including escaping', () => {
+    const model = new QueryModel(stubDb, pgp, schema);
+    const sql = pgp.helpers.insert({ name: 'x', status: "o'k" }, model.cs[schema.table]);
+    expect(sql).toBe('insert into "public"."n3_defaults"("name","status") values(\'x\',\'o\'\'k\')');
+  });
+});

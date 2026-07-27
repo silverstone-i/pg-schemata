@@ -850,7 +850,7 @@ describe('Schema Utilities', () => {
       expect(mockExtend).not.toHaveBeenCalled();
     });
 
-    it('should handle columns with default values correctly', () => {
+    it('maps a SQL default to the raw DEFAULT sentinel, not a literal value (N3)', () => {
       const schema = {
         dbSchema: 'public',
         table: 'orders',
@@ -865,7 +865,9 @@ describe('Schema Utilities', () => {
 
       const columnSet = createColumnSet(schema, mockPgp);
 
-      expect(columnSet.orders.columns).toContainEqual(expect.objectContaining({ def: 'pending' }));
+      const statusCol = columnSet.orders.columns.find(c => c.name === 'status');
+      expect(statusCol.def).toMatchObject({ rawType: true });
+      expect(statusCol.def.toPostgres()).toBe('DEFAULT');
     });
 
     it('should skip missing columns correctly', () => {
