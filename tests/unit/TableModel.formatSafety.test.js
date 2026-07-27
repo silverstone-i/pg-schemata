@@ -162,4 +162,9 @@ describe('no second format pass over finished statements', () => {
 
     expect(spy.length).toBe(1);
   });
+
+  it('_columns rejects non-array input with a SchemaDefinitionError (PR #10 review)', () => {
+    expect(() => model._columns('note')).toThrow('Expected an array of column names, got string');
+    expect(() => model._columns(undefined)).toThrow('Expected an array of column names, got undefined');
+  });
 });

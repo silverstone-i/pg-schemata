@@ -121,6 +121,9 @@ class TableModel extends QueryModel {
    * @throws {SchemaDefinitionError} If a name is not a schema column.
    */
   _columns(names) {
+    if (!Array.isArray(names)) {
+      throw new SchemaDefinitionError(`Expected an array of column names, got ${typeof names}`);
+    }
     const valid = new Set(this._schema.columns.map((c) => c.name));
     return names.map((n) => {
       if (!valid.has(n)) {
@@ -648,7 +651,10 @@ class TableModel extends QueryModel {
       const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
       const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
       const keys = Object.keys(safeDto);
-      const cacheKey = keys.join(',');
+      // Sort for the cache key only: key order varies between otherwise
+      // identical DTOs, and pg-promise maps values by name, so one ColumnSet
+      // serves any ordering of the same key set (PR #10 review).
+      const cacheKey = [...keys].sort().join(',');
       let updateCs = columnSetsByKeys.get(cacheKey);
       if (!updateCs) {
         updateCs = new this.pgp.helpers.ColumnSet(keys, {
