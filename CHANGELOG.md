@@ -8,7 +8,7 @@ Latest commit: `7194475`
 
 ---
 
-## [Unreleased]
+## [v1.4.0] - 2026-07-27
 
 ### ✨ Features
 
