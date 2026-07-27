@@ -69,6 +69,6 @@ describe('TableModel soft delete unit tests', () => {
   test('purgeSoftDeleteById constructs delete with id', async () => {
     const spy = vi.spyOn(model, 'purgeSoftDeleteWhere').mockResolvedValue({ rowCount: 1 });
     await model.purgeSoftDeleteById('xyz');
-    expect(spy).toHaveBeenCalledWith([{ id: 'xyz' }]);
+    expect(spy).toHaveBeenCalledWith([{ id: 'xyz' }], { tx: undefined });
   });
 });

@@ -14,8 +14,11 @@ Latest commit: `7194475`
 
 - **`forSchema(name)`**: returns a model bound to the given schema without mutating the instance it is called on. Clones are cached (one per instance/schema pair, LRU-bounded like the ColumnSet cache) and carry a ColumnSet built for the target schema. This removes the race where two interleaved requests sharing one repository both wrote to whichever schema was set last. `callDb()` and `bootstrap()` now route through it
 
+- **`options.tx` on every mutating method**: pass a pg-promise task/transaction context (`insert(dto, { tx: t })`) to run the statement inside it. Previously only `bulkInsert`/`bulkUpdate` honored the undocumented `this.tx` property, so a flow mixing bulk and single-row calls under one assignment was only half-transactional — a rollback undid the bulk work while the single-row statements had already committed on the pool
+
 ### ⚠️ Deprecations
 
+- **`this.tx`**: still honored — now consistently by every mutating method instead of two — but it mutates shared instance state and leaks between concurrent requests. Use `options.tx` or the pg-promise `t.<repo>` pattern. Removal planned for 2.0.0
 - **`setSchemaName()`**: mutates the shared model instance and races under concurrent requests — the exact failure `forSchema()` eliminates. Still functional; emits a one-time warning. Removal planned for 2.0.0
 
 ### 🐛 Fixes

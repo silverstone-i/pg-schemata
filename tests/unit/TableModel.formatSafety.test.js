@@ -81,6 +81,29 @@ describe('no second format pass over finished statements', () => {
     expect(values).toBeUndefined();
   });
 
+  it('routes mutating methods through options.tx when supplied (issue 12)', async () => {
+    const txDb = makeCapturingDb();
+
+    await model.insert({ note: 'a' }, { tx: txDb });
+    await model.update('aaaaaaaa-1111-2222-3333-444444444444', { note: 'b' }, { tx: txDb });
+    await model.deleteWhere([{ note: 'a' }], { tx: txDb });
+    await model.bulkInsert([{ note: 'c' }], null, { tx: txDb });
+
+    expect(txDb.calls.length).toBe(4);
+    expect(db.calls.length).toBe(0);
+  });
+
+  it('honors the deprecated this.tx on single-row methods too (issue 12)', async () => {
+    const txDb = makeCapturingDb();
+    model.tx = txDb;
+
+    await model.insert({ note: 'a' });
+    await model.delete('aaaaaaaa-1111-2222-3333-444444444444');
+
+    expect(txDb.calls.length).toBe(2);
+    expect(db.calls.length).toBe(0);
+  });
+
   it('bulkUpdate reuses one ColumnSet across records with the same keys', async () => {
     const spy = [];
     const RealColumnSet = pgp.helpers.ColumnSet;

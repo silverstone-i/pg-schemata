@@ -90,12 +90,24 @@ class TableModel extends QueryModel {
   }
 
   /**
+   * Resolves the executor for a mutating call. An explicit options.tx wins,
+   * then the deprecated instance-level this.tx, then the base connection.
+   * @param {Object|null} [tx=null] - pg-promise task/transaction context.
+   * @returns {Object} Executor exposing one/any/none/result.
+   */
+  _exec(tx = null) {
+    return tx ?? this.tx ?? this.db;
+  }
+
+  /**
    * Inserts a single row into the table after validation and sanitization.
    * @param {Object} dto - Data to insert.
+   * @param {Object} [options] - Options.
+   * @param {Object} [options.tx] - pg-promise task/transaction to run on.
    * @returns {Promise<Object>} The inserted row.
    * @throws {SchemaDefinitionError} If validation fails or DTO is invalid.
    */
-  async insert(dto) {
+  async insert(dto, { tx } = {}) {
     if (!isPlainObject(dto)) {
       return Promise.reject(new SchemaDefinitionError('DTO must be a non-empty object'));
     }
@@ -142,7 +154,7 @@ class TableModel extends QueryModel {
       return Promise.reject(error);
     }
     try {
-      return await this.db.one(query);
+      return await this._exec(tx).one(query);
     } catch (err) {
       this.handleDbError(err);
     }
@@ -151,17 +163,19 @@ class TableModel extends QueryModel {
   /**
    * Deletes a record by its ID.
    * @param {string|number} id - Primary key of the row to delete.
+   * @param {Object} [options] - Options.
+   * @param {Object} [options.tx] - pg-promise task/transaction to run on.
    * @returns {Promise<number>} Number of rows deleted.
    * @throws {Error} If the ID is invalid or deletion fails.
    */
-  async delete(id) {
+  async delete(id, { tx } = {}) {
     if (!isValidId(id)) {
       return Promise.reject(new Error('Invalid ID format'));
     }
     const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1${softCheck}`;
     try {
-      return await this.db.result(query, [id], (r) => r.rowCount);
+      return await this._exec(tx).result(query, [id], (r) => r.rowCount);
     } catch (err) {
       this.handleDbError(err);
     }
@@ -171,10 +185,12 @@ class TableModel extends QueryModel {
    * Updates a record by ID with new data.
    * @param {string|number} id - Primary key value.
    * @param {Object} dto - Updated values.
+   * @param {Object} [options] - Options.
+   * @param {Object} [options.tx] - pg-promise task/transaction to run on.
    * @returns {Promise<Object|null>} Updated record or null if not found.
    * @throws {SchemaDefinitionError} If ID or DTO is invalid.
    */
-  async update(id, dto) {
+  async update(id, dto, { tx } = {}) {
     if (!isValidId(id)) {
       return Promise.reject(new SchemaDefinitionError('Invalid ID format'));
     }
@@ -212,7 +228,7 @@ class TableModel extends QueryModel {
       condition +
       ' RETURNING *';
     try {
-      const result = await this.db.result(query, undefined, (r) => ({
+      const result = await this._exec(tx).result(query, undefined, (r) => ({
         rowCount: r.rowCount,
         row: r.rows?.[0] ?? null,
       }));
@@ -229,7 +245,7 @@ class TableModel extends QueryModel {
    * @param {Array<string>} [updateColumns] - Columns to update on conflict. Defaults to all non-conflict columns.
    * @returns {Promise<Object>} The inserted or updated row.
    */
-  async upsert(dto, conflictColumns, updateColumns = null) {
+  async upsert(dto, conflictColumns, updateColumns = null, { tx } = {}) {
     if (!isPlainObject(dto)) {
       throw new SchemaDefinitionError('DTO must be a non-empty object');
     }
@@ -274,7 +290,7 @@ class TableModel extends QueryModel {
     `;
 
     try {
-      return await this.db.one(query);
+      return await this._exec(tx).one(query);
     } catch (err) {
       this.handleDbError(err);
     }
@@ -288,7 +304,7 @@ class TableModel extends QueryModel {
    * @param {Array<string>|null} [returning=null] - Optional array of columns to return.
    * @returns {Promise<number|Array>} Number of rows affected or array of rows if returning specified.
    */
-  async bulkUpsert(records, conflictColumns, updateColumns = null, returning = null) {
+  async bulkUpsert(records, conflictColumns, updateColumns = null, returning = null, { tx } = {}) {
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
@@ -341,6 +357,13 @@ class TableModel extends QueryModel {
     `;
 
     try {
+      const exec = tx ?? this.tx ?? null;
+      if (exec) {
+        if (returning) {
+          return await exec.any(query);
+        }
+        return await exec.result(query, undefined, (r) => r.rowCount);
+      }
       return await this.db.tx(async (t) => {
         if (returning) {
           return await t.any(query);
@@ -363,7 +386,7 @@ class TableModel extends QueryModel {
    * @param {Object|Array} where - Filter criteria.
    * @returns {Promise<number>} Number of rows deleted.
    */
-  async deleteWhere(where) {
+  async deleteWhere(where, { tx } = {}) {
     let { clause, values } = this.buildWhereClause(where);
     if (this._schema.softDelete) {
       const softCheck = 'deactivated_at IS NULL';
@@ -372,7 +395,7 @@ class TableModel extends QueryModel {
     }
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
     try {
-      return await this.db.result(query, values, (r) => r.rowCount);
+      return await this._exec(tx).result(query, values, (r) => r.rowCount);
     } catch (err) {
       this.handleDbError(err);
     }
@@ -384,10 +407,10 @@ class TableModel extends QueryModel {
    * @param {string} updatedBy - User performing the update.
    * @returns {Promise<Object|null>} Updated row.
    */
-  async touch(id, updatedBy = null) {
+  async touch(id, updatedBy = null, { tx } = {}) {
     // Route through update(), which already applies soft delete check
     const effectiveUpdatedBy = updatedBy ?? this._resolveAuditActor();
-    return this.update(id, effectiveUpdatedBy ? { updated_by: effectiveUpdatedBy } : {});
+    return this.update(id, effectiveUpdatedBy ? { updated_by: effectiveUpdatedBy } : {}, { tx });
   }
 
   /**
@@ -399,7 +422,7 @@ class TableModel extends QueryModel {
    * @throws {SchemaDefinitionError} If input is invalid.
    */
   async updateWhere(where, updates, options = {}) {
-    const { includeDeactivated = false } = options;
+    const { includeDeactivated = false, tx = null } = options;
 
     const isNonEmpty = (val) => (Array.isArray(val) ? val.length > 0 : isPlainObject(val) ? Object.keys(val).length > 0 : false);
 
@@ -449,7 +472,7 @@ class TableModel extends QueryModel {
     // data as placeholders (issue N4).
     const query = `${setClause} WHERE ${this.pgp.as.format(clause, values)}`;
     try {
-      const result = await this.db.result(query, undefined, (r) => r.rowCount);
+      const result = await this._exec(tx).result(query, undefined, (r) => r.rowCount);
       return result;
     } catch (err) {
       this.handleDbError(err);
@@ -466,8 +489,8 @@ class TableModel extends QueryModel {
    * @returns {Promise<number|Object[]>} Number of rows inserted, or array of rows if returning specified.
    * @throws {SchemaDefinitionError} If records or returning are invalid.
    */
-  async bulkInsert(records, returning = null) {
-    const tx = this.tx ?? null;
+  async bulkInsert(records, returning = null, { tx: txOption = null } = {}) {
+    const tx = txOption ?? this.tx ?? null;
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
@@ -539,8 +562,8 @@ class TableModel extends QueryModel {
    * @returns {Promise<Array>} Array of row counts or updated rows per query.
    * @throws {SchemaDefinitionError} If input or IDs are invalid.
    */
-  async bulkUpdate(records, returning = null) {
-    const tx = this.tx ?? null;
+  async bulkUpdate(records, returning = null, { tx: txOption = null } = {}) {
+    const tx = txOption ?? this.tx ?? null;
     const pk = this._schema.constraints?.primaryKey;
     if (!pk) {
       throw new SchemaDefinitionError('Primary key must be defined in the schema');
@@ -613,7 +636,7 @@ class TableModel extends QueryModel {
    * @returns {Promise<{inserted: number}>} Number of rows inserted.
    * @throws {SchemaDefinitionError} If file format is invalid or spreadsheet is empty.
    */
-  async importFromSpreadsheet(filePath, sheetIndex = 0, callbackFn = null, returning = null) {
+  async importFromSpreadsheet(filePath, sheetIndex = 0, callbackFn = null, returning = null, { tx } = {}) {
     if (typeof filePath !== 'string') {
       throw new SchemaDefinitionError('File path must be a valid string');
     }
@@ -665,7 +688,7 @@ class TableModel extends QueryModel {
       }
     }
 
-    const inserted = await this.bulkInsert(rows, returning);
+    const inserted = await this.bulkInsert(rows, returning, { tx });
 
     return { inserted };
   }
@@ -679,7 +702,7 @@ class TableModel extends QueryModel {
    * @param {Object|Array} where - Filter criteria.
    * @returns {Promise<number>} Number of rows updated.
    */
-  async removeWhere(where) {
+  async removeWhere(where, { tx } = {}) {
     if (!this._schema.softDelete) {
       const error = new Error('Soft delete is not enabled for this table. Let the client decide if the record should be deleted instead.');
       error.status = 403;
@@ -700,7 +723,7 @@ class TableModel extends QueryModel {
     }
 
     const query = `UPDATE ${this.schemaName}.${this.tableName} SET ${setClause} WHERE ${clause}`;
-    return this.db.result(query, values, (r) => r.rowCount);
+    return this._exec(tx).result(query, values, (r) => r.rowCount);
   }
 
   /**
@@ -708,7 +731,7 @@ class TableModel extends QueryModel {
    * @param {Object|Array} where - Filter criteria.
    * @returns {Promise<number>} Number of rows updated.
    */
-  async restoreWhere(where) {
+  async restoreWhere(where, { tx } = {}) {
     if (!this._schema.softDelete) {
       return Promise.reject(new Error('Soft delete is not enabled for this table.'));
     }
@@ -724,7 +747,7 @@ class TableModel extends QueryModel {
     }
 
     const query = `UPDATE ${this.schemaName}.${this.tableName} SET ${setClause} WHERE ${clause}`;
-    return this.db.result(query, values, (r) => r.rowCount);
+    return this._exec(tx).result(query, values, (r) => r.rowCount);
   }
 
   /**
@@ -733,14 +756,14 @@ class TableModel extends QueryModel {
    * @param {Object|Array<Object>} where - Filter conditions.
    * @returns {Promise<Object>} pg-promise result.
    */
-  async purgeSoftDeleteWhere(where = []) {
+  async purgeSoftDeleteWhere(where = [], { tx } = {}) {
     if (!this._schema.softDelete) {
       return Promise.reject(new Error('Soft delete is not enabled for this table.'));
     }
     const normalized = Array.isArray(where) ? where : [where];
     const { clause, values } = this.buildWhereClause([...normalized, { deactivated_at: { $not: null } }], true, [], 'AND', true);
     const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${clause}`;
-    return this.db.result(query, values);
+    return this._exec(tx).result(query, values);
   }
 
   /**
@@ -748,12 +771,12 @@ class TableModel extends QueryModel {
    * @param {string|number} id - Primary key value.
    * @returns {Promise<Object>} pg-promise result.
    */
-  async purgeSoftDeleteById(id) {
+  async purgeSoftDeleteById(id, { tx } = {}) {
     if (!this._schema.softDelete) {
       return Promise.reject(new Error('Soft delete is not enabled for this table.'));
     }
     if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.purgeSoftDeleteWhere([{ id }]);
+    return this.purgeSoftDeleteWhere([{ id }], { tx });
   }
 
   // ---------------------------------------------------------------------------
@@ -764,7 +787,7 @@ class TableModel extends QueryModel {
    * Truncates the table and resets its identity sequence.
    * @returns {Promise<void>}
    */
-  async truncate() {
+  async truncate({ tx } = {}) {
     logMessage({
       logger: this.logger,
       level: 'info',
@@ -774,7 +797,7 @@ class TableModel extends QueryModel {
     });
     const query = `TRUNCATE TABLE ${this.schemaName}.${this.tableName} RESTART IDENTITY CASCADE`;
     try {
-      return await this.db.none(query);
+      return await this._exec(tx).none(query);
     } catch (err) {
       this.handleDbError(err);
     }
@@ -785,7 +808,7 @@ class TableModel extends QueryModel {
    * Automatically creates any indexes defined in the schema constraints.
    * @returns {Promise<void>}
    */
-  async createTable() {
+  async createTable({ tx } = {}) {
     const hasIndexes = this._schema.constraints?.indexes?.length > 0;
     logMessage({
       logger: this.logger,
@@ -796,7 +819,7 @@ class TableModel extends QueryModel {
     });
     try {
       const query = createTableSQL(this._schema, this.logger);
-      return await this.db.none(query);
+      return await this._exec(tx).none(query);
     } catch (err) {
       this.handleDbError(err);
     }
