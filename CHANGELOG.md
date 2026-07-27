@@ -8,6 +8,14 @@ Latest commit: `7194475`
 
 ---
 
+## [Unreleased]
+
+### 🐛 Fixes
+
+- **Soft Delete Without Audit Fields**: the constructor no longer skips schema normalization when `hasAuditFields` is false, so `softDelete: true` adds the `deactivated_at` column on its own. Previously every query on such a table failed with `42703 column "deactivated_at" does not exist`. The soft-delete step now lives in its own `addSoftDeleteField` helper, and the caller's schema object is cloned before normalization instead of being mutated
+
+---
+
 ## [v1.3.3] - 2026-05-15
 
 ### 🐛 Fixes

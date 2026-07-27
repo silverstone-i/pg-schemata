@@ -38,6 +38,7 @@ const mockSchema = {
 // Utility mocks
 vi.mock('../../src/utils/schemaBuilder', () => ({
   addAuditFields: vi.fn(schema => schema),
+  addSoftDeleteField: vi.fn(schema => schema),
   createColumnSet: vi.fn(() => ({
     insert: vi.fn(dto => `INSERT INTO users ... VALUES (...)`),
     update: {},

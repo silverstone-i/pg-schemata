@@ -2,6 +2,7 @@ import { describe, it, test, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../../src/utils/schemaBuilder', () => ({
   addAuditFields: vi.fn(schema => schema),
+  addSoftDeleteField: vi.fn(schema => schema),
   createColumnSet: vi.fn(() => ({
     insert: vi.fn(),
     update: {},

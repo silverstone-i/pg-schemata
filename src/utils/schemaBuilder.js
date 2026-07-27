@@ -308,13 +308,25 @@ function addAuditFields(schema) {
     }
   }
 
+  return schema;
+}
+
+/**
+ * @private
+ *
+ * Appends the `deactivated_at` column to a table schema when soft delete is
+ * enabled and the column is not already present.
+ *
+ * @param {TableSchema} schema - The table schema to modify.
+ * @returns {TableSchema} The updated schema.
+ */
+function addSoftDeleteField(schema) {
   if (schema?.softDelete) {
-    const hasDeactivatedAt = columns.some(col => col.name === 'deactivated_at');
+    const hasDeactivatedAt = schema.columns.some(col => col.name === 'deactivated_at');
     if (!hasDeactivatedAt) {
-      columns.push({
+      schema.columns.push({
         name: 'deactivated_at',
         type: 'timestamptz',
-        nullable: true,
       });
     }
   }
@@ -577,4 +589,4 @@ function createColumnSet(schema, pgp, logger = null) {
   return cs;
 }
 
-export { createTableSQL, addAuditFields, createIndexesSQL, normalizeSQL, createColumnSet, columnSetCache };
+export { createTableSQL, addAuditFields, addSoftDeleteField, createIndexesSQL, normalizeSQL, createColumnSet, columnSetCache };

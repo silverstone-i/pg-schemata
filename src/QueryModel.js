@@ -9,7 +9,7 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
-import { createColumnSet, addAuditFields } from './utils/schemaBuilder.js';
+import { createColumnSet, addAuditFields, addSoftDeleteField } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import DatabaseError from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
@@ -45,7 +45,13 @@ class QueryModel {
     this.db = db;
     this.pgp = pgp;
     this.logger = logger;
-    this._schema = cloneDeep(schema.hasAuditFields ? addAuditFields(schema) : schema);
+    // Clone before normalizing so the caller's schema object is never mutated.
+    // Both helpers guard internally, so they run unconditionally — gating on
+    // hasAuditFields here would skip the soft-delete column too (issue N1).
+    const working = cloneDeep(schema);
+    addAuditFields(working);
+    addSoftDeleteField(working);
+    this._schema = working;
     this.cs = createColumnSet(this.schema, this.pgp);
   }
 
