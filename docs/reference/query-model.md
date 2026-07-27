@@ -177,7 +177,17 @@ Generates a SQL-safe VALUES clause using the model's ColumnSet.
 
 Escapes a column or table name using pg-promise.
 
+### forSchema(name)
+
+Returns a model bound to the given schema without mutating this instance. Clones are cached per `(instance, schema)` pair, and the returned model's ColumnSet is built for the target schema.
+
+**Returns:** This instance if already bound to `name`, otherwise a cached clone
+
 ### setSchemaName(name)
+
+::: warning Deprecated
+Mutates the instance in place and races under concurrent requests. Use `forSchema()`.
+:::
 
 Changes the PostgreSQL schema and regenerates the ColumnSet.
 

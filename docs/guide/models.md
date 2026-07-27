@@ -109,11 +109,13 @@ model.tableName;   // escaped table name (e.g. "users")
 
 ## Switching schemas at runtime
 
-Use `setSchemaName()` to change the PostgreSQL schema a model operates on:
+Use `forSchema()` to get a model bound to another PostgreSQL schema. The original instance is untouched:
 
 ```js
-model.setSchemaName('tenant_abc');
-const rows = await model.findAll();  // queries tenant_abc.users
+const tenantModel = model.forSchema('tenant_abc');
+const rows = await tenantModel.findAll();  // queries tenant_abc.users
 ```
+
+`setSchemaName()` still works but is deprecated: it mutates the shared model instance and races under concurrent requests.
 
 See [Multi-Schema](/guide/multi-schema) for the full multi-tenancy pattern.

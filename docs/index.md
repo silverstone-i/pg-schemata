@@ -27,7 +27,7 @@ features:
   - title: Migrations
     details: MigrationManager discovers, applies, and tracks versioned migration scripts with SHA-256 integrity verification and advisory locking.
   - title: Multi-schema tenancy
-    details: Switch PostgreSQL schemas at runtime with callDb or setSchemaName for per-tenant data isolation.
+    details: Switch PostgreSQL schemas at runtime with forSchema or callDb for per-tenant data isolation.
   - title: Audit fields
     details: Automatic created_at, updated_at, created_by, updated_by tracking with a pluggable actor resolver for dynamic user injection.
 ---

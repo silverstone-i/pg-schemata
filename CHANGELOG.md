@@ -10,6 +10,14 @@ Latest commit: `7194475`
 
 ## [Unreleased]
 
+### ✨ Features
+
+- **`forSchema(name)`**: returns a model bound to the given schema without mutating the instance it is called on. Clones are cached (one per instance/schema pair, LRU-bounded like the ColumnSet cache) and carry a ColumnSet built for the target schema. This removes the race where two interleaved requests sharing one repository both wrote to whichever schema was set last. `callDb()` and `bootstrap()` now route through it
+
+### ⚠️ Deprecations
+
+- **`setSchemaName()`**: mutates the shared model instance and races under concurrent requests — the exact failure `forSchema()` eliminates. Still functional; emits a one-time warning. Removal planned for 2.0.0
+
 ### 🐛 Fixes
 
 - **Column Defaults No Longer Inserted as Literal Strings**: a column with a SQL `default` that is omitted from an insert DTO now emits the `DEFAULT` keyword so Postgres applies the column default. Previously the default expression itself was inserted as data — `role` defaulting to `"'user'"` stored the five-character string `'user'` quotes included, and a `timestamptz` defaulting to `now()` failed with `22007 invalid input syntax`

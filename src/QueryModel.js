@@ -9,6 +9,7 @@
  * Removal or modification of this copyright notice is prohibited.
  */
 
+import { LRUCache } from 'lru-cache';
 import { createColumnSet, addAuditFields, addSoftDeleteField } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import DatabaseError from './DatabaseError.js';
@@ -16,6 +17,16 @@ import SchemaDefinitionError from './SchemaDefinitionError.js';
 import { logMessage } from './utils/pg-util.js';
 import _ from 'lodash';
 const { cloneDeep } = _;
+
+// Cache of schema-bound clones produced by forSchema(), same bounds as the
+// ColumnSet cache in schemaBuilder. Keys are namespaced per base instance:
+// pg-promise's `extend` re-creates repositories for every task/transaction
+// with a different executor, so clones must never be shared across bases —
+// a transaction-context caller would otherwise receive a clone bound to the
+// root pool.
+const modelCloneCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
+let nextCloneCacheId = 1;
+let setSchemaNameDeprecationWarned = false;
 
 /**
  * QueryModel provides reusable read-only query logic for PostgreSQL tables.
@@ -450,12 +461,53 @@ class QueryModel {
   }
 
   /**
+   * Returns a model bound to the given schema without mutating this instance.
+   *
+   * Clones are created once per (instance, schema) pair and cached, so
+   * concurrent requests targeting different schemas each hold their own
+   * model and cannot overwrite each other's schema state — the race that
+   * makes setSchemaName() unsafe on a shared repository.
+   *
+   * @param {string} name - The schema name to bind.
+   * @returns {QueryModel} This instance if already bound to `name`, otherwise a cached clone.
+   * @throws {Error} If name is invalid.
+   */
+  forSchema(name) {
+    if (typeof name !== 'string' || !name.trim()) {
+      throw new Error('Schema name must be a non-empty string');
+    }
+    if (name === this._schema.dbSchema) return this;
+
+    this._cloneCacheId ??= nextCloneCacheId++;
+    const key = `${this._cloneCacheId}::${this._schema.table}::${name}`;
+    let clone = modelCloneCache.get(key);
+    if (!clone) {
+      clone = Object.create(Object.getPrototypeOf(this));
+      Object.assign(clone, this);
+      clone._schema = { ...this._schema, dbSchema: name };
+      clone.cs = createColumnSet(clone._schema, this.pgp);
+      modelCloneCache.set(key, clone);
+    }
+    return clone;
+  }
+
+  /**
    * Sets a new schema name and regenerates the column set.
+   *
+   * @deprecated Mutates this instance in place: two interleaved requests on a
+   * shared repository race on the schema and can write to the wrong tenant.
+   * Use {@link QueryModel#forSchema} instead.
    * @param {string} name - The new schema name.
    * @returns {QueryModel} The updated model instance.
    * @throws {Error} If name is invalid.
    */
   setSchemaName(name) {
+    if (!setSchemaNameDeprecationWarned) {
+      setSchemaNameDeprecationWarned = true;
+      console.warn(
+        '[pg-schemata] setSchemaName() is deprecated: it mutates the shared model instance and races under concurrent requests. Use forSchema() instead.',
+      );
+    }
     if (typeof name !== 'string' || !name.trim()) {
       throw new Error('Schema name must be a non-empty string');
     }
