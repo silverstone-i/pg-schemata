@@ -346,6 +346,11 @@ class TableModel extends QueryModel {
     if (returning !== null && !Array.isArray(returning)) {
       throw new SchemaDefinitionError('Expected returning to be an array of column names');
     }
+    // An empty array means no RETURNING clause; leaving it truthy produced
+    // invalid SQL and took the return-rows branch (PR #10 review).
+    if (Array.isArray(returning) && returning.length === 0) {
+      returning = null;
+    }
 
     const safeRecords = records.map((dto) => {
       const sanitized = this.sanitizeDto(dto);
@@ -524,6 +529,11 @@ class TableModel extends QueryModel {
     if (returning !== null && !Array.isArray(returning)) {
       throw new SchemaDefinitionError('Expected returning to be an array of column names');
     }
+    // An empty array means no RETURNING clause; leaving it truthy produced
+    // invalid SQL and took the return-rows branch (PR #10 review).
+    if (Array.isArray(returning) && returning.length === 0) {
+      returning = null;
+    }
 
     // Validate records
     if (this._schema.validators?.insertValidator) {
@@ -611,6 +621,11 @@ class TableModel extends QueryModel {
 
     if (returning !== null && !Array.isArray(returning)) {
       throw new SchemaDefinitionError('Expected returning to be an array of column names');
+    }
+    // An empty array means no RETURNING clause; leaving it truthy produced
+    // invalid SQL and took the return-rows branch (PR #10 review).
+    if (Array.isArray(returning) && returning.length === 0) {
+      returning = null;
     }
 
     if (this._schema.validators?.updateValidator) {

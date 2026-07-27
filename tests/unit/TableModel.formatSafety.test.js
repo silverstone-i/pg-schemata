@@ -87,6 +87,19 @@ describe('no second format pass over finished statements', () => {
     expect(other._schema.validators.insertValidator).toBeDefined();
   });
 
+  it('treats returning: [] the same as returning: null (PR #10 review)', async () => {
+    const insertCount = await model.bulkInsert([{ note: 'a' }], []);
+    const updateCount = await model.bulkUpdate([{ id: 'aaaaaaaa-1111-2222-3333-444444444444', note: 'b' }], []);
+    const upsertCount = await model.bulkUpsert([{ id: 'aaaaaaaa-1111-2222-3333-444444444444', note: 'c' }], ['id'], null, []);
+
+    for (const [query] of db.calls) {
+      expect(query).not.toContain('RETURNING');
+    }
+    expect(insertCount).toBe(1);
+    expect(Array.isArray(updateCount)).toBe(true); // batch of rowCounts
+    expect(upsertCount).toBe(1);
+  });
+
   it('names the offending index when bulkInsert records have mismatched keys (suggestion 8)', async () => {
     await expect(model.bulkInsert([
       { note: 'a' },
