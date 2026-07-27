@@ -19,6 +19,10 @@ import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 import { getAuditActor } from './auditActorResolver.js';
 
+// Validators depend only on the schema definition, so they are built once
+// per schema literal and shared by every rebuilt repository instance (N8).
+const validatorCache = new WeakMap();
+
 /**
  * TableModel extends QueryModel to provide full read/write support for a PostgreSQL table.
  *
@@ -55,9 +59,18 @@ class TableModel extends QueryModel {
       this._auditUserDefault = null;
     }
 
-    // Auto-generate Zod validators if not provided
+    // Auto-generate Zod validators if not provided. Cached per schema
+    // literal: pg-promise's extend rebuilds every repository for each task
+    // and transaction, and regenerating validators on each rebuild is the
+    // bulk of that cost (N8). Each model class closes over one schema
+    // object, so keying the WeakMap on it is safe.
     if (!this._schema.validators) {
-      this._schema.validators = generateZodFromTableSchema(this._schema);
+      let validators = validatorCache.get(schema);
+      if (!validators) {
+        validators = generateZodFromTableSchema(this._schema);
+        validatorCache.set(schema, validators);
+      }
+      this._schema.validators = validators;
     }
   }
 

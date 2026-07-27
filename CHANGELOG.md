@@ -37,6 +37,10 @@ Latest commit: `7194475`
 - **Per-Tenant Migrations**: `MigrationManager.ensure()` created `schema_migrations` in `public` regardless of the configured schema, while `currentVersion()` and `applyAll()` read from the target schema — so `applyAll()` failed with `42P01` for any non-public schema. `ensure()` now binds the model to the target schema via `forSchema()`
 - **Soft Delete Without Audit Fields**: the constructor no longer skips schema normalization when `hasAuditFields` is false, so `softDelete: true` adds the `deactivated_at` column on its own. Previously every query on such a table failed with `42703 column "deactivated_at" does not exist`. The soft-delete step now lives in its own `addSoftDeleteField` helper, and the caller's schema object is cloned before normalization instead of being mutated
 
+### ⚡ Performance
+
+- **Validator Cache**: pg-promise rebuilds every repository for each task and transaction; Zod validators are now generated once per schema (WeakMap keyed on the schema literal) instead of on every rebuild — previously ~1.9 ms per transaction for 20 repositories
+
 ---
 
 ## [v1.3.3] - 2026-05-15

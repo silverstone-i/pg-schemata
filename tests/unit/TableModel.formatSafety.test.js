@@ -81,6 +81,12 @@ describe('no second format pass over finished statements', () => {
     expect(values).toBeUndefined();
   });
 
+  it('reuses validators across instances built from the same schema literal (N8)', () => {
+    const other = new TableModel(makeCapturingDb(), pgp, schema);
+    expect(other._schema.validators).toBe(model._schema.validators);
+    expect(other._schema.validators.insertValidator).toBeDefined();
+  });
+
   it('rejects unknown identifiers in returning and conflict columns (issues 5, 6)', async () => {
     await expect(model.bulkInsert([{ note: 'x' }], ['note; DROP TABLE y; --']))
       .rejects.toThrow('Unknown column: note; DROP TABLE y; --');
