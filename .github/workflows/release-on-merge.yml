@@ -128,8 +128,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json CHANGELOG.md
           git commit -m "${{ steps.version.outputs.version }}"
-          git tag "v${{ steps.version.outputs.version }}"
-          git push origin main --follow-tags
+          # Annotated tag, pushed explicitly: --follow-tags only pushes
+          # annotated tags, so a lightweight tag never reached origin and the
+          # since-last-tag aggregation window never advanced - every merge
+          # re-counted old release labels and bumped again.
+          git tag -a "v${{ steps.version.outputs.version }}" -m "v${{ steps.version.outputs.version }}"
+          git push origin main "refs/tags/v${{ steps.version.outputs.version }}"
 
       # Trusted Publishing needs npm >= 11.5.1; Node 20 runners bundle npm 10
       - name: Update npm for Trusted Publishing

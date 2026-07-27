@@ -4,11 +4,13 @@ All notable changes to **pg-schemata** will be documented in this file.
 
 ---
 
-Latest commit: `e224dd0`
+Latest commit: `99c75e3`
 
 ---
 
-## [v1.4.0] - 2026-07-27
+## [v1.6.0] - 2026-07-27
+
+> Released to npm as **1.6.0**. Versions 1.4.0 and 1.5.0 were bumped by the release automation but never published: the publish step failed before the workflow's tag handling was fixed, and each rerun re-counted the same release label. All changes below shipped together in 1.6.0.
 
 ### ✨ Features
 
