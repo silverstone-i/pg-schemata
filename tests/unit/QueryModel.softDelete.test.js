@@ -78,6 +78,35 @@ describe('QueryModel - soft delete support', () => {
     expect(sql).not.toMatch(/deactivated_at IS NULL/);
   });
 
+  test('findWhere with only filters still excludes soft-deleted rows (issue 8)', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    // axerra's ViewController shape: no conditions, filters only.
+    await model.findWhere([], 'AND', { filters: { email: 'x@example.com' } });
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toMatch(/deactivated_at IS NULL/);
+  });
+
+  test('countWhere with only filters still excludes soft-deleted rows (issue 8)', async () => {
+    mockDb.one.mockResolvedValue({ count: '0' });
+
+    await model.countWhere([], 'AND', { filters: { email: 'x@example.com' } });
+
+    const sql = mockDb.one.mock.calls[0][0];
+    expect(sql).toMatch(/deactivated_at IS NULL/);
+  });
+
+  test('findAll guards without a dummy condition (issue 8)', async () => {
+    mockDb.any.mockResolvedValue([]);
+
+    await model.findAll();
+
+    const sql = mockDb.any.mock.calls[0][0];
+    expect(sql).toMatch(/WHERE deactivated_at IS NULL/);
+    expect(sql).not.toContain('IS NOT NULL');
+  });
+
   test('$max subquery excludes soft-deleted rows (issue 11)', async () => {
     mockDb.any.mockResolvedValue([]);
 

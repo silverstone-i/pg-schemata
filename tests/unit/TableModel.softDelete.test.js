@@ -38,6 +38,20 @@ describe('TableModel soft delete unit tests', () => {
     expect(sql).toMatch(/deactivated_at IS NULL/);
   });
 
+  test('removeWhere emits the soft-delete predicate exactly once (N9)', async () => {
+    mockDb.result.mockResolvedValue({ rowCount: 1 });
+    await model.removeWhere({ email: 'a@example.com' });
+    const sql = mockDb.result.mock.calls[0][0];
+    expect(sql.match(/deactivated_at IS NULL/g)).toHaveLength(1);
+  });
+
+  test('deleteWhere emits the soft-delete predicate exactly once (N9)', async () => {
+    mockDb.result.mockResolvedValue({ rowCount: 1 });
+    await model.deleteWhere({ email: 'a@example.com' });
+    const sql = mockDb.result.mock.calls[0][0];
+    expect(sql.match(/deactivated_at IS NULL/g)).toHaveLength(1);
+  });
+
   test('restoreWhere sets deactivated_at = NULL', async () => {
     mockDb.result.mockResolvedValue({ rowCount: 1 });
     await model.restoreWhere({ email: 'b@example.com' });

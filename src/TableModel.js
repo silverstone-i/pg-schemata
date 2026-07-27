@@ -440,6 +440,8 @@ class TableModel extends QueryModel {
     const setClause = this.pgp.helpers.update(safeUpdates, updateCs);
 
     let { clause, values } = this.buildWhereClause(where, true, [], 'AND', includeDeactivated);
+    const guard = this.softDeleteGuard(includeDeactivated);
+    if (guard) clause += ` AND ${guard}`;
 
     // The SET values are already inlined by helpers.update; format the WHERE
     // now and execute with no values so pg-promise never re-formats the

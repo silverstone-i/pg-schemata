@@ -104,7 +104,7 @@ class QueryModel {
    * @returns {Promise<Object[]>} List of rows.
    */
   async findAll({ limit = 50, offset = 0 } = {}) {
-    return this.findWhere([{ id: { $ne: null } }], 'AND', { limit, offset, orderBy: 'id' });
+    return this.findWhere([], 'AND', { limit, offset, orderBy: 'id' });
   }
 
   /**
@@ -160,6 +160,9 @@ class QueryModel {
     if (Object.keys(filters).length) {
       whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
     }
+
+    const guard = this.softDeleteGuard(includeDeactivated);
+    if (guard) whereClauses.push(guard);
 
     if (whereClauses.length) queryParts.push('WHERE', whereClauses.join(' AND '));
     if (orderBy) {
@@ -327,7 +330,9 @@ class QueryModel {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
     }
-    const { clause, values } = this.buildWhereClause(conditions, true, [], 'AND', options.includeDeactivated === true);
+    let { clause, values } = this.buildWhereClause(conditions, true, [], 'AND', options.includeDeactivated === true);
+    const guard = this.softDeleteGuard(options.includeDeactivated);
+    if (guard) clause += ` AND ${guard}`;
     const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${clause}) AS "exists"`;
     try {
       const result = await this.db.one(query, values);
@@ -361,6 +366,9 @@ class QueryModel {
     if (Object.keys(filters).length) {
       whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
     }
+
+    const guard = this.softDeleteGuard(includeDeactivated);
+    if (guard) whereClauses.push(guard);
 
     const whereStr = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} ${whereStr}`;
@@ -581,12 +589,22 @@ class QueryModel {
       throw new Error('WHERE clause must be an array or plain object');
     }
 
-    // Refactored logic for soft delete handling
-    if (this._schema.softDelete && !includeDeactivated) {
-      clause += clause ? ' AND deactivated_at IS NULL' : 'deactivated_at IS NULL';
-    }
-
+    // The soft-delete guard is appended by callers (findWhere, countWhere,
+    // exists, updateWhere, ...), not here: the filters-only paths never went
+    // through this method, so injecting the predicate at this layer left
+    // them unguarded (issue 8) while other callers stacked a second copy on
+    // top (N9). includeDeactivated is still threaded into buildCondition for
+    // the aggregate subqueries.
     return { clause, values };
+  }
+
+  /**
+   * The soft-delete predicate for this table, or null when it does not apply.
+   * @param {boolean} [includeDeactivated=false] - Include soft-deleted records when true.
+   * @returns {string|null} Predicate fragment or null.
+   */
+  softDeleteGuard(includeDeactivated = false) {
+    return this._schema.softDelete && includeDeactivated !== true ? 'deactivated_at IS NULL' : null;
   }
 
   /**
