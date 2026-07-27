@@ -66,7 +66,7 @@ Finds rows matching conditions with full query options.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `conditions` | `Object[]` | `[]` | Array of condition objects |
+| `conditions` | `Object[] \| Object` | `[]` | Condition objects; a single plain object is treated as a one-element array |
 | `joinType` | `string` | `'AND'` | `'AND'` or `'OR'` |
 | `options.columnWhitelist` | `string[]` | `null` | Columns to return |
 | `options.filters` | `object` | `{}` | Additional filter object |
@@ -118,10 +118,12 @@ Counts rows matching conditions.
 
 | Parameter | Type | Default |
 |---|---|---|
-| `conditions` | `Object[]` | `[]` |
+| `conditions` | `Object[] \| Object` | `[]` |
 | `joinType` | `string` | `'AND'` |
 | `options.filters` | `object` | `{}` |
 | `options.includeDeactivated` | `boolean` | `false` |
+
+A single plain object is treated as a one-element array. Anything else throws `SchemaDefinitionError`.
 
 **Returns:** `Promise<number>`
 
