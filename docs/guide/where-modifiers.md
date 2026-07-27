@@ -85,7 +85,7 @@ The array must be non-empty.
 // WHERE "deleted_at" IS NOT NULL
 ```
 
-Currently `$is` and `$not` only support `null`.
+Currently `$is` and `$not` only support `null`. `{ $not: null }` and `{ $ne: null }` emit identical SQL — `$not` is an alias for the null case; prefer `$ne` for anything else.
 
 ### $max / $min / $sum — subquery operators
 
@@ -95,7 +95,12 @@ Currently `$is` and `$not` only support `null`.
 
 { score: { $min: true } }
 // WHERE "score" = (SELECT MIN("score") FROM "public"."users")
+
+{ amount: { $sum: true } }
+// WHERE "amount" = (SELECT SUM("amount") FROM "public"."users")
 ```
+
+When soft delete is enabled, the subquery applies the same `deactivated_at IS NULL` filter as the outer query unless `includeDeactivated: true` is passed.
 
 ## Combining conditions
 
