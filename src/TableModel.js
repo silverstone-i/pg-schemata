@@ -439,9 +439,13 @@ class TableModel extends QueryModel {
 
     let { clause, values } = this.buildWhereClause(where, true, [], 'AND', includeDeactivated);
 
-    const query = `${setClause} WHERE ${clause}`;
+    // The SET values are already inlined by helpers.update; format the WHERE
+    // now and execute with no values so pg-promise never re-formats the
+    // finished statement — a second pass would treat $n tokens inside stored
+    // data as placeholders (issue N4).
+    const query = `${setClause} WHERE ${this.pgp.as.format(clause, values)}`;
     try {
-      const result = await this.db.result(query, values, (r) => r.rowCount);
+      const result = await this.db.result(query, undefined, (r) => r.rowCount);
       return result;
     } catch (err) {
       this.handleDbError(err);
@@ -547,6 +551,9 @@ class TableModel extends QueryModel {
       this.validateDto(records, this._schema.validators.updateValidator, 'Update DTO');
     }
 
+    // Records sharing a key set reuse one ColumnSet instead of building one
+    // per row.
+    const columnSetsByKeys = new Map();
     const queries = records.map((dto) => {
       const id = dto.id;
       if (!isValidId(id)) {
@@ -559,22 +566,30 @@ class TableModel extends QueryModel {
       delete safeDto.id;
       const softCheck = this._schema.softDelete ? ' AND deactivated_at IS NULL' : '';
       const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
-      const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeDto), {
-        table: { table: this._schema.table, schema: this._schema.dbSchema },
-      });
+      const keys = Object.keys(safeDto);
+      const cacheKey = keys.join(',');
+      let updateCs = columnSetsByKeys.get(cacheKey);
+      if (!updateCs) {
+        updateCs = new this.pgp.helpers.ColumnSet(keys, {
+          table: { table: this._schema.table, schema: this._schema.dbSchema },
+        });
+        columnSetsByKeys.set(cacheKey, updateCs);
+      }
       const returningClause = returning ? ` RETURNING ${returning.join(', ')}` : '';
       return {
         query: this.pgp.helpers.update(safeDto, updateCs) + ' ' + condition + returningClause,
-        id,
       };
     });
 
+    // Each query is fully formatted (the id is inlined in the WHERE); pass no
+    // values so pg-promise does not run a second format pass over data that
+    // may contain $n tokens (issue 14).
     try {
       if (tx) {
-        return await tx.batch(queries.map((q) => (returning ? tx.any(q.query, [q.id]) : tx.result(q.query, [q.id], (r) => r.rowCount))));
+        return await tx.batch(queries.map((q) => (returning ? tx.any(q.query) : tx.result(q.query, undefined, (r) => r.rowCount))));
       } else {
         return await this.db.tx(async (t) =>
-          t.batch(queries.map((q) => (returning ? t.any(q.query, [q.id]) : t.result(q.query, [q.id], (r) => r.rowCount)))),
+          t.batch(queries.map((q) => (returning ? t.any(q.query) : t.result(q.query, undefined, (r) => r.rowCount)))),
         );
       }
     } catch (err) {
