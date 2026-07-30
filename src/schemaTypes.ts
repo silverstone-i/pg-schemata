@@ -121,6 +121,16 @@ export interface ConstraintDefinition {
 }
 
 /**
+ * Check constraint: only the SQL expression is read by the DDL generator.
+ */
+export interface CheckConstraintDefinition {
+  /** Documented discriminator; not read by the SQL generator. */
+  type?: 'Check';
+  /** SQL expression enforcing the condition. */
+  expression: string;
+}
+
+/**
  * Index columns may be plain column names, option objects, or raw
  * SQL expression strings.
  */
@@ -176,7 +186,7 @@ export interface Constraints {
   /** Foreign key definitions. */
   foreignKeys?: ConstraintDefinition[];
   /** Check constraints; bare SQL expression strings are also accepted. */
-  checks?: Array<ConstraintDefinition | string>;
+  checks?: Array<CheckConstraintDefinition | string>;
   /** Index definitions for query optimization. */
   indexes?: IndexDefinition[];
 }

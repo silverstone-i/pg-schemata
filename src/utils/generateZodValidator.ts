@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import type { TableSchema, TableValidators } from '../schemaTypes.js';
 /**
  * @private
  *
@@ -17,11 +18,12 @@ import { z } from 'zod';
  *
  * Note: This function is used internally by TableModel to auto-generate validation schemas.
  */
-const unknownTypeWarned = new Set();
+const unknownTypeWarned = new Set<string>();
 
-function mapSqlTypeToZod(type) {
-  if (/^varchar\((\d+)\)$/i.test(type)) {
-    const max = parseInt(type.match(/^varchar\((\d+)\)$/i)[1], 10);
+function mapSqlTypeToZod(type: string): z.ZodTypeAny {
+  const varcharMatch = /^varchar\((\d+)\)$/i.exec(type);
+  if (varcharMatch?.[1]) {
+    const max = parseInt(varcharMatch[1], 10);
     return z.string().max(max);
   } else if (
     /^(text|varchar|char\(\d+\)|character varying(\(\d+\))?)$/i.test(type)
@@ -64,14 +66,29 @@ function mapSqlTypeToZod(type) {
   }
 }
 
-function generateZodFromTableSchema(tableSchema) {
-  const base = {};
-  const insert = {};
-  const update = {};
+/**
+ * Applies `.min(n)` when the validator supports it (ZodString does); other
+ * validator classes pass through unchanged, matching the old duck-typing.
+ */
+function withMin(validator: z.ZodTypeAny, minLen: number): z.ZodTypeAny {
+  if (
+    'min' in validator &&
+    typeof (validator as { min?: unknown }).min === 'function'
+  ) {
+    return (validator as z.ZodString).min(minLen);
+  }
+  return validator;
+}
+
+function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
+  const base: Record<string, z.ZodTypeAny> = {};
+  const insert: Record<string, z.ZodTypeAny> = {};
+  const update: Record<string, z.ZodTypeAny> = {};
 
   for (const column of tableSchema.columns) {
     const { name, type, notNull, default: defaultValue } = column;
-    let zodType = column.colProps?.validator || mapSqlTypeToZod(type);
+    let zodType: z.ZodTypeAny =
+      column.colProps?.validator || mapSqlTypeToZod(type);
 
     // Enhance email fields. instanceof is stable across zod versions;
     // _def.typeName is a zod 3 internal removed in zod 4 (suggestion 3).
@@ -101,32 +118,32 @@ function generateZodFromTableSchema(tableSchema) {
     // Helper: parse char_length(field) > N and field IN ('A','B','C')
     for (const check of tableSchema.constraints.checks) {
       const expr = typeof check === 'string' ? check : check.expression;
+      if (!expr) continue;
 
       // char_length(field) > N
-      let match = expr.match(/char_length\((\w+)\)\s*>\s*(\d+)/i);
-      if (match) {
+      let match = /char_length\((\w+)\)\s*>\s*(\d+)/i.exec(expr);
+      if (match?.[1] && match[2]) {
         const field = match[1];
         const minLen = parseInt(match[2], 10) + 1;
         // Only apply if field exists
-        if (base[field]) {
-          base[field] = base[field].min ? base[field].min(minLen) : base[field];
+        const baseField = base[field];
+        if (baseField) {
+          base[field] = withMin(baseField, minLen);
         }
-        if (insert[field]) {
-          insert[field] = insert[field].min
-            ? insert[field].min(minLen)
-            : insert[field];
+        const insertField = insert[field];
+        if (insertField) {
+          insert[field] = withMin(insertField, minLen);
         }
-        if (update[field]) {
-          update[field] = update[field].min
-            ? update[field].min(minLen)
-            : update[field];
+        const updateField = update[field];
+        if (updateField) {
+          update[field] = withMin(updateField, minLen);
         }
         continue;
       }
 
       // field IN ('A', 'B', 'C')
-      match = expr.match(/^(\w+)\s+IN\s*\(\s*([^)]+)\s*\)$/i);
-      if (match) {
+      match = /^(\w+)\s+IN\s*\(\s*([^)]+)\s*\)$/i.exec(expr);
+      if (match?.[1] && match[2]) {
         const field = match[1];
         // Parse enum values: split by comma, remove quotes and trim
         const options = match[2].split(',').map(s =>
@@ -136,8 +153,13 @@ function generateZodFromTableSchema(tableSchema) {
             .replace(/^"(.*)"$/, '$1')
         );
 
-        if (Array.isArray(options) && options.length > 0) {
-          const enumZod = z.enum([...new Set(options)]);
+        if (options.length > 0) {
+          // Non-empty is guaranteed by the length check above; z.enum
+          // requires a non-empty tuple type.
+          const enumZod = z.enum([...new Set(options)] as [
+            string,
+            ...string[],
+          ]);
           if (base[field]) base[field] = enumZod;
           if (insert[field]) {
             const colDef = tableSchema.columns.find(c => c.name === field);

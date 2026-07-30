@@ -2,6 +2,8 @@
  * Copyright © 2026 – present NapSoft LLC. All rights reserved.
  */
 
+import type { TableSchema } from './schemaTypes.js';
+
 /**
  * @private
  *
@@ -28,7 +30,7 @@
  * ## 🔐 Constraints
  * - `primaryKey`: array of column names
  * - `unique`: array of unique constraint definitions (arrays of column names)
- * - `foreignKeys[]`: each with `columns`, `references.table`, `references.column`, and `onDelete`
+ * - `foreignKeys[]`: each with `columns`, `references.table`, `references.columns`, and `onDelete`
  * - `checks[]`: SQL expressions enforcing conditions
  * - `indexes[]`: regular indexes on one or more columns
  */
@@ -103,8 +105,8 @@ const tableSchema = {
         type: 'ForeignKey',
         columns: ['tenant_id'],
         references: {
-          table: 'admin.tenants(id)',
-          column: ['id'],
+          table: 'admin.tenants',
+          columns: ['id'],
         },
         onDelete: 'CASCADE',
       },
@@ -130,6 +132,6 @@ const tableSchema = {
       },
     ],
   },
-};
+} satisfies TableSchema;
 
 export default tableSchema;
