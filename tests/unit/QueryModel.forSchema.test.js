@@ -11,10 +11,22 @@ const pgp = pgPromise({});
 
 function makeStubDb(captured) {
   return {
-    one: q => { captured.push(q); return Promise.resolve({ id: 1 }); },
-    any: q => { captured.push(q); return Promise.resolve([]); },
-    none: q => { captured.push(q); return Promise.resolve(null); },
-    result: q => { captured.push(q); return Promise.resolve({ rowCount: 0 }); },
+    one: q => {
+      captured.push(q);
+      return Promise.resolve({ id: 1 });
+    },
+    any: q => {
+      captured.push(q);
+      return Promise.resolve([]);
+    },
+    none: q => {
+      captured.push(q);
+      return Promise.resolve(null);
+    },
+    result: q => {
+      captured.push(q);
+      return Promise.resolve({ rowCount: 0 });
+    },
   };
 }
 
@@ -57,7 +69,9 @@ describe('forSchema', () => {
   it('bakes the schema into the clone ColumnSet (protects the issue-2 trap)', () => {
     const a = model.forSchema('tenant_a');
     expect(a.cs[schema.table].table.toString()).toBe('"tenant_a"."fs_tenants"');
-    expect(model.cs[schema.table].table.toString()).toBe('"public"."fs_tenants"');
+    expect(model.cs[schema.table].table.toString()).toBe(
+      '"public"."fs_tenants"'
+    );
   });
 
   it('never mutates the base model', async () => {
@@ -99,7 +113,11 @@ describe('forSchema', () => {
   });
 
   it('rejects an invalid schema name', () => {
-    expect(() => model.forSchema('')).toThrow('Schema name must be a non-empty string');
-    expect(() => model.forSchema(null)).toThrow('Schema name must be a non-empty string');
+    expect(() => model.forSchema('')).toThrow(
+      'Schema name must be a non-empty string'
+    );
+    expect(() => model.forSchema(null)).toThrow(
+      'Schema name must be a non-empty string'
+    );
   });
 });

@@ -12,7 +12,12 @@ describe('generateZodFromTableSchema', () => {
       { name: 'phone', type: 'varchar(20)', notNull: false },
       { name: 'notes', type: 'text', notNull: false },
       { name: 'is_active', type: 'boolean', notNull: true, default: true },
-      { name: 'created_at', type: 'timestamp', notNull: true, default: 'now()' },
+      {
+        name: 'created_at',
+        type: 'timestamp',
+        notNull: true,
+        default: 'now()',
+      },
       { name: 'updated_at', type: 'timestamp', notNull: false },
     ],
   };
@@ -21,7 +26,11 @@ describe('generateZodFromTableSchema', () => {
   const { insertValidator, updateValidator, baseValidator } = validators;
 
   it('should require all non-nullable fields without defaults on insert', () => {
-    const result = insertValidator.safeParse({ email: 'a@b.com', is_active: true, created_at: new Date() });
+    const result = insertValidator.safeParse({
+      email: 'a@b.com',
+      is_active: true,
+      created_at: new Date(),
+    });
     expect(result.success).toBe(false);
     expect(result.error.issues.some(i => i.path.includes('id'))).toBe(true);
   });
@@ -95,16 +104,15 @@ describe('generateZodFromTableSchema', () => {
       ...tableSchema,
       columns: [
         ...tableSchema.columns,
-        { name: 'status', type: 'varchar(10)', notNull: true }
+        { name: 'status', type: 'varchar(10)', notNull: true },
       ],
       constraints: {
-        checks: [
-          { expression: "status IN ('active','inactive')" }
-        ]
-      }
+        checks: [{ expression: "status IN ('active','inactive')" }],
+      },
     };
 
-    const { insertValidator: enumInsert } = generateZodFromTableSchema(enumSchema);
+    const { insertValidator: enumInsert } =
+      generateZodFromTableSchema(enumSchema);
 
     const valid = enumInsert.safeParse({
       id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
@@ -142,26 +150,30 @@ describe('generateZodFromTableSchema', () => {
 
     const { insertValidator } = generateZodFromTableSchema(schema);
 
-    expect(insertValidator.safeParse({
-      a_integer: 1,
-      a_bigint: '9007199254740993',
-      a_smallint: 2,
-      a_tstz: '2026-01-01T00:00:00Z',
-      a_numeric: 1.25,
-      a_varchar: 'x',
-      a_double: 0.5,
-    }).success).toBe(true);
+    expect(
+      insertValidator.safeParse({
+        a_integer: 1,
+        a_bigint: '9007199254740993',
+        a_smallint: 2,
+        a_tstz: '2026-01-01T00:00:00Z',
+        a_numeric: 1.25,
+        a_varchar: 'x',
+        a_double: 0.5,
+      }).success
+    ).toBe(true);
 
     // The review's repro: garbage previously passed because every one of
     // these types fell through to z.any().
-    expect(insertValidator.safeParse({
-      a_integer: 'NOT A NUMBER',
-      a_bigint: {},
-      a_smallint: [],
-      a_tstz: 'garbage',
-      a_numeric: 'NaN-ish',
-      a_varchar: 42,
-      a_double: 'zero',
-    }).success).toBe(false);
+    expect(
+      insertValidator.safeParse({
+        a_integer: 'NOT A NUMBER',
+        a_bigint: {},
+        a_smallint: [],
+        a_tstz: 'garbage',
+        a_numeric: 'NaN-ish',
+        a_varchar: 42,
+        a_double: 'zero',
+      }).success
+    ).toBe(false);
   });
 });

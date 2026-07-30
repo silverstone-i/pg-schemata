@@ -56,10 +56,7 @@ Returns only deactivated rows:
 const deleted = await db().users.findSoftDeleted();
 // All soft-deleted users
 
-const deleted = await db().users.findSoftDeleted(
-  [{ role: 'guest' }],
-  'AND'
-);
+const deleted = await db().users.findSoftDeleted([{ role: 'guest' }], 'AND');
 // Soft-deleted guests only
 ```
 
@@ -78,11 +75,9 @@ All query methods exclude deactivated rows by default. Pass `includeDeactivated:
 
 ```js
 // findWhere
-const all = await db().users.findWhere(
-  [{ role: 'admin' }],
-  'AND',
-  { includeDeactivated: true }
-);
+const all = await db().users.findWhere([{ role: 'admin' }], 'AND', {
+  includeDeactivated: true,
+});
 
 // findById — use findByIdIncludingDeactivated
 const user = await db().users.findByIdIncludingDeactivated(userId);

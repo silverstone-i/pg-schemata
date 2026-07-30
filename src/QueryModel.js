@@ -10,7 +10,11 @@
  */
 
 import { LRUCache } from 'lru-cache';
-import { createColumnSet, addAuditFields, addSoftDeleteField } from './utils/schemaBuilder.js';
+import {
+  createColumnSet,
+  addAuditFields,
+  addSoftDeleteField,
+} from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
 import DatabaseError from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
@@ -51,7 +55,9 @@ class QueryModel {
       throw new Error('Schema must be an object');
     }
     if (!db || !pgp || !schema.table || !schema.columns) {
-      throw new Error('Missing required parameters: db, pgp, schema.table, or schema.columns');
+      throw new Error(
+        'Missing required parameters: db, pgp, schema.table, or schema.columns'
+      );
     }
 
     this.db = db;
@@ -80,9 +86,15 @@ class QueryModel {
    */
   async findSoftDeleted(conditions = [], joinType = 'AND', options = {}) {
     if (!this._schema.softDelete) {
-      return Promise.reject(new Error('Soft delete is not enabled for this table.'));
+      return Promise.reject(
+        new Error('Soft delete is not enabled for this table.')
+      );
     }
-    return this.findWhere([...conditions, { deactivated_at: { $ne: null } }], joinType, { ...options, includeDeactivated: true });
+    return this.findWhere(
+      [...conditions, { deactivated_at: { $ne: null } }],
+      joinType,
+      { ...options, includeDeactivated: true }
+    );
   }
 
   /**
@@ -92,10 +104,15 @@ class QueryModel {
    */
   async isSoftDeleted(id) {
     if (!this._schema.softDelete) {
-      return Promise.reject(new Error('Soft delete is not enabled for this table.'));
+      return Promise.reject(
+        new Error('Soft delete is not enabled for this table.')
+      );
     }
     if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.exists({ id, deactivated_at: { $ne: null } }, { includeDeactivated: true });
+    return this.exists(
+      { id, deactivated_at: { $ne: null } },
+      { includeDeactivated: true }
+    );
   }
 
   /**
@@ -144,38 +161,69 @@ class QueryModel {
    * @param {boolean} [options.includeDeactivated=false] - Include soft-deleted records when true.
    * @returns {Promise<Object[]>} Matching rows.
    */
-  async findWhere(conditions = [], joinType = 'AND', { columnWhitelist = null, filters = {}, orderBy = null, limit = null, offset = null, includeDeactivated = false } = {}) {
+  async findWhere(
+    conditions = [],
+    joinType = 'AND',
+    {
+      columnWhitelist = null,
+      filters = {},
+      orderBy = null,
+      limit = null,
+      offset = null,
+      includeDeactivated = false,
+    } = {}
+  ) {
     conditions = this._normalizeConditions(conditions);
 
     const table = `${this.schemaName}.${this.tableName}`;
-    const selectCols = columnWhitelist?.length ? columnWhitelist.map(col => this.escapeName(col)).join(', ') : '*';
+    const selectCols = columnWhitelist?.length
+      ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
+      : '*';
     const queryParts = [`SELECT ${selectCols} FROM ${table}`];
     const values = [];
     const whereClauses = [];
 
     if (conditions.length > 0) {
-      const { clause, values: builtValues } = this._buildWhereClause(conditions, true, [], joinType, includeDeactivated === true);
+      const { clause, values: builtValues } = this._buildWhereClause(
+        conditions,
+        true,
+        [],
+        joinType,
+        includeDeactivated === true
+      );
       values.push(...builtValues);
       whereClauses.push(`(${clause})`);
     }
 
     if (Object.keys(filters).length) {
-      whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
+      whereClauses.push(
+        this.buildCondition(
+          [filters],
+          'AND',
+          values,
+          includeDeactivated === true
+        )
+      );
     }
 
     const guard = this.softDeleteGuard(includeDeactivated);
     if (guard) whereClauses.push(guard);
 
-    if (whereClauses.length) queryParts.push('WHERE', whereClauses.join(' AND '));
+    if (whereClauses.length)
+      queryParts.push('WHERE', whereClauses.join(' AND '));
     if (orderBy) {
-      const orderClause = Array.isArray(orderBy) ? orderBy.map(col => this.escapeName(col)).join(', ') : this.escapeName(orderBy);
+      const orderClause = Array.isArray(orderBy)
+        ? orderBy.map(col => this.escapeName(col)).join(', ')
+        : this.escapeName(orderBy);
       queryParts.push(`ORDER BY ${orderClause}`);
     }
     // Validate instead of interpolating parseInt output: bad input produced
     // LIMIT NaN, and the old truthiness gate dropped limit: 0 / offset: 0
     // (suggestion 5).
-    if (limit != null) queryParts.push(`LIMIT ${this._toBoundedInt(limit, 'limit')}`);
-    if (offset != null) queryParts.push(`OFFSET ${this._toBoundedInt(offset, 'offset')}`);
+    if (limit != null)
+      queryParts.push(`LIMIT ${this._toBoundedInt(limit, 'limit')}`);
+    if (offset != null)
+      queryParts.push(`OFFSET ${this._toBoundedInt(offset, 'offset')}`);
 
     const query = queryParts.join(' ');
 
@@ -208,13 +256,27 @@ class QueryModel {
    * @param {boolean} [options.includeDeactivated=false] - Include soft-deleted records when true.
    * @returns {Promise<{rows: Object[], nextCursor: Object|null}>} Paginated result.
    */
-  async findAfterCursor(cursor = {}, limit = 50, orderBy = ['id'], options = {}) {
+  async findAfterCursor(
+    cursor = {},
+    limit = 50,
+    orderBy = ['id'],
+    options = {}
+  ) {
     try {
-      const { descending = false, columnWhitelist = null, filters = {}, includeDeactivated = false } = options;
+      const {
+        descending = false,
+        columnWhitelist = null,
+        filters = {},
+        includeDeactivated = false,
+      } = options;
       const direction = descending ? 'DESC' : 'ASC';
       const table = `${this.schemaName}.${this.tableName}`;
-      const selectCols = columnWhitelist?.length ? columnWhitelist.map(col => this.escapeName(col)).join(', ') : '*';
-      const escapedOrderCols = orderBy.map(col => this.escapeName(col)).join(', ');
+      const selectCols = columnWhitelist?.length
+        ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
+        : '*';
+      const escapedOrderCols = orderBy
+        .map(col => this.escapeName(col))
+        .join(', ');
       const queryParts = [`SELECT ${selectCols} FROM ${table}`];
       const whereClauses = [];
       const values = [];
@@ -224,18 +286,37 @@ class QueryModel {
           return cursor[col];
         });
         const placeholders = cursorValues.map((_, i) => `$${i + 1}`).join(', ');
-        whereClauses.push(`(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`);
+        whereClauses.push(
+          `(${escapedOrderCols}) ${descending ? '<' : '>'} (${placeholders})`
+        );
         values.push(...cursorValues);
       }
 
       if (Object.keys(filters).length) {
         if (filters.and || filters.or) {
           const top = filters.and
-            ? this.buildCondition(filters.and, 'AND', values, includeDeactivated === true)
-            : this.buildCondition(filters.or, 'OR', values, includeDeactivated === true);
+            ? this.buildCondition(
+                filters.and,
+                'AND',
+                values,
+                includeDeactivated === true
+              )
+            : this.buildCondition(
+                filters.or,
+                'OR',
+                values,
+                includeDeactivated === true
+              );
           whereClauses.push(top);
         } else {
-          whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
+          whereClauses.push(
+            this.buildCondition(
+              [filters],
+              'AND',
+              values,
+              includeDeactivated === true
+            )
+          );
         }
       }
       if (this._schema.softDelete && !includeDeactivated) {
@@ -295,9 +376,17 @@ class QueryModel {
    * @param {Object} [options={}] - Additional query options.
    * @returns {Promise<{exported: number, filePath: string}>}
    */
-  async exportToSpreadsheet(filePath, where = [], joinType = 'AND', options = {}) {
+  async exportToSpreadsheet(
+    filePath,
+    where = [],
+    joinType = 'AND',
+    options = {}
+  ) {
     const { includeDeactivated, ...rest } = options;
-    const rows = await this.findWhere(where, joinType, { ...rest, includeDeactivated });
+    const rows = await this.findWhere(where, joinType, {
+      ...rest,
+      includeDeactivated,
+    });
     const { WorkbookBuilder, writeXlsx } = await import('@nap-sft/tablsx');
     const { writeFileSync } = await import('node:fs');
     const wb = WorkbookBuilder.create();
@@ -335,7 +424,13 @@ class QueryModel {
     if (!isPlainObject(conditions) || Object.keys(conditions).length === 0) {
       return Promise.reject(Error('Conditions must be a non-empty object'));
     }
-    const { clause, values } = this.buildWhereClause(conditions, true, [], 'AND', options.includeDeactivated === true);
+    const { clause, values } = this.buildWhereClause(
+      conditions,
+      true,
+      [],
+      'AND',
+      options.includeDeactivated === true
+    );
     const query = `SELECT EXISTS (SELECT 1 FROM ${this.schemaName}.${this.tableName} WHERE ${clause}) AS "exists"`;
     try {
       const result = await this.db.one(query, values);
@@ -354,26 +449,45 @@ class QueryModel {
    * @param {boolean} [options.includeDeactivated=false] - Include soft-deleted records when true.
    * @returns {Promise<number>} Number of matching rows.
    */
-  async countWhere(conditions = [], joinType = 'AND', { filters = {}, includeDeactivated = false } = {}) {
+  async countWhere(
+    conditions = [],
+    joinType = 'AND',
+    { filters = {}, includeDeactivated = false } = {}
+  ) {
     conditions = this._normalizeConditions(conditions);
 
     const values = [];
     const whereClauses = [];
 
     if (conditions.length > 0) {
-      const { clause, values: builtValues } = this._buildWhereClause(conditions, true, [], joinType, includeDeactivated);
+      const { clause, values: builtValues } = this._buildWhereClause(
+        conditions,
+        true,
+        [],
+        joinType,
+        includeDeactivated
+      );
       values.push(...builtValues);
       whereClauses.push(`(${clause})`);
     }
 
     if (Object.keys(filters).length) {
-      whereClauses.push(this.buildCondition([filters], 'AND', values, includeDeactivated === true));
+      whereClauses.push(
+        this.buildCondition(
+          [filters],
+          'AND',
+          values,
+          includeDeactivated === true
+        )
+      );
     }
 
     const guard = this.softDeleteGuard(includeDeactivated);
     if (guard) whereClauses.push(guard);
 
-    const whereStr = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const whereStr = whereClauses.length
+      ? `WHERE ${whereClauses.join(' AND ')}`
+      : '';
     const query = `SELECT COUNT(*) FROM ${this.schemaName}.${this.tableName} ${whereStr}`;
 
     try {
@@ -438,7 +552,9 @@ class QueryModel {
       error.cause = err.errors || err;
       this.logger?.error?.(error);
       if (this.logger) {
-        this.logger.error(`${type} validation failed: ${error.message}`, { cause: error.cause });
+        this.logger.error(`${type} validation failed: ${error.message}`, {
+          cause: error.cause,
+        });
       }
       throw error;
     }
@@ -452,7 +568,9 @@ class QueryModel {
    * @returns {Object} Sanitized DTO.
    */
   sanitizeDto(dto, { includeImmutable = true } = {}) {
-    const validColumns = this._schema.columns.filter(c => includeImmutable || !c.immutable).map(c => c.name);
+    const validColumns = this._schema.columns
+      .filter(c => includeImmutable || !c.immutable)
+      .map(c => c.name);
     const sanitized = {};
     for (const key in dto) {
       if (validColumns.includes(key)) {
@@ -524,7 +642,7 @@ class QueryModel {
     if (!setSchemaNameDeprecationWarned) {
       setSchemaNameDeprecationWarned = true;
       console.warn(
-        '[pg-schemata] setSchemaName() is deprecated: it mutates the shared model instance and races under concurrent requests. Use forSchema() instead.',
+        '[pg-schemata] setSchemaName() is deprecated: it mutates the shared model instance and races under concurrent requests. Use forSchema() instead.'
       );
     }
     if (typeof name !== 'string' || !name.trim()) {
@@ -564,10 +682,13 @@ class QueryModel {
       if (!nullableAliasWarned) {
         nullableAliasWarned = true;
         console.warn(
-          `[pg-schemata] Column "${col.name}" in "${schema.table}" uses the deprecated key "nullable"; use "notNull" instead. "nullable: false" is treated as "notNull: true". This alias will be removed in 2.0.0.`,
+          `[pg-schemata] Column "${col.name}" in "${schema.table}" uses the deprecated key "nullable"; use "notNull" instead. "nullable: false" is treated as "notNull: true". This alias will be removed in 2.0.0.`
         );
       }
-      if (col.nullable === false && !Object.prototype.hasOwnProperty.call(col, 'notNull')) {
+      if (
+        col.nullable === false &&
+        !Object.prototype.hasOwnProperty.call(col, 'notNull')
+      ) {
         col.notNull = true;
       }
       delete col.nullable;
@@ -582,9 +703,12 @@ class QueryModel {
    * @throws {SchemaDefinitionError} If value is not a non-negative integer.
    */
   _toBoundedInt(value, label) {
-    const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+    const n =
+      typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
     if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) {
-      throw new SchemaDefinitionError(`Invalid ${label}: ${JSON.stringify(value)}`);
+      throw new SchemaDefinitionError(
+        `Invalid ${label}: ${JSON.stringify(value)}`
+      );
     }
     return n;
   }
@@ -602,8 +726,11 @@ class QueryModel {
    */
   _normalizeConditions(conditions) {
     if (Array.isArray(conditions)) return conditions;
-    if (isPlainObject(conditions)) return Object.keys(conditions).length ? [conditions] : [];
-    throw new SchemaDefinitionError('Conditions must be an array or a plain object');
+    if (isPlainObject(conditions))
+      return Object.keys(conditions).length ? [conditions] : [];
+    throw new SchemaDefinitionError(
+      'Conditions must be an array or a plain object'
+    );
   }
 
   /**
@@ -616,8 +743,20 @@ class QueryModel {
    * @returns {{ clause: string, values: Array }} Clause and parameter list.
    * @throws {Error} If input is invalid or empty when required.
    */
-  buildWhereClause(where = {}, requireNonEmpty = true, values = [], joinType = 'AND', includeDeactivated = false) {
-    const result = this._buildWhereClause(where, requireNonEmpty, values, joinType, includeDeactivated);
+  buildWhereClause(
+    where = {},
+    requireNonEmpty = true,
+    values = [],
+    joinType = 'AND',
+    includeDeactivated = false
+  ) {
+    const result = this._buildWhereClause(
+      where,
+      requireNonEmpty,
+      values,
+      joinType,
+      includeDeactivated
+    );
     // Documented public API: the returned clause honors includeDeactivated,
     // matching pre-1.4 behavior for external callers.
     const guard = this.softDeleteGuard(includeDeactivated);
@@ -644,7 +783,13 @@ class QueryModel {
    * @param {boolean} [includeDeactivated=false] - Include soft-deleted records if true.
    * @returns {{ clause: string, values: Array }} Clause and parameter list.
    */
-  _buildWhereClause(where = {}, requireNonEmpty = true, values = [], joinType = 'AND', includeDeactivated = false) {
+  _buildWhereClause(
+    where = {},
+    requireNonEmpty = true,
+    values = [],
+    joinType = 'AND',
+    includeDeactivated = false
+  ) {
     const isValidArray = Array.isArray(where);
     const isValidObject = isPlainObject(where);
 
@@ -659,7 +804,12 @@ class QueryModel {
       if (requireNonEmpty && isEmptyObject) {
         throw new Error('WHERE clause must be a non-empty object');
       }
-      clause = this.buildCondition([where], joinType, values, includeDeactivated);
+      clause = this.buildCondition(
+        [where],
+        joinType,
+        values,
+        includeDeactivated
+      );
     } else {
       throw new Error('WHERE clause must be an array or plain object');
     }
@@ -673,7 +823,9 @@ class QueryModel {
    * @returns {string|null} Predicate fragment or null.
    */
   softDeleteGuard(includeDeactivated = false) {
-    return this._schema.softDelete && includeDeactivated !== true ? 'deactivated_at IS NULL' : null;
+    return this._schema.softDelete && includeDeactivated !== true
+      ? 'deactivated_at IS NULL'
+      : null;
   }
 
   /**
@@ -691,29 +843,57 @@ class QueryModel {
    * @param {boolean} [includeDeactivated=false] - Include soft-deleted rows in $max/$min/$sum subqueries.
    * @returns {string} A SQL-safe WHERE fragment.
    */
-  buildCondition(group, joiner = 'AND', values = [], includeDeactivated = false) {
+  buildCondition(
+    group,
+    joiner = 'AND',
+    values = [],
+    includeDeactivated = false
+  ) {
     const parts = [];
     for (const item of group) {
       if (item.$and && Array.isArray(item.$and) && item.$and.length > 0) {
-        parts.push(`(${this.buildCondition(item.$and, 'AND', values, includeDeactivated)})`);
+        parts.push(
+          `(${this.buildCondition(item.$and, 'AND', values, includeDeactivated)})`
+        );
         continue;
       } else if (item.$or && Array.isArray(item.$or) && item.$or.length > 0) {
-        parts.push(`(${this.buildCondition(item.$or, 'OR', values, includeDeactivated)})`);
+        parts.push(
+          `(${this.buildCondition(item.$or, 'OR', values, includeDeactivated)})`
+        );
         continue;
       }
       if (item.and && Array.isArray(item.and) && item.and.length > 0) {
-        parts.push(`(${this.buildCondition(item.and, 'AND', values, includeDeactivated)})`);
+        parts.push(
+          `(${this.buildCondition(item.and, 'AND', values, includeDeactivated)})`
+        );
       } else if (item.or && Array.isArray(item.or) && item.or.length > 0) {
-        parts.push(`(${this.buildCondition(item.or, 'OR', values, includeDeactivated)})`);
+        parts.push(
+          `(${this.buildCondition(item.or, 'OR', values, includeDeactivated)})`
+        );
       } else {
         for (const [key, val] of Object.entries(item)) {
           const col = this.escapeName(key);
           if (val && typeof val === 'object') {
-            const supportedKeys = ['$like', '$ilike', '$from', '$to', '$in', '$eq', '$ne', '$max', '$min', '$sum', '$not', '$is'];
+            const supportedKeys = [
+              '$like',
+              '$ilike',
+              '$from',
+              '$to',
+              '$in',
+              '$eq',
+              '$ne',
+              '$max',
+              '$min',
+              '$sum',
+              '$not',
+              '$is',
+            ];
             const keys = Object.keys(val);
             const unsupported = keys.filter(k => !supportedKeys.includes(k));
             if (unsupported.length > 0) {
-              throw new SchemaDefinitionError(`Unsupported operator: ${unsupported[0]}`);
+              throw new SchemaDefinitionError(
+                `Unsupported operator: ${unsupported[0]}`
+              );
             }
 
             if ('$like' in val) {
@@ -734,7 +914,9 @@ class QueryModel {
             }
             if ('$in' in val) {
               if (!Array.isArray(val['$in']) || val['$in'].length === 0) {
-                throw new SchemaDefinitionError(`$IN clause must be a non-empty array`);
+                throw new SchemaDefinitionError(
+                  `$IN clause must be a non-empty array`
+                );
               }
               const placeholders = val['$in']
                 .map(v => {
@@ -761,7 +943,9 @@ class QueryModel {
               if (val['$not'] === null) {
                 parts.push(`${col} IS NOT NULL`);
               } else {
-                throw new SchemaDefinitionError(`$not only supports null for now`);
+                throw new SchemaDefinitionError(
+                  `$not only supports null for now`
+                );
               }
             }
             // Handle $is
@@ -769,22 +953,33 @@ class QueryModel {
               if (val['$is'] === null) {
                 parts.push(`${col} IS NULL`);
               } else {
-                throw new SchemaDefinitionError(`$is only supports null for now`);
+                throw new SchemaDefinitionError(
+                  `$is only supports null for now`
+                );
               }
             }
             if ('$max' in val || '$min' in val || '$sum' in val) {
               // The subquery must apply the same soft-delete filter as the
               // outer query, or the aggregate can land on a deleted row and
               // the query returns nothing (issue 11).
-              const softFilter = this._schema.softDelete && !includeDeactivated ? ' WHERE deactivated_at IS NULL' : '';
+              const softFilter =
+                this._schema.softDelete && !includeDeactivated
+                  ? ' WHERE deactivated_at IS NULL'
+                  : '';
               if ('$max' in val) {
-                parts.push(`${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`);
+                parts.push(
+                  `${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`
+                );
               }
               if ('$min' in val) {
-                parts.push(`${col} = (SELECT MIN(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`);
+                parts.push(
+                  `${col} = (SELECT MIN(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`
+                );
               }
               if ('$sum' in val) {
-                parts.push(`${col} = (SELECT SUM(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`);
+                parts.push(
+                  `${col} = (SELECT SUM(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`
+                );
               }
             }
           } else {
@@ -807,12 +1002,15 @@ class QueryModel {
    */
   handleDbError(err) {
     if (this.logger?.error) {
-      this.logger.error(`[DB ERROR] (${this._schema.dbSchema}.${this._schema.table})`, {
-        message: err.message,
-        code: err.code,
-        detail: err.detail,
-        stack: err.stack,
-      });
+      this.logger.error(
+        `[DB ERROR] (${this._schema.dbSchema}.${this._schema.table})`,
+        {
+          message: err.message,
+          code: err.code,
+          detail: err.detail,
+          stack: err.stack,
+        }
+      );
     }
 
     switch (err.code) {

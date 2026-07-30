@@ -69,7 +69,7 @@ See the supported modifiers used in `findWhere`, `updateWhere`, and other condit
 export const userSchema = {
   dbSchema: 'public',
   table: 'users',
-  hasAuditFields: true,  // Adds created_at, created_by, updated_at, updated_by
+  hasAuditFields: true, // Adds created_at, created_by, updated_at, updated_by
   softDelete: true,
   columns: [
     { name: 'id', type: 'uuid', notNull: true },
@@ -124,7 +124,10 @@ class User extends TableModel {
   }
 
   async findByEmail(email) {
-    return this.db.oneOrNone(`SELECT * FROM ${this.schema.schema}.${this.schema.table} WHERE email = $1`, [email]);
+    return this.db.oneOrNone(
+      `SELECT * FROM ${this.schema.schema}.${this.schema.table} WHERE email = $1`,
+      [email]
+    );
   }
 }
 ```
@@ -141,9 +144,14 @@ import { User } from './models/User.js';
 DB.init(process.env.DATABASE_URL, { users: User });
 
 async function example() {
-  const created = await db().users.insert({ email: 'test@example.com', password: 'secret' });
+  const created = await db().users.insert({
+    email: 'test@example.com',
+    password: 'secret',
+  });
   const one = await db().users.findById(created.id);
-  const updated = await db().users.update(created.id, { password: 'newpassword' });
+  const updated = await db().users.update(created.id, {
+    password: 'newpassword',
+  });
   const list = await db().users.findAll({ limit: 10 });
   const removed = await db().users.delete(created.id);
 }

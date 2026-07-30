@@ -45,7 +45,7 @@ class DB {
    * @param {() => string|null} [options.auditActorResolver] - Callback returning the current actor ID for audit fields.
    * @returns {typeof DB} The initialized DB class (for chaining or access).
    * @throws {Error} If connection or repositories are invalid.
-  */
+   */
   static init(connection, repositories, logger = null, options = {}) {
     if (!DB.db) {
       // Only initialize once to enforce singleton pattern
@@ -54,7 +54,11 @@ class DB {
         throw new Error('DB.init requires a connection configuration');
       }
 
-      if (!repositories || typeof repositories !== 'object' || Array.isArray(repositories)) {
+      if (
+        !repositories ||
+        typeof repositories !== 'object' ||
+        Array.isArray(repositories)
+      ) {
         throw new Error('DB.init requires a repositories map');
       }
 
@@ -66,7 +70,9 @@ class DB {
           for (const repository of Object.keys(repositories)) {
             const RepoClass = repositories[repository];
             if (typeof RepoClass !== 'function') {
-              throw new TypeError(`Repository "${repository}" is not a valid constructor`);
+              throw new TypeError(
+                `Repository "${repository}" is not a valid constructor`
+              );
             }
             obj[repository] = new RepoClass(obj, DB.pgp, logger);
           }

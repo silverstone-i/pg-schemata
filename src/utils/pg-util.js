@@ -24,11 +24,18 @@
  * @param {string|Object} params.message - Message string or structured data.
  * @param {Object} [params.data=null] - Additional metadata for structured logging.
  */
-export function logMessage({ logger, level = 'debug', schema, table, message, data = null }) {
+export function logMessage({
+  logger,
+  level = 'debug',
+  schema,
+  table,
+  message,
+  data = null,
+}) {
   if (!logger || typeof logger[level] !== 'function') return;
 
   const schemaInfo = schema && table ? `[${schema}.${table}]` : '';
-  const prefix = `${schemaInfo} ${typeof message === 'string' ? message : JSON.stringify(message)}`;  
+  const prefix = `${schemaInfo} ${typeof message === 'string' ? message : JSON.stringify(message)}`;
 
   data ? logger[level](prefix, data) : logger[level](prefix);
 }

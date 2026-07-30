@@ -6,43 +6,43 @@ The schema object is the core concept in pg-schemata. It defines your table stru
 
 Every model requires a schema object with these properties:
 
-| Property | Type | Required | Description |
-|---|---|---|---|
-| `dbSchema` | `string` | Yes | PostgreSQL schema name (e.g. `'public'`) |
-| `table` | `string` | Yes | Table name |
-| `columns` | `ColumnDefinition[]` | Yes | Array of column definitions |
-| `constraints` | `Constraints` | No | Primary key, unique, foreign keys, checks, indexes |
-| `hasAuditFields` | `boolean \| AuditFieldsConfig` | No | Adds `created_at`, `updated_at`, `created_by`, `updated_by` |
-| `softDelete` | `boolean` | No | Adds `deactivated_at` column for soft deletes |
-| `version` | `string` | No | Schema version string for tracking |
+| Property         | Type                           | Required | Description                                                 |
+| ---------------- | ------------------------------ | -------- | ----------------------------------------------------------- |
+| `dbSchema`       | `string`                       | Yes      | PostgreSQL schema name (e.g. `'public'`)                    |
+| `table`          | `string`                       | Yes      | Table name                                                  |
+| `columns`        | `ColumnDefinition[]`           | Yes      | Array of column definitions                                 |
+| `constraints`    | `Constraints`                  | No       | Primary key, unique, foreign keys, checks, indexes          |
+| `hasAuditFields` | `boolean \| AuditFieldsConfig` | No       | Adds `created_at`, `updated_at`, `created_by`, `updated_by` |
+| `softDelete`     | `boolean`                      | No       | Adds `deactivated_at` column for soft deletes               |
+| `version`        | `string`                       | No       | Schema version string for tracking                          |
 
 ## ColumnDefinition
 
 Each column is defined as an object in the `columns` array:
 
-| Property | Type | Required | Description |
-|---|---|---|---|
-| `name` | `string` | Yes | Column name |
-| `type` | `string` | Yes | PostgreSQL data type (`'uuid'`, `'varchar(255)'`, `'integer'`, `'jsonb'`, etc.) |
-| `notNull` | `boolean` | No | Whether the column rejects null values. Defaults to `false` |
-| `default` | `any` | No | Default value — a SQL expression as a string (e.g. `'gen_random_uuid()'`, `'true'`, `"'user'"`) |
-| `immutable` | `boolean` | No | If `true`, excluded from update operations |
-| `generated` | `'always' \| 'by default'` | No | Marks the column as a generated column |
-| `expression` | `string` | No | SQL expression for generated columns |
-| `colProps` | `object` | No | pg-promise column behavior modifiers |
+| Property     | Type                       | Required | Description                                                                                     |
+| ------------ | -------------------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `name`       | `string`                   | Yes      | Column name                                                                                     |
+| `type`       | `string`                   | Yes      | PostgreSQL data type (`'uuid'`, `'varchar(255)'`, `'integer'`, `'jsonb'`, etc.)                 |
+| `notNull`    | `boolean`                  | No       | Whether the column rejects null values. Defaults to `false`                                     |
+| `default`    | `any`                      | No       | Default value — a SQL expression as a string (e.g. `'gen_random_uuid()'`, `'true'`, `"'user'"`) |
+| `immutable`  | `boolean`                  | No       | If `true`, excluded from update operations                                                      |
+| `generated`  | `'always' \| 'by default'` | No       | Marks the column as a generated column                                                          |
+| `expression` | `string`                   | No       | SQL expression for generated columns                                                            |
+| `colProps`   | `object`                   | No       | pg-promise column behavior modifiers                                                            |
 
 ### colProps
 
 The `colProps` object controls how pg-promise handles the column in insert and update operations:
 
-| Property | Type | Description |
-|---|---|---|
-| `mod` | `string` | pg-promise format modifier (e.g. `':json'` for JSONB columns) |
-| `skip` | `(col) => boolean` | Skip this column conditionally. Common pattern: `c => !c.exists` skips the column if not provided in the DTO |
-| `cnd` | `boolean` | Use this column in the conditional update clause |
-| `init` | `(dto) => any` | Function to compute the value dynamically at insert/update time |
-| `def` | `string` | Override the default value in pg-promise's ColumnSet |
-| `validator` | `ZodSchema` | Custom Zod validator for this specific column |
+| Property    | Type               | Description                                                                                                  |
+| ----------- | ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `mod`       | `string`           | pg-promise format modifier (e.g. `':json'` for JSONB columns)                                                |
+| `skip`      | `(col) => boolean` | Skip this column conditionally. Common pattern: `c => !c.exists` skips the column if not provided in the DTO |
+| `cnd`       | `boolean`          | Use this column in the conditional update clause                                                             |
+| `init`      | `(dto) => any`     | Function to compute the value dynamically at insert/update time                                              |
+| `def`       | `string`           | Override the default value in pg-promise's ColumnSet                                                         |
+| `validator` | `ZodSchema`        | Custom Zod validator for this specific column                                                                |
 
 ## Constraints
 
@@ -81,12 +81,12 @@ constraints: {
 
 ### Constraint types
 
-| Property | Type | Description |
-|---|---|---|
-| `primaryKey` | `string[]` | Column names for the primary key |
-| `unique` | `(string[] \| UniqueConstraintDefinition)[]` | Unique constraints — simple arrays or objects with `nullsNotDistinct` |
-| `foreignKeys` | `ConstraintDefinition[]` | Foreign key references with optional `onDelete` behavior |
-| `checks` | `ConstraintDefinition[]` | SQL check expressions |
+| Property      | Type                                         | Description                                                           |
+| ------------- | -------------------------------------------- | --------------------------------------------------------------------- |
+| `primaryKey`  | `string[]`                                   | Column names for the primary key                                      |
+| `unique`      | `(string[] \| UniqueConstraintDefinition)[]` | Unique constraints — simple arrays or objects with `nullsNotDistinct` |
+| `foreignKeys` | `ConstraintDefinition[]`                     | Foreign key references with optional `onDelete` behavior              |
+| `checks`      | `ConstraintDefinition[]`                     | SQL check expressions                                                 |
 
 ::: info
 Check expressions and index predicates are deliberately raw SQL — they are emitted into the DDL as written. Column `default` strings, by contrast, are quoted and escaped when they are not a function call, number, or already-quoted literal.
@@ -105,7 +105,7 @@ When `hasAuditFields` is enabled, pg-schemata automatically adds four columns to
 ### Boolean format (simple)
 
 ```js
-hasAuditFields: true
+hasAuditFields: true;
 ```
 
 Uses `varchar(50)` for `created_by` / `updated_by` with a default fallback of `'system'`.
@@ -146,14 +146,55 @@ const usersSchema = {
   softDelete: true,
   version: '1.0.0',
   columns: [
-    { name: 'id', type: 'uuid', default: 'gen_random_uuid()', notNull: true, immutable: true, colProps: { cnd: true } },
-    { name: 'tenant_id', type: 'uuid', notNull: true, colProps: { skip: c => !c.exists } },
-    { name: 'email', type: 'varchar(255)', notNull: true, colProps: { skip: c => !c.exists } },
-    { name: 'first_name', type: 'varchar(100)', colProps: { skip: c => !c.exists } },
-    { name: 'last_name', type: 'varchar(100)', colProps: { skip: c => !c.exists } },
-    { name: 'address', type: 'jsonb', colProps: { mod: ':json', skip: c => !c.exists } },
-    { name: 'is_active', type: 'boolean', default: 'true', notNull: true, colProps: { skip: c => !c.exists } },
-    { name: 'role', type: 'varchar(50)', default: "'user'", notNull: true, colProps: { skip: c => !c.exists } },
+    {
+      name: 'id',
+      type: 'uuid',
+      default: 'gen_random_uuid()',
+      notNull: true,
+      immutable: true,
+      colProps: { cnd: true },
+    },
+    {
+      name: 'tenant_id',
+      type: 'uuid',
+      notNull: true,
+      colProps: { skip: c => !c.exists },
+    },
+    {
+      name: 'email',
+      type: 'varchar(255)',
+      notNull: true,
+      colProps: { skip: c => !c.exists },
+    },
+    {
+      name: 'first_name',
+      type: 'varchar(100)',
+      colProps: { skip: c => !c.exists },
+    },
+    {
+      name: 'last_name',
+      type: 'varchar(100)',
+      colProps: { skip: c => !c.exists },
+    },
+    {
+      name: 'address',
+      type: 'jsonb',
+      colProps: { mod: ':json', skip: c => !c.exists },
+    },
+    {
+      name: 'is_active',
+      type: 'boolean',
+      default: 'true',
+      notNull: true,
+      colProps: { skip: c => !c.exists },
+    },
+    {
+      name: 'role',
+      type: 'varchar(50)',
+      default: "'user'",
+      notNull: true,
+      colProps: { skip: c => !c.exists },
+    },
   ],
   constraints: {
     primaryKey: ['id'],
@@ -167,7 +208,7 @@ const usersSchema = {
       },
     ],
     checks: [
-      { type: 'Check', expression: "char_length(email) > 3" },
+      { type: 'Check', expression: 'char_length(email) > 3' },
       { type: 'Check', expression: "role IN ('user', 'admin', 'moderator')" },
     ],
     indexes: [

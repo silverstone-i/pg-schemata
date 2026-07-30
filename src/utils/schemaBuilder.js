@@ -94,7 +94,12 @@ function createTableSQL(schema, logger = null) {
         const isNumeric = /^-?\d+(\.\d+)?$/.test(defaultValue);
         // Also check for quoted strings with type casts like '{}'::uuid[]
         const isQuotedWithCast = /^'.*'::\w+/.test(defaultValue);
-        if (!isSQLFunction && !isNumeric && !isQuotedWithCast && !/^'.*'$/.test(defaultValue)) {
+        if (
+          !isSQLFunction &&
+          !isNumeric &&
+          !isQuotedWithCast &&
+          !/^'.*'$/.test(defaultValue)
+        ) {
           // Escape embedded quotes so a legitimate default like O'Brien
           // produces valid DDL (issue 7).
           defaultValue = `'${defaultValue.replace(/'/g, "''")}'`;
@@ -111,7 +116,9 @@ function createTableSQL(schema, logger = null) {
   // Handle PRIMARY KEY constraint
   // Primary Key
   if (constraints.primaryKey) {
-    tableConstraints.push(`PRIMARY KEY (${constraints.primaryKey.map(c => `"${c}"`).join(', ')})`);
+    tableConstraints.push(
+      `PRIMARY KEY (${constraints.primaryKey.map(c => `"${c}"`).join(', ')})`
+    );
   }
 
   // Handle UNIQUE constraints with generated names
@@ -124,7 +131,10 @@ function createTableSQL(schema, logger = null) {
       const nullsNotDistinct = isObject && uniqueDef.nullsNotDistinct;
 
       const hash = createHash(table + uniqueCols.join('_'));
-      const constraintName = isObject && uniqueDef.name ? uniqueDef.name : `uidx_${table}_${uniqueCols.join('_')}_${hash}`;
+      const constraintName =
+        isObject && uniqueDef.name
+          ? uniqueDef.name
+          : `uidx_${table}_${uniqueCols.join('_')}_${hash}`;
 
       let clause = `CONSTRAINT "${constraintName}" UNIQUE`;
       if (nullsNotDistinct) {
@@ -140,7 +150,9 @@ function createTableSQL(schema, logger = null) {
   if (constraints.foreignKeys) {
     for (const fk of constraints.foreignKeys) {
       if (typeof fk.references !== 'object') {
-        throw new SchemaDefinitionError(`Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`);
+        throw new SchemaDefinitionError(
+          `Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`
+        );
       }
 
       const isDotted = fk.references.table.includes('.');
@@ -151,7 +163,9 @@ function createTableSQL(schema, logger = null) {
         const left = fk.references.table.slice(0, dotIdx);
         const right = fk.references.table.slice(dotIdx + 1);
         if (!left || !right || right.includes('.')) {
-          throw new SchemaDefinitionError(`Invalid foreign key reference for table ${table}: expected '<schema>.<table>', got '${fk.references.table}'`);
+          throw new SchemaDefinitionError(
+            `Invalid foreign key reference for table ${table}: expected '<schema>.<table>', got '${fk.references.table}'`
+          );
         }
         refSchema = left;
         refTable = right;
@@ -163,11 +177,19 @@ function createTableSQL(schema, logger = null) {
       // Hash only mixes in references.schema when it actually drives resolution
       // (i.e. the table is not dotted). Dotted form ignores references.schema, so
       // it must not affect the constraint name either.
-      const hashSchemaPart = !isDotted && fk.references.schema ? fk.references.schema : '';
-      const hash = createHash(table + fk.references.table + hashSchemaPart + fk.columns.join('_'));
+      const hashSchemaPart =
+        !isDotted && fk.references.schema ? fk.references.schema : '';
+      const hash = createHash(
+        table + fk.references.table + hashSchemaPart + fk.columns.join('_')
+      );
       const constraintName = `fk_${table}_${hash}`;
 
-      tableConstraints.push(`CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` + `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` + (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') + (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : ''));
+      tableConstraints.push(
+        `CONSTRAINT "${constraintName}" FOREIGN KEY (${fk.columns.map(c => `"${c}"`).join(', ')}) ` +
+          `REFERENCES "${refSchema}"."${refTable}" (${fk.references.columns.map(c => `"${c}"`).join(', ')})` +
+          (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '') +
+          (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '')
+      );
     }
   }
 
@@ -213,7 +235,9 @@ function createTableSQL(schema, logger = null) {
     level: 'debug',
     schema: schemaName,
     table,
-    message: indexDefinitions ? 'Generated CREATE TABLE SQL with indexes' : 'Generated CREATE TABLE SQL',
+    message: indexDefinitions
+      ? 'Generated CREATE TABLE SQL with indexes'
+      : 'Generated CREATE TABLE SQL',
     data: { sql: finalSQL },
   });
 
@@ -253,7 +277,8 @@ function addAuditFields(schema) {
         const userFields = schema.hasAuditFields.userFields;
         userFieldsConfig = {
           type: userFields.type || 'varchar(50)',
-          nullable: userFields.nullable !== undefined ? userFields.nullable : true,
+          nullable:
+            userFields.nullable !== undefined ? userFields.nullable : true,
           default: userFields.default !== undefined ? userFields.default : null,
         };
       }
@@ -323,7 +348,9 @@ function addAuditFields(schema) {
  */
 function addSoftDeleteField(schema) {
   if (schema?.softDelete) {
-    const hasDeactivatedAt = schema.columns.some(col => col.name === 'deactivated_at');
+    const hasDeactivatedAt = schema.columns.some(
+      col => col.name === 'deactivated_at'
+    );
     if (!hasDeactivatedAt) {
       schema.columns.push({
         name: 'deactivated_at',
@@ -359,7 +386,9 @@ function createIndexesSQL(schema, unique = false, logger = null) {
     // Support both old format { columns: [...] } and new format with more options
     const columns = index.columns || [];
     if (columns.length === 0) {
-      throw new SchemaDefinitionError(`Index definition must have at least one column for table ${schema.table}`);
+      throw new SchemaDefinitionError(
+        `Index definition must have at least one column for table ${schema.table}`
+      );
     }
 
     // Generate index name - allow custom names or generate automatically
@@ -368,7 +397,8 @@ function createIndexesSQL(schema, unique = false, logger = null) {
       indexName = index.name;
     } else {
       const prefix = unique || index.unique ? 'uidx' : 'idx';
-      indexName = `${prefix}_${schema.table}_${columns.join('_')}`.toLowerCase();
+      indexName =
+        `${prefix}_${schema.table}_${columns.join('_')}`.toLowerCase();
     }
 
     // Build the CREATE INDEX statement
@@ -487,18 +517,26 @@ function createColumnSet(schema, pgp, logger = null) {
   // Define standard audit field names to exclude from base ColumnSet
   const auditFields = ['created_at', 'created_by', 'updated_at', 'updated_by'];
   // Remove audit fields from the list of columns
-  const columnsetColumns = schema.columns.filter(col => !auditFields.includes(col.name));
+  const columnsetColumns = schema.columns.filter(
+    col => !auditFields.includes(col.name)
+  );
 
   const hasAuditFields = columnsetColumns.length !== schema.columns.length;
 
   // Validate that audit fields have been added correctly
   // Support both boolean and object format for hasAuditFields
-  const schemaHasAuditFieldsEnabled = typeof schema.hasAuditFields === 'boolean'
-    ? schema.hasAuditFields
-    : schema.hasAuditFields?.enabled === true;
+  const schemaHasAuditFieldsEnabled =
+    typeof schema.hasAuditFields === 'boolean'
+      ? schema.hasAuditFields
+      : schema.hasAuditFields?.enabled === true;
 
-  if (Object.prototype.hasOwnProperty.call(schema, 'hasAuditFields') && hasAuditFields !== schemaHasAuditFieldsEnabled) {
-    const message = hasAuditFields ? 'Cannot use created_at, created_by, updated_at, updated_by in your schema definition' : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
+  if (
+    Object.prototype.hasOwnProperty.call(schema, 'hasAuditFields') &&
+    hasAuditFields !== schemaHasAuditFieldsEnabled
+  ) {
+    const message = hasAuditFields
+      ? 'Cannot use created_at, created_by, updated_at, updated_by in your schema definition'
+      : 'Audit fields have been removed from the schema. Set schema.hasAuditFields = false to avoid this error';
     throw new SchemaDefinitionError(message);
   }
 
@@ -509,7 +547,10 @@ function createColumnSet(schema, pgp, logger = null) {
       const hasDefault = Object.prototype.hasOwnProperty.call(col, 'default');
 
       // Skip serial or UUID primary keys with defaults
-      if (col.type === 'serial' || (col.type === 'uuid' && isPrimaryKey && hasDefault)) {
+      if (
+        col.type === 'serial' ||
+        (col.type === 'uuid' && isPrimaryKey && hasDefault)
+      ) {
         return null;
       }
 
@@ -522,7 +563,9 @@ function createColumnSet(schema, pgp, logger = null) {
         // `def` is a JavaScript substitution value, not raw SQL. A column with
         // a SQL default must emit the DEFAULT keyword when absent from the DTO,
         // not the text of its own default expression (issue N3).
-        def: Object.prototype.hasOwnProperty.call(col, 'default') ? RAW_DEFAULT : col.colProps?.def ?? undefined,
+        def: Object.prototype.hasOwnProperty.call(col, 'default')
+          ? RAW_DEFAULT
+          : (col.colProps?.def ?? undefined),
       };
 
       return columnObject;
@@ -541,7 +584,9 @@ function createColumnSet(schema, pgp, logger = null) {
       if (col.colProps) {
         const { skip } = col.colProps;
         if (typeof skip !== 'undefined' && typeof skip !== 'function') {
-          throw new SchemaDefinitionError(`Invalid colProps.skip for column "${col.name}": expected function, got ${typeof skip}`);
+          throw new SchemaDefinitionError(
+            `Invalid colProps.skip for column "${col.name}": expected function, got ${typeof skip}`
+          );
         }
       }
     }
@@ -593,4 +638,12 @@ function createColumnSet(schema, pgp, logger = null) {
   return cs;
 }
 
-export { createTableSQL, addAuditFields, addSoftDeleteField, createIndexesSQL, normalizeSQL, createColumnSet, columnSetCache };
+export {
+  createTableSQL,
+  addAuditFields,
+  addSoftDeleteField,
+  createIndexesSQL,
+  normalizeSQL,
+  createColumnSet,
+  columnSetCache,
+};

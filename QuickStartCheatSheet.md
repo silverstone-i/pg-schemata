@@ -6,9 +6,7 @@
 
 ```javascript
 const pgp = require('pg-promise')();
-const db = pgp({
-  /* connection config */
-});
+const db = pgp({/* connection config */});
 ```
 
 ✅ One global connection pool for all tenants.

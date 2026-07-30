@@ -18,15 +18,15 @@ interface TableSchema {
 }
 ```
 
-| Property | Type | Required | Description |
-|---|---|---|---|
-| `dbSchema` | `string` | Yes | PostgreSQL schema name (e.g. `'public'`) |
-| `table` | `string` | Yes | Table name |
-| `columns` | `ColumnDefinition[]` | Yes | Array of column definitions |
-| `constraints` | `Constraints` | No | Table-level constraints |
-| `hasAuditFields` | `boolean \| AuditFieldsConfig` | No | Enable audit tracking columns |
-| `softDelete` | `boolean` | No | Enable soft delete via `deactivated_at` |
-| `version` | `string` | No | Schema version string |
+| Property         | Type                           | Required | Description                              |
+| ---------------- | ------------------------------ | -------- | ---------------------------------------- |
+| `dbSchema`       | `string`                       | Yes      | PostgreSQL schema name (e.g. `'public'`) |
+| `table`          | `string`                       | Yes      | Table name                               |
+| `columns`        | `ColumnDefinition[]`           | Yes      | Array of column definitions              |
+| `constraints`    | `Constraints`                  | No       | Table-level constraints                  |
+| `hasAuditFields` | `boolean \| AuditFieldsConfig` | No       | Enable audit tracking columns            |
+| `softDelete`     | `boolean`                      | No       | Enable soft delete via `deactivated_at`  |
+| `version`        | `string`                       | No       | Schema version string                    |
 
 ## ColumnDefinition
 
@@ -53,28 +53,28 @@ interface ColumnDefinition {
 }
 ```
 
-| Property | Type | Description |
-|---|---|---|
-| `name` | `string` | Column name |
-| `type` | `string` | PostgreSQL data type |
-| `generated` | `'always' \| 'by default'` | Generated column mode |
-| `expression` | `string` | SQL expression for generated columns |
-| `stored` | `boolean` | Whether generated column is stored |
-| `notNull` | `boolean` | Reject null values |
-| `default` | `any` | Default value (SQL expression as string) |
-| `immutable` | `boolean` | Exclude from update operations |
-| `colProps` | `object` | pg-promise column behavior modifiers |
+| Property     | Type                       | Description                              |
+| ------------ | -------------------------- | ---------------------------------------- |
+| `name`       | `string`                   | Column name                              |
+| `type`       | `string`                   | PostgreSQL data type                     |
+| `generated`  | `'always' \| 'by default'` | Generated column mode                    |
+| `expression` | `string`                   | SQL expression for generated columns     |
+| `stored`     | `boolean`                  | Whether generated column is stored       |
+| `notNull`    | `boolean`                  | Reject null values                       |
+| `default`    | `any`                      | Default value (SQL expression as string) |
+| `immutable`  | `boolean`                  | Exclude from update operations           |
+| `colProps`   | `object`                   | pg-promise column behavior modifiers     |
 
 ### colProps detail
 
-| Property | Type | Description |
-|---|---|---|
-| `mod` | `string` | pg-promise format modifier (e.g. `':json'`) |
-| `skip` | `(col) => boolean` | Skip column conditionally |
-| `cnd` | `boolean` | Use in conditional update clause |
-| `init` | `(dto) => any` | Compute value dynamically |
-| `def` | `string` | Override default value in ColumnSet |
-| `validator` | `ZodSchema` | Custom Zod validator for this column |
+| Property    | Type               | Description                                 |
+| ----------- | ------------------ | ------------------------------------------- |
+| `mod`       | `string`           | pg-promise format modifier (e.g. `':json'`) |
+| `skip`      | `(col) => boolean` | Skip column conditionally                   |
+| `cnd`       | `boolean`          | Use in conditional update clause            |
+| `init`      | `(dto) => any`     | Compute value dynamically                   |
+| `def`       | `string`           | Override default value in ColumnSet         |
+| `validator` | `ZodSchema`        | Custom Zod validator for this column        |
 
 ## Constraints
 
@@ -119,11 +119,11 @@ interface UniqueConstraintDefinition {
 }
 ```
 
-| Property | Type | Description |
-|---|---|---|
-| `columns` | `string[]` | Column names for the unique constraint |
-| `nullsNotDistinct` | `boolean` | Treat NULLs as equal for uniqueness (PostgreSQL 15+) |
-| `name` | `string` | Custom constraint name (auto-generated if omitted) |
+| Property           | Type       | Description                                          |
+| ------------------ | ---------- | ---------------------------------------------------- |
+| `columns`          | `string[]` | Column names for the unique constraint               |
+| `nullsNotDistinct` | `boolean`  | Treat NULLs as equal for uniqueness (PostgreSQL 15+) |
+| `name`             | `string`   | Custom constraint name (auto-generated if omitted)   |
 
 ## AuditFieldsConfig
 
@@ -140,9 +140,9 @@ interface AuditFieldsConfig {
 }
 ```
 
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | `boolean` | — | Whether to include audit fields |
-| `userFields.type` | `string` | `'varchar(50)'` | PostgreSQL type for `created_by` / `updated_by` |
-| `userFields.nullable` | `boolean` | `true` | Allow null for user fields |
-| `userFields.default` | `any` | `null` | Default value for user fields |
+| Property              | Type      | Default         | Description                                     |
+| --------------------- | --------- | --------------- | ----------------------------------------------- |
+| `enabled`             | `boolean` | —               | Whether to include audit fields                 |
+| `userFields.type`     | `string`  | `'varchar(50)'` | PostgreSQL type for `created_by` / `updated_by` |
+| `userFields.nullable` | `boolean` | `true`          | Allow null for user fields                      |
+| `userFields.default`  | `any`     | `null`          | Default value for user fields                   |

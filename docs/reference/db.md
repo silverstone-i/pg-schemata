@@ -12,13 +12,13 @@ import { DB, db, pgp } from 'pg-schemata';
 
 Initializes the database singleton. Call once at application startup.
 
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `connection` | `string \| object` | Yes | pg-promise connection string or config object |
-| `repositories` | `Record<string, Function>` | Yes | Map of repository names to model constructors |
-| `logger` | `object` | No | Logger instance passed to each repository (default `null`) |
-| `options` | `object` | No | Configuration options |
-| `options.auditActorResolver` | `() => string \| null` | No | Callback returning the current actor ID for audit fields |
+| Parameter                    | Type                       | Required | Description                                                |
+| ---------------------------- | -------------------------- | -------- | ---------------------------------------------------------- |
+| `connection`                 | `string \| object`         | Yes      | pg-promise connection string or config object              |
+| `repositories`               | `Record<string, Function>` | Yes      | Map of repository names to model constructors              |
+| `logger`                     | `object`                   | No       | Logger instance passed to each repository (default `null`) |
+| `options`                    | `object`                   | No       | Configuration options                                      |
+| `options.auditActorResolver` | `() => string \| null`     | No       | Callback returning the current actor ID for audit fields   |
 
 **Returns:** `DB` class (for chaining)
 
@@ -34,12 +34,9 @@ DB.init(process.env.DATABASE_URL, { users: Users });
 With audit resolver:
 
 ```js
-DB.init(
-  process.env.DATABASE_URL,
-  { users: Users },
-  console,
-  { auditActorResolver: () => als.getStore()?.userId ?? null }
-);
+DB.init(process.env.DATABASE_URL, { users: Users }, console, {
+  auditActorResolver: () => als.getStore()?.userId ?? null,
+});
 ```
 
 Calling `init()` multiple times is safe — subsequent calls are no-ops (singleton).

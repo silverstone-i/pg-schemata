@@ -2,12 +2,12 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import TableModel from '../../src/TableModel.js';
 
 const mockDb = {
-  result: vi.fn()
+  result: vi.fn(),
 };
 
 const fakePgp = {
   as: { name: vi.fn(x => `"${x}"`) },
-  helpers: { ColumnSet: vi.fn(() => ({})), update: vi.fn(() => 'UPDATE ...') }
+  helpers: { ColumnSet: vi.fn(() => ({})), update: vi.fn(() => 'UPDATE ...') },
 };
 
 const schemaWithSoftDelete = {
@@ -18,8 +18,8 @@ const schemaWithSoftDelete = {
   columns: [
     { name: 'id', type: 'uuid' },
     { name: 'email', type: 'text' },
-    { name: 'deactivated_at', type: 'timestamp' }
-  ]
+    { name: 'deactivated_at', type: 'timestamp' },
+  ],
 };
 
 let model;
@@ -67,7 +67,9 @@ describe('TableModel soft delete unit tests', () => {
   });
 
   test('purgeSoftDeleteById constructs delete with id', async () => {
-    const spy = vi.spyOn(model, 'purgeSoftDeleteWhere').mockResolvedValue({ rowCount: 1 });
+    const spy = vi
+      .spyOn(model, 'purgeSoftDeleteWhere')
+      .mockResolvedValue({ rowCount: 1 });
     await model.purgeSoftDeleteById('xyz');
     expect(spy).toHaveBeenCalledWith([{ id: 'xyz' }], { tx: undefined });
   });

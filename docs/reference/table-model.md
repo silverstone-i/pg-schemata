@@ -27,7 +27,7 @@ TableModel inherits all methods from [QueryModel](/reference/query-model): `find
 Every write method accepts a trailing options object with `tx` — a pg-promise task or transaction context to run on. Bulk methods run directly on the supplied context instead of opening their own transaction. See [Transactions](/guide/crud-operations#transactions).
 
 ```js
-await db().tx(async (t) => {
+await db().tx(async t => {
   await db().users.insert(dto, { tx: t });
 });
 ```
@@ -36,9 +36,9 @@ await db().tx(async (t) => {
 
 Inserts a single row after validation and sanitization.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `dto` | `object` | Data to insert |
+| Parameter    | Type     | Description                           |
+| ------------ | -------- | ------------------------------------- |
+| `dto`        | `object` | Data to insert                        |
 | `options.tx` | `object` | pg-promise task/transaction to run on |
 
 **Returns:** `Promise<Object>` — the inserted row (`RETURNING *`)
@@ -48,10 +48,10 @@ Inserts a single row after validation and sanitization.
 
 Updates a record by primary key.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `id` | `string \| number` | Primary key value |
-| `dto` | `object` | Updated values |
+| Parameter | Type               | Description       |
+| --------- | ------------------ | ----------------- |
+| `id`      | `string \| number` | Primary key value |
+| `dto`     | `object`           | Updated values    |
 
 **Returns:** `Promise<Object | null>` — updated row, or `null` if not found
 **Throws:** `SchemaDefinitionError` if validation fails
@@ -60,9 +60,9 @@ Updates a record by primary key.
 
 Hard deletes a row by primary key.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `id` | `string \| number` | Primary key value |
+| Parameter | Type               | Description       |
+| --------- | ------------------ | ----------------- |
+| `id`      | `string \| number` | Primary key value |
 
 **Returns:** `Promise<number>` — number of rows deleted
 
@@ -70,11 +70,11 @@ Hard deletes a row by primary key.
 
 Inserts or updates on conflict.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `dto` | `object` | Data to insert or update |
-| `conflictColumns` | `string[]` | Columns that define the conflict |
-| `updateColumns` | `string[]` | Columns to update on conflict (optional — defaults to all non-conflict columns) |
+| Parameter         | Type       | Description                                                                     |
+| ----------------- | ---------- | ------------------------------------------------------------------------------- |
+| `dto`             | `object`   | Data to insert or update                                                        |
+| `conflictColumns` | `string[]` | Columns that define the conflict                                                |
+| `updateColumns`   | `string[]` | Columns to update on conflict (optional — defaults to all non-conflict columns) |
 
 **Returns:** `Promise<Object>` — the inserted or updated row
 
@@ -82,9 +82,9 @@ Inserts or updates on conflict.
 
 Hard deletes rows matching a WHERE clause.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `where` | `object \| Object[]` | Filter criteria |
+| Parameter | Type                 | Description     |
+| --------- | -------------------- | --------------- |
+| `where`   | `object \| Object[]` | Filter criteria |
 
 **Returns:** `Promise<number>` — number of rows deleted
 
@@ -92,11 +92,11 @@ Hard deletes rows matching a WHERE clause.
 
 Updates rows matching a WHERE clause.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `where` | `object \| Object[]` | Conditions |
-| `updates` | `object` | Fields to update |
-| `options.includeDeactivated` | `boolean` | Include soft-deleted rows (default `false`) |
+| Parameter                    | Type                 | Description                                 |
+| ---------------------------- | -------------------- | ------------------------------------------- |
+| `where`                      | `object \| Object[]` | Conditions                                  |
+| `updates`                    | `object`             | Fields to update                            |
+| `options.includeDeactivated` | `boolean`            | Include soft-deleted rows (default `false`) |
 
 **Returns:** `Promise<number>` — number of rows updated
 
@@ -104,10 +104,10 @@ Updates rows matching a WHERE clause.
 
 Updates only the `updated_at` timestamp and optionally `updated_by`.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `id` | `string \| number` | Primary key value |
-| `updatedBy` | `string` | Actor identifier (optional — uses resolver if omitted) |
+| Parameter   | Type               | Description                                            |
+| ----------- | ------------------ | ------------------------------------------------------ |
+| `id`        | `string \| number` | Primary key value                                      |
+| `updatedBy` | `string`           | Actor identifier (optional — uses resolver if omitted) |
 
 **Returns:** `Promise<Object | null>`
 
@@ -117,9 +117,9 @@ Updates only the `updated_at` timestamp and optionally `updated_by`.
 
 Inserts multiple rows in a transaction.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `records` | `Object[]` | Rows to insert |
+| Parameter   | Type               | Description                  |
+| ----------- | ------------------ | ---------------------------- |
+| `records`   | `Object[]`         | Rows to insert               |
 | `returning` | `string[] \| null` | Columns to return (optional) |
 
 **Returns:** `Promise<number | Object[]>` — row count, or array of rows if `returning` specified
@@ -128,10 +128,10 @@ Inserts multiple rows in a transaction.
 
 Updates multiple rows by primary key in a transaction.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `records` | `Object[]` | Each must include an `id` field |
-| `returning` | `string[] \| null` | Columns to return (optional) |
+| Parameter   | Type               | Description                     |
+| ----------- | ------------------ | ------------------------------- |
+| `records`   | `Object[]`         | Each must include an `id` field |
+| `returning` | `string[] \| null` | Columns to return (optional)    |
 
 **Returns:** `Promise<Array>` — array of row counts or row arrays
 
@@ -139,12 +139,12 @@ Updates multiple rows by primary key in a transaction.
 
 Bulk insert-or-update in a transaction.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `records` | `Object[]` | Rows to upsert |
-| `conflictColumns` | `string[]` | Conflict columns |
-| `updateColumns` | `string[]` | Columns to update (optional) |
-| `returning` | `string[] \| null` | Columns to return (optional) |
+| Parameter         | Type               | Description                  |
+| ----------------- | ------------------ | ---------------------------- |
+| `records`         | `Object[]`         | Rows to upsert               |
+| `conflictColumns` | `string[]`         | Conflict columns             |
+| `updateColumns`   | `string[]`         | Columns to update (optional) |
+| `returning`       | `string[] \| null` | Columns to return (optional) |
 
 **Returns:** `Promise<number | Object[]>`
 
@@ -181,12 +181,12 @@ Permanently deletes a specific soft-deleted row.
 
 Imports data from an Excel file into the table.
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `filePath` | `string` | — | Source `.xlsx` file path |
-| `sheetIndex` | `number` | `0` | Sheet index (0-based) |
-| `callbackFn` | `(row) => Object` | `null` | Transform function per row |
-| `returning` | `string[]` | `null` | Columns to return |
+| Parameter    | Type              | Default | Description                |
+| ------------ | ----------------- | ------- | -------------------------- |
+| `filePath`   | `string`          | —       | Source `.xlsx` file path   |
+| `sheetIndex` | `number`          | `0`     | Sheet index (0-based)      |
+| `callbackFn` | `(row) => Object` | `null`  | Transform function per row |
+| `returning`  | `string[]`        | `null`  | Columns to return          |
 
 **Returns:** `Promise<{ inserted: number | Object[] }>`
 

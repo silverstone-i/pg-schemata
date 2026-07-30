@@ -30,11 +30,15 @@ function mapSqlTypeToZod(type) {
   if (/^varchar\((\d+)\)$/i.test(type)) {
     const max = parseInt(type.match(/^varchar\((\d+)\)$/i)[1], 10);
     return z.string().max(max);
-  } else if (/^(text|varchar|char\(\d+\)|character varying(\(\d+\))?)$/i.test(type)) {
+  } else if (
+    /^(text|varchar|char\(\d+\)|character varying(\(\d+\))?)$/i.test(type)
+  ) {
     return z.string();
   } else if (/^uuid$/i.test(type)) {
     return z.string().uuid();
-  } else if (/^(int|integer|smallint|int2|int4|serial|smallserial)$/i.test(type)) {
+  } else if (
+    /^(int|integer|smallint|int2|int4|serial|smallserial)$/i.test(type)
+  ) {
     return z.number().int();
   } else if (/^(bigint|int8|bigserial)$/i.test(type)) {
     // bigint columns commonly round-trip as strings to avoid precision loss
@@ -45,7 +49,11 @@ function mapSqlTypeToZod(type) {
     return z.number();
   } else if (/^boolean$/i.test(type)) {
     return z.boolean();
-  } else if (/^(timestamptz|timestamp|date)(\(\d+\))?( with(out)? time zone)?$/i.test(type)) {
+  } else if (
+    /^(timestamptz|timestamp|date)(\(\d+\))?( with(out)? time zone)?$/i.test(
+      type
+    )
+  ) {
     return z.coerce.date();
   } else if (/^jsonb?$/i.test(type)) {
     return z.any();
@@ -55,7 +63,9 @@ function mapSqlTypeToZod(type) {
     // 2.0.0 will throw here.
     if (!unknownTypeWarned.has(type)) {
       unknownTypeWarned.add(type);
-      console.warn(`[pg-schemata] No validator mapping for column type "${type}"; falling back to z.any(). This will become an error in 2.0.0.`);
+      console.warn(
+        `[pg-schemata] No validator mapping for column type "${type}"; falling back to z.any(). This will become an error in 2.0.0.`
+      );
     }
     return z.any();
   }
@@ -89,9 +99,12 @@ function generateZodFromTableSchema(tableSchema) {
     // updateValidator: always optional + nullable
     update[name] = zodType.nullable().optional();
   }
-  
+
   // Enhance with check constraints if present
-  if (tableSchema.constraints && Array.isArray(tableSchema.constraints.checks)) {
+  if (
+    tableSchema.constraints &&
+    Array.isArray(tableSchema.constraints.checks)
+  ) {
     // Helper: parse char_length(field) > N and field IN ('A','B','C')
     for (const check of tableSchema.constraints.checks) {
       const expr = typeof check === 'string' ? check : check.expression;
@@ -106,10 +119,14 @@ function generateZodFromTableSchema(tableSchema) {
           base[field] = base[field].min ? base[field].min(minLen) : base[field];
         }
         if (insert[field]) {
-          insert[field] = insert[field].min ? insert[field].min(minLen) : insert[field];
+          insert[field] = insert[field].min
+            ? insert[field].min(minLen)
+            : insert[field];
         }
         if (update[field]) {
-          update[field] = update[field].min ? update[field].min(minLen) : update[field];
+          update[field] = update[field].min
+            ? update[field].min(minLen)
+            : update[field];
         }
         continue;
       }
@@ -125,7 +142,7 @@ function generateZodFromTableSchema(tableSchema) {
             .replace(/^'(.*)'$/, '$1')
             .replace(/^"(.*)"$/, '$1')
         );
-        
+
         if (Array.isArray(options) && options.length > 0) {
           const enumZod = z.enum([...new Set(options)]);
           if (base[field]) base[field] = enumZod;

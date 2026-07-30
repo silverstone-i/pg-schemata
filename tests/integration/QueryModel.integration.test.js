@@ -81,7 +81,13 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const result = await model.findWhere([{ email: 'findwhere-1@example.com' }, { email: 'findwhere-2@example.com' }], 'OR');
+    const result = await model.findWhere(
+      [
+        { email: 'findwhere-1@example.com' },
+        { email: 'findwhere-2@example.com' },
+      ],
+      'OR'
+    );
     expect(result.length).toBe(2);
   });
 
@@ -102,7 +108,9 @@ describe('QueryModel Integration', () => {
   });
 
   it('should return 0 for unmatched filter in count()', async () => {
-    const count = await model.countWhere([{ email: 'doesnotexist@example.com' }]);
+    const count = await model.countWhere([
+      { email: 'doesnotexist@example.com' },
+    ]);
     expect(count).toBe(0);
   });
 
@@ -123,10 +131,20 @@ describe('QueryModel Integration', () => {
   });
 
   it('should return correct count using nested $or condition in count()', async () => {
-    await model.insert({ email: 'orcount1@example.com', created_by: 'X', tenant_id: TENANT_ID });
-    await model.insert({ email: 'orcount2@example.com', created_by: 'Y', tenant_id: TENANT_ID });
+    await model.insert({
+      email: 'orcount1@example.com',
+      created_by: 'X',
+      tenant_id: TENANT_ID,
+    });
+    await model.insert({
+      email: 'orcount2@example.com',
+      created_by: 'Y',
+      tenant_id: TENANT_ID,
+    });
 
-    const count = await model.countWhere([{ $or: [{ created_by: 'X' }, { created_by: 'Y' }] }]);
+    const count = await model.countWhere([
+      { $or: [{ created_by: 'X' }, { created_by: 'Y' }] },
+    ]);
 
     expect(count).toBeGreaterThanOrEqual(2);
   });
@@ -147,12 +165,21 @@ describe('QueryModel Integration', () => {
       created_by: 'System',
       tenant_id: TENANT_ID,
     });
-    await model.insert({ email: 'x@example.com', created_by: 'System', tenant_id: TENANT_ID });
-
-    const rows = await model.findAfterCursor({ created_at: b.created_at, id: b.id }, 10, ['created_at', 'id'], {
-      descending: true,
-      columnWhitelist: ['email'],
+    await model.insert({
+      email: 'x@example.com',
+      created_by: 'System',
+      tenant_id: TENANT_ID,
     });
+
+    const rows = await model.findAfterCursor(
+      { created_at: b.created_at, id: b.id },
+      10,
+      ['created_at', 'id'],
+      {
+        descending: true,
+        columnWhitelist: ['email'],
+      }
+    );
 
     expect(Array.isArray(rows.rows)).toBe(true);
     expect(rows.rows.length).toBeGreaterThan(0);
@@ -207,7 +234,9 @@ describe('QueryModel Integration', () => {
     const mockLogger = { error: vi.fn() };
     model.logger = mockLogger;
     const error = new Error('Database operation failed');
-    expect(() => model.handleDbError(error)).toThrow('Database operation failed');
+    expect(() => model.handleDbError(error)).toThrow(
+      'Database operation failed'
+    );
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.stringMatching(/^\[DB ERROR\]/),
       expect.objectContaining({
@@ -223,14 +252,27 @@ describe('QueryModel Integration', () => {
   });
 
   it('should throw on unsupported operator in findWhere', async () => {
-    await expect(model.findWhere([{ email: { likee: 'bad' } }])).rejects.toThrow('Unsupported operator: likee');
+    await expect(
+      model.findWhere([{ email: { likee: 'bad' } }])
+    ).rejects.toThrow('Unsupported operator: likee');
   });
 
   it('should support nested OR and AND conditions in findWhere', async () => {
-    await model.insert({ email: 'nested1@example.com', created_by: 'Admin', tenant_id: TENANT_ID });
-    await model.insert({ email: 'nested2@example.com', created_by: 'System', tenant_id: TENANT_ID });
+    await model.insert({
+      email: 'nested1@example.com',
+      created_by: 'Admin',
+      tenant_id: TENANT_ID,
+    });
+    await model.insert({
+      email: 'nested2@example.com',
+      created_by: 'System',
+      tenant_id: TENANT_ID,
+    });
 
-    const result = await model.findWhere([{ $or: [{ created_by: 'Admin' }, { created_by: 'System' }] }, { email: { $ilike: '%nested%' } }]);
+    const result = await model.findWhere([
+      { $or: [{ created_by: 'Admin' }, { created_by: 'System' }] },
+      { email: { $ilike: '%nested%' } },
+    ]);
     expect(result.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -243,8 +285,16 @@ describe('QueryModel Integration', () => {
   });
 
   it('should return single record in findOneBy with multiple matches', async () => {
-    await model.insert({ email: 'dupe@example.com', created_by: 'X', tenant_id: TENANT_ID });
-    await model.insert({ email: 'dupe1@example.com', created_by: 'X', tenant_id: TENANT_ID });
+    await model.insert({
+      email: 'dupe@example.com',
+      created_by: 'X',
+      tenant_id: TENANT_ID,
+    });
+    await model.insert({
+      email: 'dupe1@example.com',
+      created_by: 'X',
+      tenant_id: TENANT_ID,
+    });
     const one = await model.findOneBy([{ created_by: 'X' }]);
     expect(one).toBeDefined();
     expect(one.created_by).toBe('X');
@@ -256,7 +306,10 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const result = await model.findWhere([{ email: 'redundant@example.com' }, { email: 'redundant@example.com' }], 'OR');
+    const result = await model.findWhere(
+      [{ email: 'redundant@example.com' }, { email: 'redundant@example.com' }],
+      'OR'
+    );
     expect(result.length).toBe(1);
     expect(result[0].email).toBe('redundant@example.com');
   });
@@ -268,26 +321,47 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const result = await model.findWhere([{ email: 'conflict@example.com' }, { email: 'notfound@example.com' }], 'AND');
+    const result = await model.findWhere(
+      [{ email: 'conflict@example.com' }, { email: 'notfound@example.com' }],
+      'AND'
+    );
     expect(result.length).toBe(0);
   });
 
   it('should handle empty OR group gracefully', async () => {
-    await model.insert({ email: 'emptyor@example.com', created_by: 'Admin', tenant_id: TENANT_ID });
+    await model.insert({
+      email: 'emptyor@example.com',
+      created_by: 'Admin',
+      tenant_id: TENANT_ID,
+    });
 
     // Intentionally include an empty OR group
-    const result = await model.findWhere([{ $or: [] }, { email: 'emptyor@example.com' }]);
+    const result = await model.findWhere([
+      { $or: [] },
+      { email: 'emptyor@example.com' },
+    ]);
     expect(result.length).toBe(1);
     expect(result[0].email).toBe('emptyor@example.com');
   });
 
   it('should support nested AND inside OR conditions', async () => {
-    await model.insert({ email: 'g@example.com', created_by: 'A', tenant_id: TENANT_ID });
-    await model.insert({ email: 'h@example.com', created_by: 'B', tenant_id: TENANT_ID });
+    await model.insert({
+      email: 'g@example.com',
+      created_by: 'A',
+      tenant_id: TENANT_ID,
+    });
+    await model.insert({
+      email: 'h@example.com',
+      created_by: 'B',
+      tenant_id: TENANT_ID,
+    });
 
     const result = await model.findWhere([
       {
-        $or: [{ $and: [{ created_by: 'A' }, { email: 'g@example.com' }] }, { $and: [{ created_by: 'B' }, { email: 'h@example.com' }] }],
+        $or: [
+          { $and: [{ created_by: 'A' }, { email: 'g@example.com' }] },
+          { $and: [{ created_by: 'B' }, { email: 'h@example.com' }] },
+        ],
       },
     ]);
     expect(result.length).toBe(2);
@@ -300,7 +374,10 @@ describe('QueryModel Integration', () => {
       notes: null,
       tenant_id: TENANT_ID,
     });
-    const result = await model.findWhere([{ email: 'nulltest@example.com' }, { notes: null }]);
+    const result = await model.findWhere([
+      { email: 'nulltest@example.com' },
+      { notes: null },
+    ]);
     expect(result.length).toBe(1);
     expect(result[0].email).toBe('nulltest@example.com');
   });
@@ -312,26 +389,44 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const resultExact = await model.findWhere([{ email: 'casesensitive@example.com' }]);
+    const resultExact = await model.findWhere([
+      { email: 'casesensitive@example.com' },
+    ]);
     expect(resultExact.length).toBe(0);
 
-    const resultIlike = await model.findWhere([{ email: { $ilike: 'casesensitive@example.com' } }]);
+    const resultIlike = await model.findWhere([
+      { email: { $ilike: 'casesensitive@example.com' } },
+    ]);
     expect(resultIlike.length).toBe(1);
     expect(resultIlike[0].email).toBe('CaseSensitive@Example.com');
   });
 
   it('should support multiple levels of nested OR/AND', async () => {
-    await model.insert({ email: 'nesteddeep1@example.com', created_by: 'A', tenant_id: TENANT_ID });
-    await model.insert({ email: 'nesteddeep2@example.com', created_by: 'B', tenant_id: TENANT_ID });
+    await model.insert({
+      email: 'nesteddeep1@example.com',
+      created_by: 'A',
+      tenant_id: TENANT_ID,
+    });
+    await model.insert({
+      email: 'nesteddeep2@example.com',
+      created_by: 'B',
+      tenant_id: TENANT_ID,
+    });
 
     const result = await model.findWhere([
       {
         $or: [
           {
-            $and: [{ $or: [{ created_by: 'A' }] }, { email: 'nesteddeep1@example.com' }],
+            $and: [
+              { $or: [{ created_by: 'A' }] },
+              { email: 'nesteddeep1@example.com' },
+            ],
           },
           {
-            $and: [{ $or: [{ created_by: 'B' }] }, { email: 'nesteddeep2@example.com' }],
+            $and: [
+              { $or: [{ created_by: 'B' }] },
+              { email: 'nesteddeep2@example.com' },
+            ],
           },
         ],
       },
@@ -367,10 +462,20 @@ describe('QueryModel Integration', () => {
   });
 
   it('should support IN clause via array of values', async () => {
-    await model.insert({ email: 'in1@example.com', created_by: 'User', tenant_id: TENANT_ID });
-    await model.insert({ email: 'in2@example.com', created_by: 'User', tenant_id: TENANT_ID });
+    await model.insert({
+      email: 'in1@example.com',
+      created_by: 'User',
+      tenant_id: TENANT_ID,
+    });
+    await model.insert({
+      email: 'in2@example.com',
+      created_by: 'User',
+      tenant_id: TENANT_ID,
+    });
 
-    const result = await model.findWhere([{ email: { $in: ['in1@example.com', 'in2@example.com'] } }]);
+    const result = await model.findWhere([
+      { email: { $in: ['in1@example.com', 'in2@example.com'] } },
+    ]);
 
     const emails = result.map(r => r.email);
     expect(emails).toContain('in1@example.com');
@@ -409,7 +514,9 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const result = await model.findWhere([{ id: { $in: [user1.id, user2.id] } }]);
+    const result = await model.findWhere([
+      { id: { $in: [user1.id, user2.id] } },
+    ]);
 
     expect(result.length).toBe(2);
     const emails = result.map(r => r.email);

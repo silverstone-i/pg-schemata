@@ -12,10 +12,10 @@ Returns a model bound to a specific PostgreSQL schema. Useful for multi-tenant a
 import { callDb } from 'pg-schemata';
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter     | Type               | Description                                                    |
+| ------------- | ------------------ | -------------------------------------------------------------- |
 | `modelOrName` | `string \| object` | Repository name (as registered in `DB.init`) or model instance |
-| `schemaName` | `string` | PostgreSQL schema to bind |
+| `schemaName`  | `string`           | PostgreSQL schema to bind                                      |
 
 **Returns:** The model instance with the schema set
 
@@ -39,12 +39,12 @@ Creates all tables defined by the provided models in a single transaction.
 import { bootstrap } from 'pg-schemata';
 ```
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `models` | `Record<string, Function>` | — | Map of repository names to model constructors (required) |
-| `schema` | `string` | `'public'` | Target PostgreSQL schema |
-| `extensions` | `string[]` | `['pgcrypto']` | PostgreSQL extensions to enable |
-| `db` | `ITask` | `null` | Transaction to use (avoids nested transactions) |
+| Option       | Type                       | Default        | Description                                              |
+| ------------ | -------------------------- | -------------- | -------------------------------------------------------- |
+| `models`     | `Record<string, Function>` | —              | Map of repository names to model constructors (required) |
+| `schema`     | `string`                   | `'public'`     | Target PostgreSQL schema                                 |
+| `extensions` | `string[]`                 | `['pgcrypto']` | PostgreSQL extensions to enable                          |
+| `db`         | `ITask`                    | `null`         | Transaction to use (avoids nested transactions)          |
 
 **Returns:** `Promise<void>`
 
@@ -86,9 +86,9 @@ import {
 
 Registers a synchronous callback that returns the current actor ID.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `fn` | `() => string \| null` | Function returning actor ID or null |
+| Parameter | Type                   | Description                         |
+| --------- | ---------------------- | ----------------------------------- |
+| `fn`      | `() => string \| null` | Function returning actor ID or null |
 
 **Throws:** `TypeError` if `fn` is not a function
 

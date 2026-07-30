@@ -14,12 +14,12 @@ import { QueryModel } from 'pg-schemata';
 new QueryModel(db, pgp, schema, logger?)
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `db` | `IDatabase` | pg-promise database or transaction instance |
-| `pgp` | `IMain` | pg-promise library instance |
-| `schema` | `TableSchema` | Schema definition object |
-| `logger` | `object` | Optional logger with `.error()` and `.info()` methods |
+| Parameter | Type          | Description                                           |
+| --------- | ------------- | ----------------------------------------------------- |
+| `db`      | `IDatabase`   | pg-promise database or transaction instance           |
+| `pgp`     | `IMain`       | pg-promise library instance                           |
+| `schema`  | `TableSchema` | Schema definition object                              |
+| `logger`  | `object`      | Optional logger with `.error()` and `.info()` methods |
 
 ## Query Methods
 
@@ -27,10 +27,10 @@ new QueryModel(db, pgp, schema, logger?)
 
 Fetches all rows with optional pagination.
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `limit` | `number` | `50` | Maximum rows to return |
-| `offset` | `number` | `0` | Rows to skip |
+| Option   | Type     | Default | Description            |
+| -------- | -------- | ------- | ---------------------- |
+| `limit`  | `number` | `50`    | Maximum rows to return |
+| `offset` | `number` | `0`     | Rows to skip           |
 
 **Returns:** `Promise<Object[]>`
 
@@ -38,9 +38,9 @@ Fetches all rows with optional pagination.
 
 Finds a single row by primary key.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `id` | `string \| number` | Primary key value |
+| Parameter | Type               | Description       |
+| --------- | ------------------ | ----------------- |
+| `id`      | `string \| number` | Primary key value |
 
 **Returns:** `Promise<Object | null>`
 **Throws:** `Error` if ID is invalid
@@ -53,10 +53,10 @@ Same as `findById` but includes soft-deleted records.
 
 Finds the first row matching the given conditions.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `conditions` | `Object[]` | Array of condition objects |
-| `options` | `object` | Same as `findWhere` options |
+| Parameter    | Type       | Description                 |
+| ------------ | ---------- | --------------------------- |
+| `conditions` | `Object[]` | Array of condition objects  |
+| `options`    | `object`   | Same as `findWhere` options |
 
 **Returns:** `Promise<Object | null>`
 
@@ -64,16 +64,16 @@ Finds the first row matching the given conditions.
 
 Finds rows matching conditions with full query options.
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `conditions` | `Object[] \| Object` | `[]` | Condition objects; a single plain object is treated as a one-element array |
-| `joinType` | `string` | `'AND'` | `'AND'` or `'OR'` |
-| `options.columnWhitelist` | `string[]` | `null` | Columns to return |
-| `options.filters` | `object` | `{}` | Additional filter object |
-| `options.orderBy` | `string \| string[]` | `null` | Sort columns |
-| `options.limit` | `number` | `null` | Row limit |
-| `options.offset` | `number` | `null` | Row offset |
-| `options.includeDeactivated` | `boolean` | `false` | Include soft-deleted rows |
+| Parameter                    | Type                 | Default | Description                                                                |
+| ---------------------------- | -------------------- | ------- | -------------------------------------------------------------------------- |
+| `conditions`                 | `Object[] \| Object` | `[]`    | Condition objects; a single plain object is treated as a one-element array |
+| `joinType`                   | `string`             | `'AND'` | `'AND'` or `'OR'`                                                          |
+| `options.columnWhitelist`    | `string[]`           | `null`  | Columns to return                                                          |
+| `options.filters`            | `object`             | `{}`    | Additional filter object                                                   |
+| `options.orderBy`            | `string \| string[]` | `null`  | Sort columns                                                               |
+| `options.limit`              | `number`             | `null`  | Row limit                                                                  |
+| `options.offset`             | `number`             | `null`  | Row offset                                                                 |
+| `options.includeDeactivated` | `boolean`            | `false` | Include soft-deleted rows                                                  |
 
 **Returns:** `Promise<Object[]>`
 
@@ -81,15 +81,15 @@ Finds rows matching conditions with full query options.
 
 Keyset-based cursor pagination.
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `cursor` | `object` | `{}` | Cursor values keyed by orderBy columns |
-| `limit` | `number` | `50` | Maximum rows |
-| `orderBy` | `string[]` | `['id']` | Columns for ordering |
-| `options.descending` | `boolean` | `false` | Descending order |
-| `options.columnWhitelist` | `string[]` | `null` | Columns to return |
-| `options.filters` | `object` | `{}` | Additional filters |
-| `options.includeDeactivated` | `boolean` | `false` | Include soft-deleted rows |
+| Parameter                    | Type       | Default  | Description                            |
+| ---------------------------- | ---------- | -------- | -------------------------------------- |
+| `cursor`                     | `object`   | `{}`     | Cursor values keyed by orderBy columns |
+| `limit`                      | `number`   | `50`     | Maximum rows                           |
+| `orderBy`                    | `string[]` | `['id']` | Columns for ordering                   |
+| `options.descending`         | `boolean`  | `false`  | Descending order                       |
+| `options.columnWhitelist`    | `string[]` | `null`   | Columns to return                      |
+| `options.filters`            | `object`   | `{}`     | Additional filters                     |
+| `options.includeDeactivated` | `boolean`  | `false`  | Include soft-deleted rows              |
 
 **Returns:** `Promise<{ rows: Object[], nextCursor: Object | null }>`
 
@@ -116,12 +116,12 @@ Alias for `countWhere`.
 
 Counts rows matching conditions.
 
-| Parameter | Type | Default |
-|---|---|---|
-| `conditions` | `Object[] \| Object` | `[]` |
-| `joinType` | `string` | `'AND'` |
-| `options.filters` | `object` | `{}` |
-| `options.includeDeactivated` | `boolean` | `false` |
+| Parameter                    | Type                 | Default |
+| ---------------------------- | -------------------- | ------- |
+| `conditions`                 | `Object[] \| Object` | `[]`    |
+| `joinType`                   | `string`             | `'AND'` |
+| `options.filters`            | `object`             | `{}`    |
+| `options.includeDeactivated` | `boolean`            | `false` |
 
 A single plain object is treated as a one-element array. Anything else throws `SchemaDefinitionError`.
 
@@ -137,8 +137,8 @@ Counts all rows in the table.
 
 Checks if any row matches the given conditions.
 
-| Parameter | Type | Description |
-|---|---|---|
+| Parameter    | Type     | Description                |
+| ------------ | -------- | -------------------------- |
 | `conditions` | `object` | Non-empty condition object |
 
 **Returns:** `Promise<boolean>`
@@ -149,9 +149,9 @@ Checks if any row matches the given conditions.
 
 Returns a filtered copy of the DTO containing only valid column names.
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `includeImmutable` | `boolean` | `true` | Include immutable columns |
+| Option             | Type      | Default | Description               |
+| ------------------ | --------- | ------- | ------------------------- |
+| `includeImmutable` | `boolean` | `true`  | Include immutable columns |
 
 ### validateDto(data, validator, type?)
 
@@ -207,8 +207,8 @@ Exports query results to an `.xlsx` file.
 
 ## Properties
 
-| Property | Type | Description |
-|---|---|---|
-| `schema` | `TableSchema` | The full schema definition |
-| `schemaName` | `string` | Escaped PostgreSQL schema name |
-| `tableName` | `string` | Escaped table name |
+| Property     | Type          | Description                    |
+| ------------ | ------------- | ------------------------------ |
+| `schema`     | `TableSchema` | The full schema definition     |
+| `schemaName` | `string`      | Escaped PostgreSQL schema name |
+| `tableName`  | `string`      | Escaped table name             |

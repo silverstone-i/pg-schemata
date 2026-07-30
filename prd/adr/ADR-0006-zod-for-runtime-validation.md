@@ -12,7 +12,7 @@ DTOs need runtime validation before hitting the database. Alternatives:
 - **Joi / Yup** — Validation libraries requiring separate schema definitions that drift from the table schema.
 - **Zod** — TypeScript-first, can be auto-generated from existing data structures.
 
-The key insight: the table schema already describes types and constraints. A validator should be *derived* from it, not maintained separately (Principle #2).
+The key insight: the table schema already describes types and constraints. A validator should be _derived_ from it, not maintained separately (Principle #2).
 
 ## Decision
 

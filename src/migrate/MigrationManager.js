@@ -1,13 +1,13 @@
 'use strict';
 
 /*
-* Copyright © 2024-present, Ian Silverstone
-*
-* See the LICENSE file at the top-level directory of this distribution
-* for licensing information.
-*
-* Removal or modification of this copyright notice is prohibited.
-*/
+ * Copyright © 2024-present, Ian Silverstone
+ *
+ * See the LICENSE file at the top-level directory of this distribution
+ * for licensing information.
+ *
+ * Removal or modification of this copyright notice is prohibited.
+ */
 
 // src/migrate/MigrationManager.js
 //
@@ -102,12 +102,18 @@ export class MigrationManager {
    */
   async listPending(t) {
     const current = await this.currentVersion(t);
-    const absDir = path.isAbsolute(this.dir) ? this.dir : path.resolve(process.cwd(), this.dir);
+    const absDir = path.isAbsolute(this.dir)
+      ? this.dir
+      : path.resolve(process.cwd(), this.dir);
     const files = await fs.readdir(absDir);
     // Filter to migration files with numeric prefix
     const migrationFiles = files
       .filter(f => /^\d+_.*\.mjs$/.test(f))
-      .map(f => ({ file: f, version: Number(f.split('_')[0]), full: path.join(absDir, f) }))
+      .map(f => ({
+        file: f,
+        version: Number(f.split('_')[0]),
+        full: path.join(absDir, f),
+      }))
       .sort((a, b) => a.version - b.version);
     return migrationFiles.filter(m => m.version > current);
   }
@@ -136,13 +142,20 @@ export class MigrationManager {
       for (const migration of pending) {
         const module = await import(pathToFileUrl(migration.full));
         if (typeof module.up !== 'function') {
-          throw new Error(`Migration ${migration.file} does not export an async up() function`);
+          throw new Error(
+            `Migration ${migration.file} does not export an async up() function`
+          );
         }
         await module.up({ db: t, schema: this.schema });
         const hash = await computeFileHash(migration.full);
         // Record the execution of this migration
         const insertSql = `INSERT INTO "${this.schema}"."schema_migrations" (schema_name, version, hash, label) VALUES ($1, $2, $3, $4)`;
-        await t.none(insertSql, [this.schema, migration.version, hash, migration.file]);
+        await t.none(insertSql, [
+          this.schema,
+          migration.version,
+          hash,
+          migration.file,
+        ]);
       }
       return { applied: pending.length, files: pending.map(m => m.file) };
     });

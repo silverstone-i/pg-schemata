@@ -35,9 +35,16 @@ import { DB } from '../DB.js';
  * @param {object} [options.db] Optional pg-promise transaction/connection to use (avoids nested transaction deadlock)
  * @returns {Promise<void>}
  */
-export async function bootstrap({ models, schema = 'public', extensions = ['pgcrypto'], db = null }) {
+export async function bootstrap({
+  models,
+  schema = 'public',
+  extensions = ['pgcrypto'],
+  db = null,
+}) {
   if (!models || typeof models !== 'object') {
-    throw new TypeError('models option must be an object mapping names to Model classes');
+    throw new TypeError(
+      'models option must be an object mapping names to Model classes'
+    );
   }
 
   async function doBootstrap(t) {

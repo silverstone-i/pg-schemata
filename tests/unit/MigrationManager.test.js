@@ -9,9 +9,18 @@ const pgp = pgPromise({});
 
 function makeStubT(captured) {
   return {
-    none: sql => { captured.push(sql); return Promise.resolve(null); },
-    one: sql => { captured.push(sql); return Promise.resolve({}); },
-    oneOrNone: sql => { captured.push(sql); return Promise.resolve(null); },
+    none: sql => {
+      captured.push(sql);
+      return Promise.resolve(null);
+    },
+    one: sql => {
+      captured.push(sql);
+      return Promise.resolve({});
+    },
+    oneOrNone: sql => {
+      captured.push(sql);
+      return Promise.resolve(null);
+    },
   };
 }
 
@@ -35,7 +44,9 @@ describe('MigrationManager', () => {
     await manager.ensure(makeStubT(captured));
 
     expect(captured).toHaveLength(1);
-    expect(captured[0]).toContain('CREATE TABLE IF NOT EXISTS "tenant_abc"."schema_migrations"');
+    expect(captured[0]).toContain(
+      'CREATE TABLE IF NOT EXISTS "tenant_abc"."schema_migrations"'
+    );
     expect(captured[0]).not.toContain('"public"."schema_migrations"');
   });
 
@@ -54,7 +65,9 @@ describe('MigrationManager', () => {
 
     await manager.ensure(makeStubT(captured));
 
-    expect(captured[0]).toContain('CREATE TABLE IF NOT EXISTS "public"."schema_migrations"');
+    expect(captured[0]).toContain(
+      'CREATE TABLE IF NOT EXISTS "public"."schema_migrations"'
+    );
   });
 
   it('currentVersion() reads from the same schema ensure() wrote to', async () => {
@@ -62,7 +75,11 @@ describe('MigrationManager', () => {
     const manager = new MigrationManager({ schema: 'tenant_abc' });
     const t = {
       ...makeStubT(captured),
-      oneOrNone: (sql, params) => { captured.push(sql); expect(params).toEqual(['tenant_abc']); return Promise.resolve({ v: 4 }); },
+      oneOrNone: (sql, params) => {
+        captured.push(sql);
+        expect(params).toEqual(['tenant_abc']);
+        return Promise.resolve({ v: 4 });
+      },
     };
 
     await manager.ensure(t);

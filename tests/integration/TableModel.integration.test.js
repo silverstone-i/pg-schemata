@@ -95,7 +95,9 @@ describe('TableModel Integration', () => {
     });
 
     test('should throw if conflictColumns is empty', async () => {
-      await expect(model.upsert({ email: 'fail@example.com' }, [])).rejects.toThrow('Conflict columns must be a non-empty array');
+      await expect(
+        model.upsert({ email: 'fail@example.com' }, [])
+      ).rejects.toThrow('Conflict columns must be a non-empty array');
     });
 
     test('should still update audit fields when only conflict columns are provided', async () => {
@@ -141,8 +143,18 @@ describe('TableModel Integration', () => {
     describe('BulkUpsert Integration', () => {
       test('should bulk upsert multiple users', async () => {
         const users = [
-          { email: 'bulkup1@example.com', name: 'Bulk One', created_by: 'bulk-upsert', tenant_id: TENANT_ID },
-          { email: 'bulkup2@example.com', name: 'Bulk Two', created_by: 'bulk-upsert', tenant_id: TENANT_ID },
+          {
+            email: 'bulkup1@example.com',
+            name: 'Bulk One',
+            created_by: 'bulk-upsert',
+            tenant_id: TENANT_ID,
+          },
+          {
+            email: 'bulkup2@example.com',
+            name: 'Bulk Two',
+            created_by: 'bulk-upsert',
+            tenant_id: TENANT_ID,
+          },
         ];
         const result = await model.bulkUpsert(users, ['email', 'tenant_id']);
 
@@ -153,11 +165,31 @@ describe('TableModel Integration', () => {
     });
 
     test('should update existing users in bulk', async () => {
-      await model.insert({ email: 'bulkup3@example.com', name: 'Old', created_by: 'bulk-upsert', tenant_id: TENANT_ID });
-      await model.insert({ email: 'bulkup4@example.com', name: 'Old', created_by: 'bulk-upsert', tenant_id: TENANT_ID });
+      await model.insert({
+        email: 'bulkup3@example.com',
+        name: 'Old',
+        created_by: 'bulk-upsert',
+        tenant_id: TENANT_ID,
+      });
+      await model.insert({
+        email: 'bulkup4@example.com',
+        name: 'Old',
+        created_by: 'bulk-upsert',
+        tenant_id: TENANT_ID,
+      });
       const users = [
-        { email: 'bulkup3@example.com', name: 'New', created_by: 'bulk-upsert', tenant_id: TENANT_ID },
-        { email: 'bulkup4@example.com', name: 'New', created_by: 'bulk-upsert', tenant_id: TENANT_ID },
+        {
+          email: 'bulkup3@example.com',
+          name: 'New',
+          created_by: 'bulk-upsert',
+          tenant_id: TENANT_ID,
+        },
+        {
+          email: 'bulkup4@example.com',
+          name: 'New',
+          created_by: 'bulk-upsert',
+          tenant_id: TENANT_ID,
+        },
       ];
       const result = await model.bulkUpsert(users, ['email', 'tenant_id']);
       expect(result).toBeGreaterThanOrEqual(2);
@@ -166,11 +198,17 @@ describe('TableModel Integration', () => {
     });
 
     test('should throw if conflictColumns is empty', async () => {
-      await expect(model.bulkUpsert([{ email: 'failbulk@example.com' }], [])).rejects.toThrow('Conflict columns must be a non-empty array');
+      await expect(
+        model.bulkUpsert([{ email: 'failbulk@example.com' }], [])
+      ).rejects.toThrow('Conflict columns must be a non-empty array');
     });
 
     test('should still update audit fields when only conflict columns are provided', async () => {
-      await model.insert({ email: 'bulkup5@example.com', created_by: 'system', tenant_id: TENANT_ID });
+      await model.insert({
+        email: 'bulkup5@example.com',
+        created_by: 'system',
+        tenant_id: TENANT_ID,
+      });
       const result = await model.bulkUpsert(
         [{ email: 'bulkup5@example.com', tenant_id: TENANT_ID }],
         ['email', 'tenant_id']
@@ -187,9 +225,19 @@ describe('TableModel Integration', () => {
         tenant_id: TENANT_ID,
       });
       const users = [
-        { email: 'bulkup6@example.com', name: 'BulkNameUpdated', status: 'active', created_by: 'bulk-custom', tenant_id: TENANT_ID },
+        {
+          email: 'bulkup6@example.com',
+          name: 'BulkNameUpdated',
+          status: 'active',
+          created_by: 'bulk-custom',
+          tenant_id: TENANT_ID,
+        },
       ];
-      const result = await model.bulkUpsert(users, ['email', 'tenant_id'], ['name']);
+      const result = await model.bulkUpsert(
+        users,
+        ['email', 'tenant_id'],
+        ['name']
+      );
       expect(result).toBeGreaterThanOrEqual(1);
       const found = await model.findWhere([{ email: 'bulkup6@example.com' }]);
       expect(found[0].name).toBe('BulkNameUpdated');
@@ -237,22 +285,31 @@ describe('TableModel Integration', () => {
   test('bulkInsert mirrors created_by → updated_by per record', async () => {
     const inserted = await model.bulkInsert(
       [
-        { email: 'bulk-mirror-a@example.com', created_by: 'bulk-actor', tenant_id: TENANT_ID },
-        { email: 'bulk-mirror-b@example.com', created_by: 'bulk-actor', updated_by: 'bulk-explicit', tenant_id: TENANT_ID },
+        {
+          email: 'bulk-mirror-a@example.com',
+          created_by: 'bulk-actor',
+          tenant_id: TENANT_ID,
+        },
+        {
+          email: 'bulk-mirror-b@example.com',
+          created_by: 'bulk-actor',
+          updated_by: 'bulk-explicit',
+          tenant_id: TENANT_ID,
+        },
       ],
-      ['id', 'email'],
+      ['id', 'email']
     );
-    const ids = inserted.map((r) => r.id);
+    const ids = inserted.map(r => r.id);
     const rows = await ctx.db.any(
       `SELECT email, created_by, updated_by FROM "${model.schema.dbSchema}"."${model.schema.table}" WHERE id IN ($1:csv) ORDER BY email`,
-      [ids],
+      [ids]
     );
     expect(rows[0].email).toBe('bulk-mirror-a@example.com');
     expect(rows[0].created_by).toBe('bulk-actor');
-    expect(rows[0].updated_by).toBe('bulk-actor');     // mirrored
+    expect(rows[0].updated_by).toBe('bulk-actor'); // mirrored
     expect(rows[1].email).toBe('bulk-mirror-b@example.com');
     expect(rows[1].created_by).toBe('bulk-actor');
-    expect(rows[1].updated_by).toBe('bulk-explicit');  // explicit wins
+    expect(rows[1].updated_by).toBe('bulk-explicit'); // explicit wins
   });
 
   test('manual update for user email', async () => {
@@ -265,11 +322,10 @@ describe('TableModel Integration', () => {
     const newEmail = 'manually-updated@example.com';
     const updatedBy = 'Admin User';
 
-    await ctx.db.none(`UPDATE "${model.schema.dbSchema}"."${model.schema.table}" SET email = $1, updated_by = $2 WHERE id = $3`, [
-      newEmail,
-      updatedBy,
-      user.id,
-    ]);
+    await ctx.db.none(
+      `UPDATE "${model.schema.dbSchema}"."${model.schema.table}" SET email = $1, updated_by = $2 WHERE id = $3`,
+      [newEmail, updatedBy, user.id]
+    );
 
     const found = await model.findById(user.id);
     expect(found.email).toBe(newEmail);
@@ -349,7 +405,10 @@ describe('TableModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const count = await model.updateWhere({ $or: [{ created_by: 'X' }, { created_by: 'Y' }] }, { updated_by: 'or-editor' });
+    const count = await model.updateWhere(
+      { $or: [{ created_by: 'X' }, { created_by: 'Y' }] },
+      { updated_by: 'or-editor' }
+    );
 
     expect(count).toBeGreaterThanOrEqual(2);
     const updated = await model.findWhere([{ updated_by: 'or-editor' }]);
@@ -368,7 +427,10 @@ describe('TableModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    const count = await model.updateWhere({ $or: [{ created_by: 'Z' }, { created_by: 'W' }] }, { updated_by: 'or-join-editor' });
+    const count = await model.updateWhere(
+      { $or: [{ created_by: 'Z' }, { created_by: 'W' }] },
+      { updated_by: 'or-join-editor' }
+    );
 
     expect(count).toBeGreaterThanOrEqual(2);
 
@@ -377,11 +439,15 @@ describe('TableModel Integration', () => {
   });
 
   test('updateWhere should throw if where clause is empty', async () => {
-    await expect(model.updateWhere({}, { updated_by: 'nobody' })).rejects.toThrow('WHERE clause must be a non-empty object');
+    await expect(
+      model.updateWhere({}, { updated_by: 'nobody' })
+    ).rejects.toThrow('WHERE clause must be a non-empty object');
   });
 
   test('updateWhere should throw if update payload is empty', async () => {
-    await expect(model.updateWhere({ created_by: 'anyone' }, {})).rejects.toThrow('UPDATE payload must be a non-empty object');
+    await expect(
+      model.updateWhere({ created_by: 'anyone' }, {})
+    ).rejects.toThrow('UPDATE payload must be a non-empty object');
   });
 
   test('updateWhere should apply deeply nested OR/AND combinations', async () => {
@@ -415,7 +481,10 @@ describe('TableModel Integration', () => {
           {
             $or: [
               {
-                $and: [{ is_active: false }, { created_at: { $to: '2024-12-31' } }],
+                $and: [
+                  { is_active: false },
+                  { created_at: { $to: '2024-12-31' } },
+                ],
               },
               { updated_by: 'system' },
             ],
@@ -423,7 +492,10 @@ describe('TableModel Integration', () => {
         ],
       },
       {
-        $or: [{ tenant_id: 'ba0c7aeb-6b68-4ddf-b39f-f9c8c41ec989' }, { tenant_id: 'ba0c7aeb-6b68-4ddf-b39f-f9c8c41ec990' }],
+        $or: [
+          { tenant_id: 'ba0c7aeb-6b68-4ddf-b39f-f9c8c41ec989' },
+          { tenant_id: 'ba0c7aeb-6b68-4ddf-b39f-f9c8c41ec990' },
+        ],
       },
     ];
 
@@ -432,7 +504,9 @@ describe('TableModel Integration', () => {
     const count = await model.updateWhere(whereClause, updates);
     expect(count).toBeGreaterThanOrEqual(2);
 
-    const updated = await model.findWhere([{ updated_by: 'deep-nested-editor' }]);
+    const updated = await model.findWhere([
+      { updated_by: 'deep-nested-editor' },
+    ]);
     expect(updated.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -509,7 +583,11 @@ describe('TableModel Integration', () => {
     const inserted = await model.findWhere([{ created_by: 'bulk-insert' }]);
     expect(inserted.length).toBe(3);
     const emails = inserted.map(u => u.email).sort();
-    expect(emails).toEqual(['bulk1@test.com', 'bulk2@test.com', 'bulk3@test.com']);
+    expect(emails).toEqual([
+      'bulk1@test.com',
+      'bulk2@test.com',
+      'bulk3@test.com',
+    ]);
   });
 
   test('bulkUpdate should modify multiple users in one call', async () => {
@@ -562,7 +640,9 @@ describe('TableModel Integration', () => {
 
     await model.bulkUpdate(updates);
 
-    const updated = await model.findWhere([{ created_by: 'mixed-bulk-update' }]);
+    const updated = await model.findWhere([
+      { created_by: 'mixed-bulk-update' },
+    ]);
     expect(updated.length).toBe(2);
     expect(updated.every(u => u.updated_by === 'updated-mixed')).toBe(true);
     expect(updated.map(u => u.notes).sort()).toEqual(['Note 1', 'Note 2']);
@@ -574,7 +654,9 @@ describe('TableModel Integration', () => {
       { email: 12345, created_by: 'bad-user', tenant_id: TENANT_ID }, // invalid email
     ];
 
-    await expect(model.bulkInsert(badRecords)).rejects.toThrow(/Insert DTO validation failed/);
+    await expect(model.bulkInsert(badRecords)).rejects.toThrow(
+      /Insert DTO validation failed/
+    );
   });
 
   test('bulkUpdate should fail validation for invalid records', async () => {
@@ -597,13 +679,18 @@ describe('TableModel Integration', () => {
       },
     ];
 
-    await expect(model.bulkUpdate(badUpdates)).rejects.toThrow(/Update DTO validation failed/);
+    await expect(model.bulkUpdate(badUpdates)).rejects.toThrow(
+      /Update DTO validation failed/
+    );
   });
 
   test('importFromSpreadsheet should import records from an xlsx file', async () => {
     // console.log('Importing from spreadsheet...', __dirname);
 
-    const filePath = path.join(__dirname, `../helpers/test_users_two_sheets.xlsx`);
+    const filePath = path.join(
+      __dirname,
+      `../helpers/test_users_two_sheets.xlsx`
+    );
 
     let result;
     try {
@@ -621,7 +708,10 @@ describe('TableModel Integration', () => {
   test('importFromSpreadsheet should import records from sheet index 1', async () => {
     // console.log('Importing from spreadsheet (sheet 1)...', __dirname);
 
-    const filePath = path.join(__dirname, `../helpers/test_users_two_sheets.xlsx`);
+    const filePath = path.join(
+      __dirname,
+      `../helpers/test_users_two_sheets.xlsx`
+    );
 
     let result;
     try {

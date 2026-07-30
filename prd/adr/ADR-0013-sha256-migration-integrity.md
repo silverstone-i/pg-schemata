@@ -8,6 +8,7 @@
 If a migration file is modified after it has been applied, the database state no longer matches what the file describes. This creates subtle, hard-to-diagnose inconsistencies.
 
 Options:
+
 - **No verification** — Simple but silently allows drift.
 - **Checksum on apply** — Compute hash at application time, store alongside migration record. Enables detection (but not automatic enforcement).
 - **Checksum on startup** — Compare stored hashes with current files on every application start. More aggressive but adds startup latency.

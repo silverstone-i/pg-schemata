@@ -3,16 +3,16 @@ import QueryModel from '../../src/QueryModel.js';
 
 const fakePgp = {
   as: {
-    name: vi.fn(x => `"${x}"`)
+    name: vi.fn(x => `"${x}"`),
   },
   helpers: {
-    ColumnSet: vi.fn(() => ({}))
-  }
+    ColumnSet: vi.fn(() => ({})),
+  },
 };
 
 const mockDb = {
   any: vi.fn(),
-  one: vi.fn()
+  one: vi.fn(),
 };
 
 const schemaWithSoftDelete = {
@@ -23,8 +23,8 @@ const schemaWithSoftDelete = {
   columns: [
     { name: 'id', type: 'uuid', notNull: true },
     { name: 'email', type: 'text' },
-    { name: 'deactivated_at', type: 'timestamp' }
-  ]
+    { name: 'deactivated_at', type: 'timestamp' },
+  ],
 };
 
 let model;
@@ -71,7 +71,7 @@ describe('QueryModel - soft delete support', () => {
     mockDb.any.mockResolvedValue([{ id: 3 }]);
 
     await model.findWhere([{ email: 'any@example.com' }], 'AND', {
-      includeDeactivated: true
+      includeDeactivated: true,
     });
 
     const sql = mockDb.any.mock.calls[0][0];
@@ -82,14 +82,22 @@ describe('QueryModel - soft delete support', () => {
     const { clause } = model.buildWhereClause([{ email: 'x@example.com' }]);
     expect(clause).toMatch(/deactivated_at IS NULL/);
 
-    const { clause: unguarded } = model.buildWhereClause([{ email: 'x@example.com' }], true, [], 'AND', true);
+    const { clause: unguarded } = model.buildWhereClause(
+      [{ email: 'x@example.com' }],
+      true,
+      [],
+      'AND',
+      true
+    );
     expect(unguarded).not.toMatch(/deactivated_at IS NULL/);
   });
 
   test('findWhere emits the soft-delete predicate exactly once', async () => {
     mockDb.any.mockResolvedValue([]);
 
-    await model.findWhere([{ email: 'x@example.com' }], 'AND', { filters: { id: 'abc' } });
+    await model.findWhere([{ email: 'x@example.com' }], 'AND', {
+      filters: { id: 'abc' },
+    });
 
     const sql = mockDb.any.mock.calls[0][0];
     expect(sql.match(/deactivated_at IS NULL/g)).toHaveLength(1);
@@ -130,13 +138,17 @@ describe('QueryModel - soft delete support', () => {
     await model.findWhere([{ id: { $max: true } }]);
 
     const sql = mockDb.any.mock.calls[0][0];
-    expect(sql).toContain('(SELECT MAX("id") FROM "test_schema"."test_users" WHERE deactivated_at IS NULL)');
+    expect(sql).toContain(
+      '(SELECT MAX("id") FROM "test_schema"."test_users" WHERE deactivated_at IS NULL)'
+    );
   });
 
   test('$max subquery includes soft-deleted rows when includeDeactivated is true (issue 11)', async () => {
     mockDb.any.mockResolvedValue([]);
 
-    await model.findWhere([{ id: { $max: true } }], 'AND', { includeDeactivated: true });
+    await model.findWhere([{ id: { $max: true } }], 'AND', {
+      includeDeactivated: true,
+    });
 
     const sql = mockDb.any.mock.calls[0][0];
     expect(sql).toContain('(SELECT MAX("id") FROM "test_schema"."test_users")');

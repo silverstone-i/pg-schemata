@@ -1,13 +1,19 @@
 import { createTestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
-import { setAuditActorResolver, clearAuditActorResolver } from '../../src/auditActorResolver.js';
+import {
+  setAuditActorResolver,
+  clearAuditActorResolver,
+} from '../../src/auditActorResolver.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
 const softDeleteSchema = {
   ...testUserSchema,
   softDelete: true,
-  columns: [...testUserSchema.columns, { name: 'deactivated_at', type: 'timestamp', default: null }],
+  columns: [
+    ...testUserSchema.columns,
+    { name: 'deactivated_at', type: 'timestamp', default: null },
+  ],
 };
 
 let ctx, model, teardown;
@@ -43,7 +49,9 @@ describe('Soft delete integration tests', () => {
 
     await model.removeWhere({ id: row.id });
 
-    const found = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
+    const found = await model.findWhere([{ id: row.id }], 'AND', {
+      includeDeactivated: true,
+    });
     expect(found.length).toBe(1);
     expect(found[0].deactivated_at).not.toBeNull();
   });
@@ -72,13 +80,17 @@ describe('Soft delete integration tests', () => {
 
     await model.removeWhere({ id: row.id });
     await new Promise(resolve => setTimeout(resolve, 10));
-    const deleted = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
+    const deleted = await model.findWhere([{ id: row.id }], 'AND', {
+      includeDeactivated: true,
+    });
     expect(deleted.length).toBe(1);
     expect(deleted[0].deactivated_at).not.toBeNull();
     const purged = await model.purgeSoftDeleteWhere({ id: row.id });
 
     expect(purged.rowCount).toBe(1);
-    const found = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
+    const found = await model.findWhere([{ id: row.id }], 'AND', {
+      includeDeactivated: true,
+    });
     expect(found).toEqual([]);
   });
 
@@ -90,11 +102,15 @@ describe('Soft delete integration tests', () => {
     });
 
     await model.removeWhere({ id: row.id });
-    const first = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
+    const first = await model.findWhere([{ id: row.id }], 'AND', {
+      includeDeactivated: true,
+    });
     expect(first[0].deactivated_at).not.toBeNull();
 
     await model.removeWhere({ id: row.id });
-    const second = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
+    const second = await model.findWhere([{ id: row.id }], 'AND', {
+      includeDeactivated: true,
+    });
     expect(second[0].deactivated_at).toEqual(first[0].deactivated_at);
   });
 
@@ -140,7 +156,10 @@ describe('Soft delete integration tests', () => {
       created_by: 'soft-tester',
     });
 
-    await model.removeWhere({ email: 'multi1@example.com', tenant_id: TENANT_ID });
+    await model.removeWhere({
+      email: 'multi1@example.com',
+      tenant_id: TENANT_ID,
+    });
 
     const all = await model.findWhere([], 'AND', { includeDeactivated: true });
     const softDeleted = all.find(r => r.email === 'multi1@example.com');
@@ -166,7 +185,9 @@ describe('Soft delete integration tests', () => {
     await model.removeWhere({ tenant_id: TENANT_ID });
 
     const all = await model.findWhere([], 'AND', { includeDeactivated: true });
-    expect(all.filter(r => r.deactivated_at !== null).length).toBeGreaterThanOrEqual(2);
+    expect(
+      all.filter(r => r.deactivated_at !== null).length
+    ).toBeGreaterThanOrEqual(2);
   });
 
   describe('audit actor resolver integration', () => {
@@ -184,7 +205,9 @@ describe('Soft delete integration tests', () => {
       setAuditActorResolver(() => 'delete-actor');
       await model.removeWhere({ id: row.id });
 
-      const found = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
+      const found = await model.findWhere([{ id: row.id }], 'AND', {
+        includeDeactivated: true,
+      });
       expect(found.length).toBe(1);
       expect(found[0].deactivated_at).not.toBeNull();
       expect(found[0].updated_by).toBe('delete-actor');
@@ -218,7 +241,9 @@ describe('Soft delete integration tests', () => {
       clearAuditActorResolver();
       await model.removeWhere({ id: row.id });
 
-      const found = await model.findWhere([{ id: row.id }], 'AND', { includeDeactivated: true });
+      const found = await model.findWhere([{ id: row.id }], 'AND', {
+        includeDeactivated: true,
+      });
       expect(found.length).toBe(1);
       expect(found[0].deactivated_at).not.toBeNull();
       // No resolver is registered, so _resolveAuditActor() falls back to the schema default ('system')

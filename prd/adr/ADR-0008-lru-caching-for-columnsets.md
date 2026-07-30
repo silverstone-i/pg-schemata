@@ -8,6 +8,7 @@
 In multi-tenant applications using `extend()`, every new connection triggers ColumnSet creation for every repository. With hundreds of tenants sharing identical table structures, this is redundant computation.
 
 Options:
+
 - **No caching** — Simple but wasteful. O(tenants × tables) ColumnSet creations per connection cycle.
 - **Simple object cache** — Unbounded memory growth risk.
 - **LRU cache** — Bounded memory with automatic eviction of least-used entries.

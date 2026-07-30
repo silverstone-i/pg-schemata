@@ -1,5 +1,9 @@
 import { describe, test, expect, beforeEach } from 'vitest';
-import { setAuditActorResolver, clearAuditActorResolver, getAuditActor } from '../../src/auditActorResolver.js';
+import {
+  setAuditActorResolver,
+  clearAuditActorResolver,
+  getAuditActor,
+} from '../../src/auditActorResolver.js';
 
 describe('auditActorResolver', () => {
   beforeEach(() => {

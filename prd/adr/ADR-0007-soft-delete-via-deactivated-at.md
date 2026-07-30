@@ -7,7 +7,7 @@
 
 Soft delete implementation options:
 
-- **Boolean flag** (`is_deleted`) — Simple but loses *when* deletion occurred. No temporal queries possible.
+- **Boolean flag** (`is_deleted`) — Simple but loses _when_ deletion occurred. No temporal queries possible.
 - **Status enum** (`status: 'active' | 'deleted'`) — Extensible but requires enum management and still no timestamp.
 - **Timestamp column** (`deactivated_at`) — Records exact deletion time. Enables "deleted in last 30 days" queries, audit trails, and time-based purging.
 

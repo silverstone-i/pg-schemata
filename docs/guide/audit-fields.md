@@ -14,6 +14,7 @@ const schema = {
 ```
 
 Adds four columns:
+
 - `created_at` — `timestamptz`, defaults to `NOW()`
 - `updated_at` — `timestamptz`, defaults to `NOW()`
 - `created_by` — `varchar(50)`, defaults to `'system'`
@@ -29,9 +30,9 @@ const schema = {
   hasAuditFields: {
     enabled: true,
     userFields: {
-      type: 'uuid',       // PostgreSQL type for created_by / updated_by
-      nullable: true,     // allow null
-      default: null,      // default value (instead of 'system')
+      type: 'uuid', // PostgreSQL type for created_by / updated_by
+      nullable: true, // allow null
+      default: null, // default value (instead of 'system')
     },
   },
 };
@@ -50,7 +51,7 @@ You don't need to pass these values in your DTOs — they are populated automati
 
 ## Audit actor resolver
 
-The audit actor resolver is a callback function that returns the current user's identifier. This is how pg-schemata knows *who* is performing the operation.
+The audit actor resolver is a callback function that returns the current user's identifier. This is how pg-schemata knows _who_ is performing the operation.
 
 ### Setting the resolver
 

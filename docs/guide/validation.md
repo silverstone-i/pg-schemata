@@ -15,17 +15,17 @@ These are stored at `model._schema.validators`.
 
 The generator maps PostgreSQL types to Zod types:
 
-| PostgreSQL Type | Zod Type |
-|---|---|
+| PostgreSQL Type                                               | Zod Type                            |
+| ------------------------------------------------------------- | ----------------------------------- |
 | `integer`, `int`, `smallint`, `bigint`, `serial`, `bigserial` | `z.number()` or `z.coerce.number()` |
-| `numeric`, `decimal`, `real`, `double precision`, `float` | `z.number()` |
-| `boolean` | `z.boolean()` |
-| `uuid` | `z.string().uuid()` |
-| `json`, `jsonb` | `z.any()` |
-| `date`, `timestamp`, `timestamptz` | `z.coerce.date()` |
-| `varchar(n)`, `char(n)` | `z.string().max(n)` |
-| `text`, `varchar` (no length) | `z.string()` |
-| Other | `z.any()` |
+| `numeric`, `decimal`, `real`, `double precision`, `float`     | `z.number()`                        |
+| `boolean`                                                     | `z.boolean()`                       |
+| `uuid`                                                        | `z.string().uuid()`                 |
+| `json`, `jsonb`                                               | `z.any()`                           |
+| `date`, `timestamp`, `timestamptz`                            | `z.coerce.date()`                   |
+| `varchar(n)`, `char(n)`                                       | `z.string().max(n)`                 |
+| `text`, `varchar` (no length)                                 | `z.string()`                        |
+| Other                                                         | `z.any()`                           |
 
 ### Nullability and defaults
 
@@ -45,7 +45,7 @@ const model = db().users;
 model.validateDto(
   { email: 'alice@example.com' },
   model._schema.validators.insertValidator,
-  'Insert DTO'  // label for error messages
+  'Insert DTO' // label for error messages
 );
 
 // Validate an array of DTOs
@@ -99,7 +99,7 @@ const schema = {
       type: 'varchar(255)',
       notNull: true,
       colProps: {
-        validator: z.string().email(),  // stricter than the default z.string().max(255)
+        validator: z.string().email(), // stricter than the default z.string().max(255)
       },
     },
     {
