@@ -14,22 +14,58 @@ import SchemaDefinitionError from '../SchemaDefinitionError.js';
 import crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
 import { logMessage } from './pg-util.js';
+import type { IMain } from 'pg-promise';
+import type {
+  ColPropsContext,
+  ColumnDefinition,
+  IndexDefinition,
+  Logger,
+  TableSchema,
+} from '../schemaTypes.js';
+import type { TableColumnSets } from '../internalTypes.js';
 
-const columnSetCache = new LRUCache({ max: 20000, ttl: 1000 * 60 * 60 });
+const columnSetCache = new LRUCache<string, TableColumnSets>({
+  max: 20000,
+  ttl: 1000 * 60 * 60,
+});
 // Cache for storing generated ColumnSets to avoid redundant computations
+
+/**
+ * pg-promise custom-type-formatting sentinel emitting raw SQL.
+ */
+interface RawSqlDefault {
+  rawType: true;
+  toPostgres: () => string;
+}
 
 // Raw-type sentinel used as the ColumnSet `def` for columns with a SQL
 // default: pg-promise emits the bare DEFAULT keyword when the property is
 // missing from the DTO, letting Postgres apply the column default.
-const RAW_DEFAULT = { rawType: true, toPostgres: () => 'DEFAULT' };
-// and improve performance
+const RAW_DEFAULT: RawSqlDefault = {
+  rawType: true,
+  toPostgres: () => 'DEFAULT',
+};
+
+/**
+ * Column configuration handed to pg-promise's ColumnSet: the schema
+ * column's colProps minus the pg-schemata-only `validator` key.
+ */
+interface ColumnSetColumn {
+  name: string;
+  mod?: string;
+  skip?: (col: ColPropsContext) => boolean;
+  cnd?: boolean;
+  init?: (col: ColPropsContext) => unknown;
+  def?: unknown;
+}
+
 /**
  * Creates a short MD5-based hash of the input string.
  *
- * @param {string} input - Value to hash.
- * @returns {string} A 6-character hex hash.
+ * @param input - Value to hash.
+ * @returns A 6-character hex hash.
  */
-function createHash(input) {
+function createHash(input: string): string {
   return crypto.createHash('md5').update(input).digest('hex').slice(0, 6);
 }
 
@@ -39,10 +75,10 @@ function createHash(input) {
  * Resolves index definitions from either the legacy top-level `indexes`
  * property or the newer `constraints.indexes` location.
  *
- * @param {TableSchema} schema - Structured schema definition.
- * @returns {Array|undefined} Array of index definitions if present.
+ * @param schema - Structured schema definition.
+ * @returns Array of index definitions if present.
  */
-function resolveIndexes(schema) {
+function resolveIndexes(schema: TableSchema): IndexDefinition[] | undefined {
   const constraintIndexes = schema?.constraints?.indexes;
   if (Array.isArray(constraintIndexes) && constraintIndexes.length > 0) {
     return constraintIndexes;
@@ -61,12 +97,15 @@ function resolveIndexes(schema) {
  *
  * Generates a CREATE TABLE SQL statement based on a validated table schema definition.
  *
- * @param {TableSchema} schema - Structured schema definition.
- * @param {Object|null} logger - Optional logger instance.
- * @returns {string} SQL statement for creating the table and any defined indexes.
+ * @param schema - Structured schema definition.
+ * @param logger - Optional logger instance.
+ * @returns SQL statement for creating the table and any defined indexes.
  * @throws {SchemaDefinitionError} If a foreign key reference is invalid.
  */
-function createTableSQL(schema, logger = null) {
+function createTableSQL(
+  schema: TableSchema,
+  logger: Logger | null = null
+): string {
   // Extract schema components: schema name, table name, columns, and constraints
   const { dbSchema, table, columns, constraints = {} } = schema;
   const schemaName = dbSchema || schema.schemaName || 'public';
@@ -75,7 +114,7 @@ function createTableSQL(schema, logger = null) {
   const columnDefs = columns.map(col => {
     // Support for generated columns
     if (col.generated && col.expression) {
-      let def = `"${col.name}" ${col.type} GENERATED ${col.generated.toUpperCase()} AS (${col.expression})${col.stored ? ' STORED' : ''}`;
+      const def = `"${col.name}" ${col.type} GENERATED ${col.generated.toUpperCase()} AS (${col.expression})${col.stored ? ' STORED' : ''}`;
       return def;
     }
     let def = `"${col.name}" ${col.type}`;
@@ -105,7 +144,7 @@ function createTableSQL(schema, logger = null) {
   });
 
   // Initialize list to hold table-level constraints
-  const tableConstraints = [];
+  const tableConstraints: string[] = [];
 
   // Handle PRIMARY KEY constraint
   // Primary Key
@@ -143,7 +182,7 @@ function createTableSQL(schema, logger = null) {
   // Foreign Keys
   if (constraints.foreignKeys) {
     for (const fk of constraints.foreignKeys) {
-      if (typeof fk.references !== 'object') {
+      if (typeof fk.references !== 'object' || fk.references === null) {
         throw new SchemaDefinitionError(
           `Invalid foreign key reference for table ${table}: expected object, got ${typeof fk.references}`
         );
@@ -191,7 +230,9 @@ function createTableSQL(schema, logger = null) {
   // Check Constraints
   if (constraints.checks) {
     for (const check of constraints.checks) {
-      tableConstraints.push(`CHECK (${check.expression})`);
+      // Bare expression strings are accepted alongside the object form.
+      const expression = typeof check === 'string' ? check : check.expression;
+      tableConstraints.push(`CHECK (${expression})`);
     }
   }
 
@@ -219,7 +260,9 @@ function createTableSQL(schema, logger = null) {
         schema: schemaName,
         table,
         message: 'Error generating index SQL',
-        data: { error: error.message },
+        data: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       });
     }
   }
@@ -244,15 +287,19 @@ function createTableSQL(schema, logger = null) {
  * Appends standard audit fields to a table schema's column list if not already present.
  * Supports both boolean and object configuration formats for hasAuditFields.
  *
- * @param {TableSchema} schema - The table schema to modify.
- * @returns {TableSchema} The updated schema with audit fields.
+ * @param schema - The table schema to modify.
+ * @returns The updated schema with audit fields.
  */
-function addAuditFields(schema) {
+function addAuditFields(schema: TableSchema): TableSchema {
   const { columns } = schema;
 
   // Determine if audit fields should be added
   let shouldAddAuditFields = false;
-  let userFieldsConfig = {
+  let userFieldsConfig: {
+    type: string;
+    nullable: boolean;
+    default: unknown;
+  } = {
     type: 'varchar(50)',
     nullable: true,
     default: null,
@@ -281,7 +328,11 @@ function addAuditFields(schema) {
 
   if (shouldAddAuditFields) {
     // Build user field definition based on configuration
-    const userFieldDef = {
+    const userFieldDef: {
+      type: string;
+      notNull?: boolean;
+      default?: unknown;
+    } = {
       type: userFieldsConfig.type,
     };
 
@@ -305,7 +356,7 @@ function addAuditFields(schema) {
     }
     // Otherwise, no default (nullable with null default)
 
-    const auditFields = [
+    const auditFields: ColumnDefinition[] = [
       {
         name: 'created_at',
         type: 'timestamptz',
@@ -337,10 +388,10 @@ function addAuditFields(schema) {
  * Appends the `deactivated_at` column to a table schema when soft delete is
  * enabled and the column is not already present.
  *
- * @param {TableSchema} schema - The table schema to modify.
- * @returns {TableSchema} The updated schema.
+ * @param schema - The table schema to modify.
+ * @returns The updated schema.
  */
-function addSoftDeleteField(schema) {
+function addSoftDeleteField(schema: TableSchema): TableSchema {
   if (schema?.softDelete) {
     const hasDeactivatedAt = schema.columns.some(
       col => col.name === 'deactivated_at'
@@ -361,13 +412,17 @@ function addSoftDeleteField(schema) {
  *
  * Generates CREATE INDEX SQL statements based on declared index constraints.
  *
- * @param {TableSchema} schema - Structured schema object.
- * @param {boolean} [unique=false] - Whether to treat all indexes as unique.
- * @param {Object|null} logger - Optional logger instance.
- * @returns {string} One or more SQL CREATE INDEX statements.
+ * @param schema - Structured schema object.
+ * @param unique - Whether to treat all indexes as unique.
+ * @param logger - Optional logger instance.
+ * @returns One or more SQL CREATE INDEX statements.
  * @throws {SchemaDefinitionError} If no indexes are defined in the schema.
  */
-function createIndexesSQL(schema, unique = false, logger = null) {
+function createIndexesSQL(
+  schema: TableSchema,
+  unique = false,
+  logger: Logger | null = null
+): string {
   const indexes = resolveIndexes(schema);
   // Ensure that index definitions are present in the schema
   if (!indexes) {
@@ -435,7 +490,7 @@ function createIndexesSQL(schema, unique = false, logger = null) {
         return expr;
       } else {
         // Treat as expression string
-        return col.toString();
+        return String(col);
       }
     });
 
@@ -482,11 +537,32 @@ function createIndexesSQL(schema, unique = false, logger = null) {
  *
  * Cleans SQL strings by collapsing whitespace and removing trailing semicolons.
  *
- * @param {string} sql - Raw SQL string.
- * @returns {string} Normalized SQL.
+ * @param sql - Raw SQL string.
+ * @returns Normalized SQL.
  */
-function normalizeSQL(sql) {
+function normalizeSQL(sql: string): string {
   return sql.replace(/\s+/g, ' ').replace(/;$/, '').trim();
+}
+
+/**
+ * @private
+ *
+ * Validates column definitions to ensure colProps.skip is a function if provided.
+ *
+ * @param columns - Array of column definitions.
+ * @throws {SchemaDefinitionError} If colProps.skip is invalid.
+ */
+function validateColumnProps(columns: ColumnDefinition[]): void {
+  for (const col of columns) {
+    if (col.colProps) {
+      const { skip } = col.colProps;
+      if (typeof skip !== 'undefined' && typeof skip !== 'function') {
+        throw new SchemaDefinitionError(
+          `Invalid colProps.skip for column "${col.name}": expected function, got ${typeof skip}`
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -494,17 +570,22 @@ function normalizeSQL(sql) {
  *
  * Generates pg-promise ColumnSet definitions for insert and update operations.
  *
- * @param {TableSchema} schema - Parsed table schema.
- * @param {Object} pgp - pg-promise instance.
- * @param {Object|null} logger - Optional logger instance.
- * @returns {Object} A ColumnSet object with insert/update variants.
+ * @param schema - Parsed table schema.
+ * @param pgp - pg-promise instance.
+ * @param logger - Optional logger instance.
+ * @returns A ColumnSet object with insert/update variants.
  * @throws {SchemaDefinitionError} If audit field state or colProps are invalid.
  */
-function createColumnSet(schema, pgp, logger = null) {
+function createColumnSet(
+  schema: TableSchema,
+  pgp: IMain,
+  logger: Logger | null = null
+): TableColumnSets {
   // Check if the schema is already cached
   const cacheKey = `${schema.table}::${schema.dbSchema}`;
-  if (columnSetCache.has(cacheKey)) {
-    return columnSetCache.get(cacheKey);
+  const cached = columnSetCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
   validateColumnProps(schema.columns);
 
@@ -551,7 +632,7 @@ function createColumnSet(schema, pgp, logger = null) {
       // Exclude 'validator' from col.colProps when building columnObject
       const colPropsWithoutValidator = { ...(col.colProps ?? {}) };
       delete colPropsWithoutValidator.validator;
-      const columnObject = {
+      const columnObject: ColumnSetColumn = {
         name: col.name,
         ...colPropsWithoutValidator,
         // `def` is a JavaScript substitution value, not raw SQL. A column with
@@ -564,32 +645,10 @@ function createColumnSet(schema, pgp, logger = null) {
 
       return columnObject;
     })
-    .filter(col => col !== null); // Remove nulls (skipped columns)
-  /**
-   * @private
-   *
-   * Validates column definitions to ensure colProps.skip is a function if provided.
-   *
-   * @param {Array<ColumnDefinition>} columns - Array of column definitions.
-   * @throws {SchemaDefinitionError} If colProps.skip is invalid.
-   */
-  function validateColumnProps(columns) {
-    for (const col of columns) {
-      if (col.colProps) {
-        const { skip } = col.colProps;
-        if (typeof skip !== 'undefined' && typeof skip !== 'function') {
-          throw new SchemaDefinitionError(
-            `Invalid colProps.skip for column "${col.name}": expected function, got ${typeof skip}`
-          );
-        }
-      }
-    }
-  }
-
-  const cs = {};
+    .filter((col): col is ColumnSetColumn => col !== null); // Remove nulls (skipped columns)
 
   // Instantiate ColumnSet for base table operations
-  cs[schema.table] = new pgp.helpers.ColumnSet(columns, {
+  const baseCs = new pgp.helpers.ColumnSet(columns, {
     table: {
       table: schema.table,
       schema: schema.dbSchema || 'public',
@@ -603,20 +662,24 @@ function createColumnSet(schema, pgp, logger = null) {
   // the DTO assignment alone wouldn't reach the SQL.
   // bulkInsert() builds its own ColumnSet from the safeRecords keys and does not
   // depend on this cs.insert.
-  if (hasAuditFields) {
-    cs.insert = cs[schema.table].extend(['created_by', 'updated_by']);
-    cs.update = cs[schema.table].extend([
-      {
-        name: 'updated_at',
-        mod: '^',
-        def: 'CURRENT_TIMESTAMP',
-      },
-      'updated_by',
-    ]);
-  } else {
-    cs.insert = cs[schema.table];
-    cs.update = cs[schema.table];
-  }
+  const cs: TableColumnSets = hasAuditFields
+    ? {
+        [schema.table]: baseCs,
+        insert: baseCs.extend(['created_by', 'updated_by']),
+        update: baseCs.extend([
+          {
+            name: 'updated_at',
+            mod: '^',
+            def: 'CURRENT_TIMESTAMP',
+          },
+          'updated_by',
+        ]),
+      }
+    : {
+        [schema.table]: baseCs,
+        insert: baseCs,
+        update: baseCs,
+      };
 
   logMessage({
     logger,
