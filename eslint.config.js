@@ -3,24 +3,13 @@
  */
 
 import pluginJs from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import prettierConfig from 'eslint-config-prettier';
 import headers from 'eslint-plugin-headers';
+import globals from 'globals';
 
 const copyrightHeader =
   'Copyright © 2026 – present NapSoft LLC. All rights reserved.';
-
-const nodeGlobals = {
-  console: 'readonly',
-  process: 'readonly',
-  Buffer: 'readonly',
-  __dirname: 'readonly',
-  __filename: 'readonly',
-  setTimeout: 'readonly',
-  clearTimeout: 'readonly',
-  setInterval: 'readonly',
-  clearInterval: 'readonly',
-  setImmediate: 'readonly',
-  clearImmediate: 'readonly',
-};
 
 const vitestGlobals = {
   afterAll: 'readonly',
@@ -34,11 +23,12 @@ const vitestGlobals = {
   vi: 'readonly',
 };
 
-export default [
+export default tseslint.config(
   {
     ignores: [
       'coverage/**',
       'node_modules/**',
+      'dist/**',
       'pg-schemata-docs/**',
       'Examples/**',
       'docs/.vitepress/dist/**',
@@ -53,17 +43,33 @@ export default [
       sourceType: 'module',
       globals: {
         ...(pluginJs.configs.recommended.languageOptions?.globals ?? {}),
-        ...nodeGlobals,
+        ...globals.node,
+      },
+    },
+  },
+  ...tseslint.configs.recommended.map(cfg => ({
+    ...cfg,
+    files: ['**/*.ts', '**/*.mts'],
+  })),
+  {
+    files: ['**/*.ts', '**/*.mts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
       },
     },
   },
   {
-    files: ['tests/**/*.js', 'tests/**/*.mjs'],
+    files: ['**/*.d.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
+    files: ['tests/**/*.{js,mjs,ts,mts}'],
     languageOptions: {
-      ecmaVersion: 2023,
-      sourceType: 'module',
       globals: {
-        ...nodeGlobals,
+        ...globals.node,
         ...vitestGlobals,
       },
     },
@@ -72,7 +78,7 @@ export default [
     },
   },
   {
-    files: ['src/**/*.js', 'src/**/*.mjs', 'tests/**/*.js', 'tests/**/*.mjs'],
+    files: ['src/**/*.{js,mjs,ts,mts}', 'tests/**/*.{js,mjs,ts,mts}'],
     plugins: { headers },
     rules: {
       'headers/header-format': [
@@ -86,14 +92,5 @@ export default [
       ],
     },
   },
-  {
-    files: ['Examples/**/*.js', 'Examples/**/*.mjs'],
-    languageOptions: {
-      ecmaVersion: 2023,
-      sourceType: 'module',
-      globals: {
-        ...nodeGlobals,
-      },
-    },
-  },
-];
+  prettierConfig
+);
