@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 // DB.test.js
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DB } from '../../src/DB'; // Adjust path

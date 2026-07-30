@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 import 'dotenv/config';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTableSQL } from '../../src/utils/schemaBuilder.js';

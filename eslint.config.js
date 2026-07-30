@@ -1,4 +1,12 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 import pluginJs from '@eslint/js';
+import headers from 'eslint-plugin-headers';
+
+const copyrightHeader =
+  'Copyright © 2026 – present NapSoft LLC. All rights reserved.';
 
 const nodeGlobals = {
   console: 'readonly',
@@ -61,6 +69,21 @@ export default [
     },
     rules: {
       'no-unused-vars': 'off',
+    },
+  },
+  {
+    files: ['src/**/*.js', 'src/**/*.mjs', 'tests/**/*.js', 'tests/**/*.mjs'],
+    plugins: { headers },
+    rules: {
+      'headers/header-format': [
+        'error',
+        {
+          source: 'string',
+          content: copyrightHeader,
+          style: 'jsdoc',
+          blockPrefix: '\n',
+        },
+      ],
     },
   },
   {

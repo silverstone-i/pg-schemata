@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import TableModel from '../../src/TableModel.js';
 

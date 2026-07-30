@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import pgPromise from 'pg-promise';

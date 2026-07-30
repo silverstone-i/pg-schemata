@@ -1,4 +1,6 @@
-'use strict';
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
 
 /**
  * Module-level audit actor resolver.

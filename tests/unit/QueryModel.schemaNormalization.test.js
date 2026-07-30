@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 import { describe, it, expect, beforeEach } from 'vitest';
 
 // No vi.mock here on purpose: these tests exercise the real schemaBuilder

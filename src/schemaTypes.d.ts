@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 /**
  * @typedef {Object} ColumnDefinition
  * Defines the structure of a single column in a table schema.

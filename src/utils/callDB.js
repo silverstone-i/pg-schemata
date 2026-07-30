@@ -1,15 +1,8 @@
-'use strict';
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
 
 import DB from '../DB.js';
-
-/*
- * Copyright © 2024-present, Ian Silverstone
- *
- * See the LICENSE file at the top-level directory of this distribution
- * for licensing information.
- *
- * Removal or modification of this copyright notice is prohibited.
- */
 
 /**
  * Returns a schema-aware version of a registered model or repository.

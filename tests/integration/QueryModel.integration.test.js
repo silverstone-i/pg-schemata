@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 import { z } from 'zod';
 // --- Zod schema validation test ---
 const testZodSchema = z.object({

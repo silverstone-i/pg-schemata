@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 import { describe, it, expect, beforeEach } from 'vitest';
 
 // Real pg-promise and real schemaBuilder: these tests assert the SQL that

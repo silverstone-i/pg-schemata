@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 // ===============================
 // tests/fixtures/testUserSchema.js
 // ===============================

@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 import { describe, it, test, expect, beforeEach, vi } from 'vitest';
 import TableModel from '../../src/TableModel.js';
 import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';

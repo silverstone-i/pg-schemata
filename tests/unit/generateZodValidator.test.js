@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { generateZodFromTableSchema } from '../../src/utils/generateZodValidator.js';

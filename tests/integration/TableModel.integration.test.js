@@ -1,3 +1,7 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
 // ===============================
 // tests/integration/TableModel.integration.test.js
 // ===============================
