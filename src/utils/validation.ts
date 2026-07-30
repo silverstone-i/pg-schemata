@@ -10,10 +10,10 @@ const { isPlainObject } = _;
  *
  * Checks if the provided ID is a valid finite number or a non-empty string.
  *
- * @param {*} id - The value to check.
- * @returns {boolean} True if id is a valid string or finite number.
+ * @param id - The value to check.
+ * @returns True if id is a valid string or finite number.
  */
-export function isValidId(id) {
+export function isValidId(id: unknown): id is number | string {
   // Allow numeric IDs (finite numbers) or string IDs (non-empty when trimmed)
   return (
     (typeof id === 'number' && Number.isFinite(id)) ||
@@ -26,10 +26,10 @@ export function isValidId(id) {
  *
  * Validates whether a string matches the UUID v1–v5 format.
  *
- * @param {string} id - The string to test as a UUID.
- * @returns {boolean} True if the string matches a UUID pattern.
+ * @param id - The string to test as a UUID.
+ * @returns True if the string matches a UUID pattern.
  */
-export function validateUUID(id) {
+export function validateUUID(id: unknown): boolean {
   // Regular expression to match UUID versions 1 through 5
   const UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
