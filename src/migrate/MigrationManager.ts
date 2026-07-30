@@ -2,7 +2,7 @@
  * Copyright © 2026 – present NapSoft LLC. All rights reserved.
  */
 
-// src/migrate/MigrationManager.js
+// src/migrate/MigrationManager.ts
 //
 // MigrationManager orchestrates the discovery and execution of migration
 // scripts. It manages version tracking via the SchemaMigrations model,
@@ -15,15 +15,45 @@ import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { DB } from '../DB.js';
 import { SchemaMigrations } from '../models/SchemaMigrations.js';
+import type { DbConnection } from '../schemaTypes.js';
+
+/** Options accepted by the {@link MigrationManager} constructor. */
+export interface MigrationManagerOptions {
+  /** Postgres schema to target. Defaults to 'public'. */
+  schema?: string;
+  /** Directory where migration files live. Defaults to 'migrations'. */
+  dir?: string;
+}
+
+/** A discovered migration file pending application. */
+export interface PendingMigration {
+  /** File name (e.g. '0001_initial.mjs'). */
+  file: string;
+  /** Numeric version parsed from the file name prefix. */
+  version: number;
+  /** Absolute path to the migration file. */
+  full: string;
+}
+
+/** The context object passed to each migration's `up` function. */
+export interface MigrationContext {
+  db: DbConnection;
+  schema: string;
+}
+
+/** The module shape a migration file must export. */
+export interface MigrationModule {
+  up?: (context: MigrationContext) => Promise<unknown>;
+}
 
 /**
  * Utility to convert a filesystem path into a file URL. Required for
  * dynamic imports when running under Node.js with `type: module`.
  *
- * @param {string} filePath Absolute filesystem path
- * @returns {string} A file:// URL suitable for dynamic import()
+ * @param filePath - Absolute filesystem path
+ * @returns A file:// URL suitable for dynamic import()
  */
-function pathToFileUrl(filePath) {
+function pathToFileUrl(filePath: string): string {
   // pathToFileURL is synchronous; convert a filesystem path to a file:// URL
   return pathToFileURL(filePath).href;
 }
@@ -31,10 +61,10 @@ function pathToFileUrl(filePath) {
 /**
  * Computes a SHA‑256 hash for the contents of the given file.
  *
- * @param {string} filePath Path to the file whose hash should be computed
- * @returns {Promise<string>} Hex encoded 64‑character hash
+ * @param filePath - Path to the file whose hash should be computed
+ * @returns Hex encoded 64‑character hash
  */
-async function computeFileHash(filePath) {
+async function computeFileHash(filePath: string): Promise<string> {
   const buf = await fs.readFile(filePath);
   return crypto.createHash('sha256').update(buf).digest('hex');
 }
@@ -45,14 +75,16 @@ async function computeFileHash(filePath) {
  * advisory locks to prevent concurrent migrations on the same schema.
  */
 export class MigrationManager {
+  schema: string;
+  dir: string;
+
   /**
    * Constructs a manager.
-   *
-   * @param {object} options Options
-   * @param {string} [options.schema='public'] Postgres schema to target
-   * @param {string} [options.dir='migrations'] Directory where migration files live
    */
-  constructor({ schema = 'public', dir = 'migrations' } = {}) {
+  constructor({
+    schema = 'public',
+    dir = 'migrations',
+  }: MigrationManagerOptions = {}) {
     this.schema = schema;
     this.dir = dir;
   }
@@ -61,9 +93,9 @@ export class MigrationManager {
    * Ensures the `schema_migrations` table exists by using the
    * SchemaMigrations model's `createTable` method.
    *
-   * @param {object} t pg‑promise transaction or connection
+   * @param t - pg‑promise transaction or connection
    */
-  async ensure(t) {
+  async ensure(t: DbConnection): Promise<void> {
     // migrationSchema hardcodes dbSchema 'public'; bind to the target schema
     // so the table is created where currentVersion() and applyAll() read it.
     const migrationsRepo = new SchemaMigrations(t, DB.pgp);
@@ -74,12 +106,12 @@ export class MigrationManager {
    * Retrieves the highest migration version that has been applied to
    * this.schema.
    *
-   * @param {object} t pg‑promise transaction or connection
-   * @returns {Promise<number>} The current version or 0 if no migrations
+   * @param t - pg‑promise transaction or connection
+   * @returns The current version or 0 if no migrations
    */
-  async currentVersion(t) {
+  async currentVersion(t: DbConnection): Promise<number> {
     const query = `SELECT COALESCE(MAX(version), 0) AS v FROM "${this.schema}"."schema_migrations" WHERE schema_name = $1`;
-    const row = await t.oneOrNone(query, [this.schema]);
+    const row = await t.oneOrNone<{ v: number }>(query, [this.schema]);
     return row?.v ?? 0;
   }
 
@@ -90,23 +122,28 @@ export class MigrationManager {
    * Migration files must be named with a leading numeric prefix (e.g.
    * 0001_initial.mjs). The prefix determines execution order.
    *
-   * @param {object} t pg‑promise transaction or connection
-   * @returns {Promise<Array<{file: string, version: number, full: string}>>}
+   * @param t - pg‑promise transaction or connection
    */
-  async listPending(t) {
+  async listPending(t: DbConnection): Promise<PendingMigration[]> {
     const current = await this.currentVersion(t);
     const absDir = path.isAbsolute(this.dir)
       ? this.dir
       : path.resolve(process.cwd(), this.dir);
     const files = await fs.readdir(absDir);
-    // Filter to migration files with numeric prefix
+    // Filter to migration files with numeric prefix; flatMap over the regex
+    // result keeps the version capture and the filter in one pass.
     const migrationFiles = files
-      .filter(f => /^\d+_.*\.mjs$/.test(f))
-      .map(f => ({
-        file: f,
-        version: Number(f.split('_')[0]),
-        full: path.join(absDir, f),
-      }))
+      .flatMap<PendingMigration>(f => {
+        const match = /^(\d+)_.*\.mjs$/.exec(f);
+        if (!match?.[1]) return [];
+        return [
+          {
+            file: f,
+            version: Number(match[1]),
+            full: path.join(absDir, f),
+          },
+        ];
+      })
       .sort((a, b) => a.version - b.version);
     return migrationFiles.filter(m => m.version > current);
   }
@@ -119,9 +156,9 @@ export class MigrationManager {
    * will be the configured Postgres schema name. If a migration fails,
    * the entire transaction is rolled back.
    *
-   * @returns {Promise<{applied: number, files: string[]}>} Count and names of applied migrations
+   * @returns Count and names of applied migrations
    */
-  async applyAll() {
+  async applyAll(): Promise<{ applied: number; files: string[] }> {
     const result = await DB.db.tx(async t => {
       // Acquire an advisory lock scoped to the schema name to prevent
       // concurrent migration runs.
@@ -133,7 +170,9 @@ export class MigrationManager {
       // Determine which migration files need to run
       const pending = await this.listPending(t);
       for (const migration of pending) {
-        const module = await import(pathToFileUrl(migration.full));
+        const module = (await import(
+          pathToFileUrl(migration.full)
+        )) as MigrationModule;
         if (typeof module.up !== 'function') {
           throw new Error(
             `Migration ${migration.file} does not export an async up() function`

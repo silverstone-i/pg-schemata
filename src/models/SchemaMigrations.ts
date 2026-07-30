@@ -2,17 +2,28 @@
  * Copyright © 2026 – present NapSoft LLC. All rights reserved.
  */
 
-// src/models/SchemaMigrations.js
+// src/models/SchemaMigrations.ts
 //
 // SchemaMigrations model and schema definition
 //
 // This module defines a TableModel subclass for recording applied database
 // migrations. It uses the same schema-driven approach as other models in
 // pg‑schemata. When used together with the MigrationManager (see
-// `src/migrate/MigrationManager.js`), it enables versioned schema changes
+// `src/migrate/MigrationManager.ts`), it enables versioned schema changes
 // without relying on an external migration library.
 
 import { TableModel } from '../TableModel.js';
+import type { DbConnection, Logger, TableSchema } from '../schemaTypes.js';
+import type { IMain } from 'pg-promise';
+
+/** A row of the `schema_migrations` table. */
+export interface SchemaMigrationRow {
+  schema_name: string;
+  version: number;
+  hash: string;
+  label: string | null;
+  applied_at: Date;
+}
 
 /**
  * Schema definition for the `schema_migrations` table.
@@ -71,7 +82,7 @@ export const migrationSchema = {
       },
     ],
   },
-};
+} satisfies TableSchema;
 
 /**
  * TableModel subclass for the `schema_migrations` table.
@@ -80,8 +91,8 @@ export const migrationSchema = {
  * constructor. It relies on the pg‑schemata TableModel to generate
  * ColumnSets, validators and CRUD helpers based on the schema definition.
  */
-export class SchemaMigrations extends TableModel {
-  constructor(db, pgp, logger = null) {
+export class SchemaMigrations extends TableModel<SchemaMigrationRow> {
+  constructor(db: DbConnection, pgp: IMain, logger: Logger | null = null) {
     super(db, pgp, migrationSchema, logger);
   }
 }
