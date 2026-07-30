@@ -44,7 +44,7 @@ const mockSchema = {
 };
 
 // Utility mocks
-vi.mock('../../src/utils/schemaBuilder', () => ({
+vi.mock('../../src/utils/schemaBuilder.js', () => ({
   addAuditFields: vi.fn(schema => schema),
   addSoftDeleteField: vi.fn(schema => schema),
   createColumnSet: vi.fn(() => ({

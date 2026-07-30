@@ -7,7 +7,7 @@ import {
   isValidId,
   validateUUID,
   isPlainObject,
-} from '../../src/utils/validation';
+} from '../../src/utils/validation.js';
 
 describe('isValidId', () => {
   it('should return true for finite numbers', () => {

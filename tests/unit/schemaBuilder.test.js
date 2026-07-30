@@ -10,7 +10,7 @@ import {
   normalizeSQL,
   createColumnSet,
   columnSetCache,
-} from '../../src/utils/schemaBuilder';
+} from '../../src/utils/schemaBuilder.js';
 import { LRUCache } from 'lru-cache';
 
 // Mock pg-promise and its helpers
