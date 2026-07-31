@@ -22,8 +22,13 @@
 # Prerequisites:
 #   - npm Trusted Publisher: silverstone-i/pg-schemata, release-on-merge.yml
 #   - The three release:* labels created in the repository
-#   - Branch protection on main must allow github-actions[bot] to push
-#     (the version-bump commit lands directly on main)
+#   - RELEASE_DEPLOY_KEY secret: private half of a write deploy key, with
+#     deploy keys on the main ruleset's bypass list. The version-bump commit
+#     lands directly on main; the ruleset blocks github-actions[bot], so the
+#     push authenticates as the deploy key instead. Deploy-key pushes trigger
+#     workflows (GITHUB_TOKEN pushes do not), so the tag push from this job
+#     fires publish-release.yml - that workflow skips versions already on the
+#     registry, so this job publishing first makes its run a no-op.
 
 name: Release on Merge
 
@@ -52,6 +57,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
       # The bump is derived from ALL PRs merged since the last release tag,
       # not just the triggering PR. GitHub's concurrency group keeps one
