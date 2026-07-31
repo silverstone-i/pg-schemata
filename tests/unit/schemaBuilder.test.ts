@@ -12,6 +12,12 @@ import {
   columnSetCache,
 } from '../../src/utils/schemaBuilder.js';
 import { LRUCache } from 'lru-cache';
+import type { IMain, IColumnDescriptor } from 'pg-promise';
+import type {
+  TableSchema,
+  ForeignKeyReference,
+} from '../../src/schemaTypes.js';
+import type { TableColumnSets } from '../../src/internalTypes.js';
 
 // Mock pg-promise and its helpers
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -28,7 +34,7 @@ const mockPgp = {
   helpers: {
     ColumnSet: mockColumnSet,
   },
-};
+} as unknown as IMain;
 
 describe('Schema Utilities', () => {
   describe('createTableSQL', () => {
@@ -46,7 +52,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('CREATE SCHEMA IF NOT EXISTS "public"');
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
@@ -82,7 +88,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."posts"');
       expect(sql).toContain('"id" serial NOT NULL');
@@ -111,7 +117,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
     });
 
@@ -137,7 +143,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
     });
 
@@ -159,7 +165,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "public"\."users"/);
     });
 
@@ -185,22 +191,23 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
     });
 
     it('should produce identical constraint names for dotted FKs regardless of references.schema', () => {
-      const baseSchema = refs => ({
-        schemaName: 'tenant_a',
-        table: 'orders',
-        columns: [
-          { name: 'id', type: 'serial', notNull: true },
-          { name: 'country_id', type: 'int', notNull: true },
-        ],
-        constraints: {
-          foreignKeys: [{ columns: ['country_id'], references: refs }],
-        },
-      });
+      const baseSchema = (refs: ForeignKeyReference) =>
+        ({
+          schemaName: 'tenant_a',
+          table: 'orders',
+          columns: [
+            { name: 'id', type: 'serial', notNull: true },
+            { name: 'country_id', type: 'int', notNull: true },
+          ],
+          constraints: {
+            foreignKeys: [{ columns: ['country_id'], references: refs }],
+          },
+        }) as unknown as TableSchema;
 
       const sqlWithoutSchema = createTableSQL(
         baseSchema({ table: 'admin.countries', columns: ['id'] })
@@ -213,8 +220,8 @@ describe('Schema Utilities', () => {
         })
       );
 
-      const nameOf = sql =>
-        sql.match(/CONSTRAINT "(fk_orders_[a-z0-9]{6})"/)[1];
+      const nameOf = (sql: string) =>
+        sql.match(/CONSTRAINT "(fk_orders_[a-z0-9]{6})"/)![1];
       expect(nameOf(sqlWithoutSchema)).toBe(nameOf(sqlWithIgnoredSchema));
     });
 
@@ -236,7 +243,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      expect(() => createTableSQL(schema)).toThrow(
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
         /expected '<schema>\.<table>'/
       );
     });
@@ -272,7 +279,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
       const names = [
         ...sql.matchAll(/CONSTRAINT "(fk_orders_[a-z0-9]{6})"/g),
       ].map(m => m[1]);
@@ -298,7 +305,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "tenant_a"\."users"/);
     });
 
@@ -314,6 +321,7 @@ describe('Schema Utilities', () => {
         },
       };
 
+      // @ts-expect-error deliberately invalid references value (string instead of object)
       expect(() => createTableSQL(schema)).toThrow(
         'Invalid foreign key reference for table posts: expected object, got string'
       );
@@ -332,7 +340,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."products"');
       expect(sql).toContain('"id" serial NOT NULL');
@@ -355,7 +363,7 @@ describe('Schema Utilities', () => {
         constraints: {},
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain(
         '"id" serial NOT NULL DEFAULT nextval(\'products_id_seq\')'
@@ -370,7 +378,7 @@ describe('Schema Utilities', () => {
         constraints: {},
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain(`"surname" text DEFAULT 'O''Brien'`);
     });
@@ -383,7 +391,7 @@ describe('Schema Utilities', () => {
         // ❌ No constraints field at all
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('"id" serial'); // Basic check
     });
@@ -412,7 +420,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('ON DELETE CASCADE');
       expect(sql).toContain('ON UPDATE SET NULL');
@@ -437,7 +445,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain(
         '"schema_name" varchar(63) GENERATED ALWAYS AS (lower(tenant_code)) STORED'
@@ -459,7 +467,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
@@ -480,7 +488,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).not.toContain('CREATE INDEX');
@@ -500,7 +508,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).toMatch(
@@ -529,7 +537,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain(
         'CONSTRAINT "uq_accounts_tenant_code" UNIQUE NULLS NOT DISTINCT ("tenant_id", "code")'
@@ -554,7 +562,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       // Simple format should work as before (no NULLS NOT DISTINCT)
       expect(sql).toMatch(
@@ -580,7 +588,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema);
+      const sql = createTableSQL(schema as unknown as TableSchema);
 
       // Should NOT contain NULLS NOT DISTINCT
       expect(sql).toMatch(
@@ -593,7 +601,7 @@ describe('Schema Utilities', () => {
   describe('addAuditFields', () => {
     it('should add audit fields to the schema columns with boolean true (backward compatible)', () => {
       const schema = { hasAuditFields: true, columns: [] };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       expect(updatedSchema.columns).toEqual(
         expect.arrayContaining([
@@ -611,13 +619,13 @@ describe('Schema Utilities', () => {
       const updatedBy = updatedSchema.columns.find(
         col => col.name === 'updated_by'
       );
-      expect(createdBy.type).toBe('varchar(50)');
-      expect(updatedBy.type).toBe('varchar(50)');
+      expect(createdBy!.type).toBe('varchar(50)');
+      expect(updatedBy!.type).toBe('varchar(50)');
     });
 
     it('should not add audit fields when hasAuditFields is false (backward compatible)', () => {
       const schema = { hasAuditFields: false, columns: [] };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       expect(updatedSchema.columns).toHaveLength(0);
     });
@@ -630,7 +638,7 @@ describe('Schema Utilities', () => {
         },
         columns: [],
       };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       expect(updatedSchema.columns).toHaveLength(4);
 
@@ -641,9 +649,9 @@ describe('Schema Utilities', () => {
       const updatedAt = updatedSchema.columns.find(
         col => col.name === 'updated_at'
       );
-      expect(createdAt.type).toBe('timestamptz');
-      expect(updatedAt.type).toBe('timestamptz');
-      expect(createdAt.default).toBe('now()');
+      expect(createdAt!.type).toBe('timestamptz');
+      expect(updatedAt!.type).toBe('timestamptz');
+      expect(createdAt!.default).toBe('now()');
 
       // Verify user fields use uuid type
       const createdBy = updatedSchema.columns.find(
@@ -652,10 +660,10 @@ describe('Schema Utilities', () => {
       const updatedBy = updatedSchema.columns.find(
         col => col.name === 'updated_by'
       );
-      expect(createdBy.type).toBe('uuid');
-      expect(updatedBy.type).toBe('uuid');
-      expect(createdBy.default).toBeUndefined();
-      expect(updatedBy.default).toBeUndefined();
+      expect(createdBy!.type).toBe('uuid');
+      expect(updatedBy!.type).toBe('uuid');
+      expect(createdBy!.default).toBeUndefined();
+      expect(updatedBy!.default).toBeUndefined();
     });
 
     it('should use defaults when only type is specified in object format', () => {
@@ -666,7 +674,7 @@ describe('Schema Utilities', () => {
         },
         columns: [],
       };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       const createdBy = updatedSchema.columns.find(
         col => col.name === 'created_by'
@@ -675,11 +683,11 @@ describe('Schema Utilities', () => {
         col => col.name === 'updated_by'
       );
 
-      expect(createdBy.type).toBe('int');
-      expect(updatedBy.type).toBe('int');
+      expect(createdBy!.type).toBe('int');
+      expect(updatedBy!.type).toBe('int');
       // nullable defaults to true, default defaults to null (should be undefined in object)
-      expect(createdBy.default).toBeUndefined();
-      expect(updatedBy.default).toBeUndefined();
+      expect(createdBy!.default).toBeUndefined();
+      expect(updatedBy!.default).toBeUndefined();
     });
 
     it('should not add audit fields when object format has enabled: false', () => {
@@ -689,7 +697,7 @@ describe('Schema Utilities', () => {
         },
         columns: [],
       };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       expect(updatedSchema.columns).toHaveLength(0);
     });
@@ -701,7 +709,7 @@ describe('Schema Utilities', () => {
         },
         columns: [],
       };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       const createdBy = updatedSchema.columns.find(
         col => col.name === 'created_by'
@@ -710,8 +718,8 @@ describe('Schema Utilities', () => {
         col => col.name === 'updated_by'
       );
 
-      expect(createdBy.type).toBe('varchar(50)');
-      expect(updatedBy.type).toBe('varchar(50)');
+      expect(createdBy!.type).toBe('varchar(50)');
+      expect(updatedBy!.type).toBe('varchar(50)');
     });
 
     it('should support custom default values in object format', () => {
@@ -722,7 +730,7 @@ describe('Schema Utilities', () => {
         },
         columns: [],
       };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       const createdBy = updatedSchema.columns.find(
         col => col.name === 'created_by'
@@ -731,9 +739,9 @@ describe('Schema Utilities', () => {
         col => col.name === 'updated_by'
       );
 
-      expect(createdBy.type).toBe('varchar(100)');
-      expect(createdBy.default).toBe(`'admin'`);
-      expect(updatedBy.default).toBe(`'admin'`);
+      expect(createdBy!.type).toBe('varchar(100)');
+      expect(createdBy!.default).toBe(`'admin'`);
+      expect(updatedBy!.default).toBe(`'admin'`);
     });
 
     it('should handle bigint type in object format', () => {
@@ -744,7 +752,7 @@ describe('Schema Utilities', () => {
         },
         columns: [],
       };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       const createdBy = updatedSchema.columns.find(
         col => col.name === 'created_by'
@@ -753,10 +761,10 @@ describe('Schema Utilities', () => {
         col => col.name === 'updated_by'
       );
 
-      expect(createdBy.type).toBe('bigint');
-      expect(createdBy.default).toBe(0);
-      expect(updatedBy.type).toBe('bigint');
-      expect(updatedBy.default).toBe(0);
+      expect(createdBy!.type).toBe('bigint');
+      expect(createdBy!.default).toBe(0);
+      expect(updatedBy!.type).toBe('bigint');
+      expect(updatedBy!.default).toBe(0);
     });
 
     it('should not duplicate audit fields if already present', () => {
@@ -764,7 +772,7 @@ describe('Schema Utilities', () => {
         hasAuditFields: true,
         columns: [{ name: 'created_at', type: 'timestamptz' }],
       };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       const createdAtFields = updatedSchema.columns.filter(
         col => col.name === 'created_at'
@@ -780,12 +788,12 @@ describe('Schema Utilities', () => {
         },
         columns: [],
       };
-      const updatedSchema = addAuditFields(schema);
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
 
       const createdBy = updatedSchema.columns.find(
         col => col.name === 'created_by'
       );
-      expect(createdBy.default).toBe(`'system'`);
+      expect(createdBy!.default).toBe(`'system'`);
     });
   });
 
@@ -799,7 +807,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createIndexesSQL(schema);
+      const sql = createIndexesSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
@@ -814,7 +822,9 @@ describe('Schema Utilities', () => {
         },
       };
 
-      expect(() => createIndexesSQL(schema)).toThrow();
+      expect(() =>
+        createIndexesSQL(schema as unknown as TableSchema)
+      ).toThrow();
       // or handle it gracefully if you want (up to you!)
     });
 
@@ -827,7 +837,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createIndexesSQL(schema, true);
+      const sql = createIndexesSQL(schema as unknown as TableSchema, true);
 
       expect(sql).toContain(
         'CREATE UNIQUE INDEX IF NOT EXISTS "uidx_users_email"'
@@ -853,7 +863,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createIndexesSQL(schema);
+      const sql = createIndexesSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "posts_title_gin_idx"');
       expect(sql).toContain('USING GIN');
@@ -880,7 +890,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createIndexesSQL(schema);
+      const sql = createIndexesSQL(schema as unknown as TableSchema);
 
       expect(sql).toContain('CREATE UNIQUE INDEX');
       expect(sql).toContain('WHERE active = true');
@@ -932,10 +942,10 @@ describe('Schema Utilities', () => {
       expect(columnSet).toHaveProperty('insert');
       expect(columnSet).toHaveProperty('update');
       expect(mockExtend).toHaveBeenCalledTimes(2);
-      expect(columnSet.insert.extendedWith).toEqual(
+      expect((columnSet.insert as any).extendedWith).toEqual(
         expect.arrayContaining(['created_by', 'updated_by'])
       );
-      expect(columnSet.update.extendedWith).toEqual(
+      expect((columnSet.update as any).extendedWith).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             name: 'updated_at',
@@ -982,13 +992,15 @@ describe('Schema Utilities', () => {
 
       const columnSet = createColumnSet(schema, mockPgp);
 
-      const statusCol = columnSet.orders.columns.find(c => c.name === 'status');
-      expect(statusCol.def).toMatchObject({ rawType: true });
-      expect(statusCol.def.toPostgres()).toBe('DEFAULT');
+      const statusCol = columnSet.orders!.columns.find(
+        c => c.name === 'status'
+      );
+      expect(statusCol!.def).toMatchObject({ rawType: true });
+      expect(statusCol!.def.toPostgres()).toBe('DEFAULT');
     });
 
     it('should skip missing columns correctly', () => {
-      const schema = {
+      const schema: TableSchema = {
         dbSchema: 'public',
         table: 'orders',
         columns: [
@@ -1007,12 +1019,16 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      const statusCol = columnSet.orders.columns.find(
+      const statusCol = columnSet.orders!.columns.find(
         col => col.name === 'status'
       );
 
-      expect(statusCol.skip({ exists: false })).toBe(true);
-      expect(statusCol.skip({ exists: true })).toBe(false);
+      expect(
+        statusCol!.skip!({ exists: false } as IColumnDescriptor<unknown>)
+      ).toBe(true);
+      expect(
+        statusCol!.skip!({ exists: true } as IColumnDescriptor<unknown>)
+      ).toBe(false);
     });
 
     it('should recognize primary key columns that are not serial or uuid with default', () => {
@@ -1029,9 +1045,9 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      const idCol = columnSet.orders.columns.find(col => col.name === 'id');
+      const idCol = columnSet.orders!.columns.find(col => col.name === 'id');
 
-      expect(idCol.cnd).toBe(true);
+      expect(idCol!.cnd).toBe(true);
     });
 
     it('should skip columns with type uuid and is a primary key and has a default value in createColumnSet', () => {
@@ -1048,13 +1064,13 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      const columnNames = columnSet.test_table.columns.map(col => col.name);
+      const columnNames = columnSet.test_table!.columns.map(col => col.name);
       expect(columnNames).not.toContain('id'); // 'id' should NOT be there
       expect(columnNames).toContain('email'); // 'email' should be there
     });
 
     it('should apply colProps for pg-promise column configuration', () => {
-      const schema = {
+      const schema: TableSchema = {
         dbSchema: 'public',
         table: 'users',
         columns: [
@@ -1071,17 +1087,19 @@ describe('Schema Utilities', () => {
       };
 
       const columnSet = createColumnSet(schema, mockPgp);
-      const addressCol = columnSet.users.columns.find(
+      const addressCol = columnSet.users!.columns.find(
         col => col.name === 'address'
       );
 
-      expect(addressCol.mod).toBe(':json');
-      expect(typeof addressCol.skip).toBe('function');
-      expect(addressCol.skip({ exists: false })).toBe(true);
+      expect(addressCol!.mod).toBe(':json');
+      expect(typeof addressCol!.skip).toBe('function');
+      expect(
+        addressCol!.skip!({ exists: false } as IColumnDescriptor<unknown>)
+      ).toBe(true);
     });
 
     it('should handle schema without primary key in createColumnSet', () => {
-      const schema = {
+      const schema: TableSchema = {
         dbSchema: 'public',
         table: 'products',
         columns: [
@@ -1099,16 +1117,16 @@ describe('Schema Utilities', () => {
 
       const columnSet = createColumnSet(schema, mockPgp);
 
-      const columnNames = columnSet.products.columns.map(col => col.name);
+      const columnNames = columnSet.products!.columns.map(col => col.name);
 
       expect(columnNames).toContain('name');
       expect(columnNames).toContain('price');
 
       // Make sure 'skip' was added (non-primary key columns have skip)
-      const nameCol = columnSet.products.columns.find(
+      const nameCol = columnSet.products!.columns.find(
         col => col.name === 'name'
       );
-      expect(typeof nameCol.skip).toBe('function');
+      expect(typeof nameCol!.skip).toBe('function');
     });
   });
   // LRU Cache tests for columnSetCache
@@ -1120,7 +1138,7 @@ describe('Schema Utilities', () => {
     it('should store and retrieve a cached value', () => {
       const key = 'test-key';
       const value = { dummy: true };
-      columnSetCache.set(key, value);
+      columnSetCache.set(key, value as unknown as TableColumnSets);
       expect(columnSetCache.get(key)).toEqual(value);
     });
 
@@ -1128,14 +1146,16 @@ describe('Schema Utilities', () => {
       const maxEntries = 20000;
       // Add max + 1 entries
       for (let i = 0; i <= maxEntries; i++) {
-        columnSetCache.set(`key-${i}`, { value: i });
+        columnSetCache.set(`key-${i}`, {
+          value: i,
+        } as unknown as TableColumnSets);
       }
       expect(columnSetCache.get('key-0')).toBeUndefined(); // key-0 should be evicted
     });
 
     // Use a dedicated LRUCache instance with a short TTL for this test
 
-    it('should expire items after TTL', done => {
+    it('should expire items after TTL', (done: any) => {
       const testCache = new LRUCache({ max: 10, ttl: 100 }); // 100ms TTL
       const key = 'ttl-key';
       const value = { dummy: 'expired' };

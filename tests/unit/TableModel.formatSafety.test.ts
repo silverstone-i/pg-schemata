@@ -9,39 +9,41 @@ import { describe, it, expect, beforeEach } from 'vitest';
 // mode is ordinary stored text containing a $n token ("refund $1 processed")
 // being treated as a placeholder (issues 14, N4, N5).
 import pgPromise from 'pg-promise';
+import type { IMain } from 'pg-promise';
 import TableModel from '../../src/TableModel.js';
 import { columnSetCache } from '../../src/utils/schemaBuilder.js';
+import type { TableSchema } from '../../src/schemaTypes.js';
 
 const pgp = pgPromise({});
 const DANGEROUS = 'refund $1 processed';
 
 function makeCapturingDb() {
-  const calls = [];
-  const exec = {
+  const calls: any[] = [];
+  const exec: any = {
     calls,
-    one: (q, v) => {
+    one: (q: string, v?: unknown) => {
       calls.push([q, v]);
       return Promise.resolve({});
     },
-    any: (q, v) => {
+    any: (q: string, v?: unknown) => {
       calls.push([q, v]);
       return Promise.resolve([]);
     },
-    none: (q, v) => {
+    none: (q: string, v?: unknown) => {
       calls.push([q, v]);
       return Promise.resolve(null);
     },
-    result: (q, v, cb) => {
+    result: (q: string, v?: unknown, cb?: (r: any) => unknown) => {
       calls.push([q, v]);
       return Promise.resolve(cb ? cb({ rowCount: 1 }) : { rowCount: 1 });
     },
-    batch: promises => Promise.all(promises),
+    batch: (promises: Promise<unknown>[]) => Promise.all(promises),
   };
-  exec.tx = async fn => fn(exec);
+  exec.tx = async (fn: (t: any) => unknown) => fn(exec);
   return exec;
 }
 
-const schema = {
+const schema: TableSchema = {
   dbSchema: 'public',
   table: 'fmt_notes',
   hasAuditFields: false,
@@ -54,8 +56,8 @@ const schema = {
 };
 
 describe('no second format pass over finished statements', () => {
-  let db;
-  let model;
+  let db: any;
+  let model: any;
 
   beforeEach(() => {
     columnSetCache.clear();
@@ -109,7 +111,7 @@ describe('no second format pass over finished statements', () => {
   it('reuses validators across instances built from the same schema literal (N8)', () => {
     const other = new TableModel(makeCapturingDb(), pgp, schema);
     expect(other._schema.validators).toBe(model._schema.validators);
-    expect(other._schema.validators.insertValidator).toBeDefined();
+    expect(other._schema.validators!.insertValidator).toBeDefined();
   });
 
   it('treats returning: [] the same as returning: null (PR #10 review)', async () => {
@@ -193,7 +195,7 @@ describe('no second format pass over finished statements', () => {
     const spy = [];
     const RealColumnSet = pgp.helpers.ColumnSet;
     class CountingColumnSet extends RealColumnSet {
-      constructor(...args) {
+      constructor(...args: ConstructorParameters<typeof RealColumnSet>) {
         spy.push(1);
         super(...args);
       }
@@ -203,7 +205,7 @@ describe('no second format pass over finished statements', () => {
       helpers: Object.assign(Object.create(pgp.helpers), {
         ColumnSet: CountingColumnSet,
       }),
-    };
+    } as unknown as IMain;
     const counting = new TableModel(db, countingPgp, {
       ...schema,
       table: 'fmt_notes_cs',

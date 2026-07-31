@@ -10,31 +10,32 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import pgPromise from 'pg-promise';
 import TableModel from '../../src/TableModel.js';
 import { columnSetCache } from '../../src/utils/schemaBuilder.js';
+import type { DbConnection, TableSchema } from '../../src/schemaTypes.js';
 
 const pgp = pgPromise({});
 
-function makeStubDb(captured) {
+function makeStubDb(captured: string[]) {
   return {
-    one: q => {
+    one: (q: string) => {
       captured.push(q);
       return Promise.resolve({ id: 1 });
     },
-    any: q => {
+    any: (q: string) => {
       captured.push(q);
       return Promise.resolve([]);
     },
-    none: q => {
+    none: (q: string) => {
       captured.push(q);
       return Promise.resolve(null);
     },
-    result: q => {
+    result: (q: string) => {
       captured.push(q);
       return Promise.resolve({ rowCount: 0 });
     },
-  };
+  } as unknown as DbConnection;
 }
 
-const schema = {
+const schema: TableSchema = {
   dbSchema: 'public',
   table: 'fs_tenants',
   hasAuditFields: false,
@@ -47,8 +48,8 @@ const schema = {
 };
 
 describe('forSchema', () => {
-  let captured;
-  let model;
+  let captured: string[];
+  let model: TableModel;
 
   beforeEach(() => {
     columnSetCache.clear();
@@ -72,8 +73,10 @@ describe('forSchema', () => {
 
   it('bakes the schema into the clone ColumnSet (protects the issue-2 trap)', () => {
     const a = model.forSchema('tenant_a');
-    expect(a.cs[schema.table].table.toString()).toBe('"tenant_a"."fs_tenants"');
-    expect(model.cs[schema.table].table.toString()).toBe(
+    expect(a.cs[schema.table]!.table!.toString()).toBe(
+      '"tenant_a"."fs_tenants"'
+    );
+    expect(model.cs[schema.table]!.table!.toString()).toBe(
       '"public"."fs_tenants"'
     );
   });
@@ -100,7 +103,7 @@ describe('forSchema', () => {
     // pg-promise's `extend` rebuilds repositories per task/transaction with
     // a different db executor; a clone cached for the root instance must not
     // be handed to a transaction-context instance.
-    const txCaptured = [];
+    const txCaptured: string[] = [];
     const txModel = new TableModel(makeStubDb(txCaptured), pgp, schema);
 
     const rootClone = model.forSchema('tenant_a');
@@ -120,6 +123,7 @@ describe('forSchema', () => {
     expect(() => model.forSchema('')).toThrow(
       'Schema name must be a non-empty string'
     );
+    // @ts-expect-error deliberately passes null as the schema name
     expect(() => model.forSchema(null)).toThrow(
       'Schema name must be a non-empty string'
     );

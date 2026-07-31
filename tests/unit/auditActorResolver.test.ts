@@ -29,6 +29,7 @@ describe('auditActorResolver', () => {
   });
 
   test('getAuditActor returns null when resolver returns undefined', () => {
+    // @ts-expect-error deliberately returns undefined instead of string | null
     setAuditActorResolver(() => undefined);
     expect(getAuditActor()).toBeNull();
   });
@@ -40,8 +41,11 @@ describe('auditActorResolver', () => {
   });
 
   test('setAuditActorResolver throws TypeError for non-function', () => {
+    // @ts-expect-error deliberately passes a string instead of a function
     expect(() => setAuditActorResolver('not a function')).toThrow(TypeError);
+    // @ts-expect-error deliberately passes null instead of a function
     expect(() => setAuditActorResolver(null)).toThrow(TypeError);
+    // @ts-expect-error deliberately passes a number instead of a function
     expect(() => setAuditActorResolver(42)).toThrow(TypeError);
   });
 

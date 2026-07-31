@@ -4,17 +4,19 @@
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import TableModel from '../../src/TableModel.js';
+import type { IMain } from 'pg-promise';
+import type { TableSchema } from '../../src/schemaTypes.js';
 
-const mockDb = {
+const mockDb: any = {
   result: vi.fn(),
 };
 
 const fakePgp = {
   as: { name: vi.fn(x => `"${x}"`) },
   helpers: { ColumnSet: vi.fn(() => ({})), update: vi.fn(() => 'UPDATE ...') },
-};
+} as unknown as IMain;
 
-const schemaWithSoftDelete = {
+const schemaWithSoftDelete: TableSchema = {
   dbSchema: 'test_schema',
   table: 'test_users',
   softDelete: true,
@@ -26,7 +28,7 @@ const schemaWithSoftDelete = {
   ],
 };
 
-let model;
+let model: any;
 
 beforeEach(() => {
   model = new TableModel(mockDb, fakePgp, schemaWithSoftDelete);

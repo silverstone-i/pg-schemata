@@ -15,6 +15,13 @@ vi.mock('../../src/utils/schemaBuilder.js', () => ({
 
 import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import QueryModel from '../../src/QueryModel.js';
+import type { IMain } from 'pg-promise';
+import type {
+  ColumnDefinition,
+  DbConnection,
+  TableSchema,
+} from '../../src/schemaTypes.js';
+import type { FiltersInput } from '../../src/queryTypes.js';
 
 const mockDb = {
   one: vi.fn(),
@@ -24,36 +31,57 @@ const mockDb = {
 
 const mockPgp = {
   as: {
-    name: vi.fn(name => `"${name}"`),
-    format: vi.fn((query, values) => query.replace('$1', values[0])),
+    name: vi.fn((name: string) => `"${name}"`),
+    format: vi.fn((query: string, values: unknown[]) =>
+      query.replace('$1', values[0] as string)
+    ),
   },
 };
 
+// Columns deliberately omit `type`: the mocked schemaBuilder never reads it.
 const mockSchema = {
   dbSchema: 'public',
   table: 'users',
   columns: [{ name: 'id' }, { name: 'email' }, { name: 'password' }],
   constraints: { primaryKey: ['id'] },
-};
+} as unknown as TableSchema;
 
 describe('QueryModel', () => {
-  let model;
+  let model: QueryModel & { logQuery?: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    model = new QueryModel(mockDb, mockPgp, mockSchema);
+    model = new QueryModel(
+      mockDb as unknown as DbConnection,
+      mockPgp as unknown as IMain,
+      mockSchema
+    );
     model.logQuery = vi.fn();
   });
 
   describe('Constructor Validation', () => {
     test('should throw if schema is not an object', () => {
-      expect(() => new QueryModel(mockDb, mockPgp, 'invalid')).toThrow(
-        'Schema must be an object'
-      );
+      expect(
+        () =>
+          new QueryModel(
+            mockDb as unknown as DbConnection,
+            mockPgp as unknown as IMain,
+            // @ts-expect-error deliberately passes a string instead of a schema
+            'invalid'
+          )
+      ).toThrow('Schema must be an object');
     });
 
     test('should throw if required parameters are missing', () => {
-      expect(() => new QueryModel(mockDb, mockPgp, {})).toThrow(
+      expect(
+        () =>
+          new QueryModel(
+            mockDb as unknown as DbConnection,
+            mockPgp as unknown as IMain,
+            // @ts-expect-error deliberately passes an empty schema object
+            {}
+          )
+      ).toThrow(
         'Missing required parameters: db, pgp, schema.table, or schema.columns'
       );
     });
@@ -74,7 +102,10 @@ describe('QueryModel', () => {
     });
 
     test('sanitizeDto should remove immutable fields when includeImmutable is false', () => {
-      model._schema.columns.push({ name: 'created_at', immutable: true });
+      model._schema.columns.push({
+        name: 'created_at',
+        immutable: true,
+      } as ColumnDefinition);
       const sanitized = model.sanitizeDto(
         { id: 1, email: 'test@example.com', created_at: '2024-01-01' },
         { includeImmutable: false }
@@ -85,14 +116,14 @@ describe('QueryModel', () => {
 
   describe('buildCondition', () => {
     test('should handle simple equality condition', () => {
-      const values = [];
+      const values: unknown[] = [];
       const clause = model.buildCondition([{ id: 1 }], 'AND', values);
       expect(clause).toBe('"id" = $1');
       expect(values).toEqual([1]);
     });
 
     test('should handle multiple conditions joined with AND', () => {
-      const values = [];
+      const values: unknown[] = [];
       const clause = model.buildCondition(
         [{ id: 1 }, { email: 'test@example.com' }],
         'AND',
@@ -103,7 +134,7 @@ describe('QueryModel', () => {
     });
 
     test('should handle $or condition block', () => {
-      const values = [];
+      const values: unknown[] = [];
       const clause = model.buildCondition(
         [{ $or: [{ id: 1 }, { id: 2 }] }],
         'AND',
@@ -114,7 +145,7 @@ describe('QueryModel', () => {
     });
 
     test('should wrap $or block and allow top-level AND joiner', () => {
-      const values = [];
+      const values: unknown[] = [];
       const clause = model.buildCondition(
         [{ $or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
         'AND',
@@ -125,7 +156,7 @@ describe('QueryModel', () => {
     });
 
     test('should wrap $or block and allow top-level OR joiner', () => {
-      const values = [];
+      const values: unknown[] = [];
       const clause = model.buildCondition(
         [{ $or: [{ id: 1 }, { id: 2 }] }, { email: 'a@x.com' }],
         'OR',
@@ -136,7 +167,7 @@ describe('QueryModel', () => {
     });
 
     test('should handle $ilike operator', () => {
-      const values = [];
+      const values: unknown[] = [];
       const clause = model.buildCondition(
         [{ email: { $ilike: '%@example.com' } }],
         'AND',
@@ -147,7 +178,7 @@ describe('QueryModel', () => {
     });
 
     test('should handle range with $from and $to', () => {
-      const values = [];
+      const values: unknown[] = [];
       const clause = model.buildCondition(
         [{ created_at: { $from: '2024-01-01', $to: '2024-12-31' } }],
         'AND',
@@ -158,8 +189,9 @@ describe('QueryModel', () => {
     });
 
     test('should throw on unsupported operator', () => {
-      const values = [];
+      const values: unknown[] = [];
       const conditions = [{ email: { likee: 'invalid' } }];
+      // @ts-expect-error deliberately uses an unsupported operator
       expect(() => model.buildCondition(conditions, 'AND', values)).toThrow(
         'Unsupported operator: likee'
       );
@@ -194,7 +226,7 @@ describe('QueryModel', () => {
         columnWhitelist: ['id'],
         filters: {
           and: [{ email: { $like: '%example.com' } }],
-        },
+        } as FiltersInput,
       });
       expect(result.rows).toEqual([{ id: 3 }]);
     });
@@ -202,7 +234,7 @@ describe('QueryModel', () => {
 
   describe('buildWhereClause', () => {
     test('should build clause from simple object', () => {
-      const values = [];
+      const values: unknown[] = [];
       const { clause, values: resultValues } = model.buildWhereClause(
         { id: 1, email: 'a@x.com' },
         true,
@@ -213,7 +245,7 @@ describe('QueryModel', () => {
     });
 
     test('should build clause from array of condition objects', () => {
-      const values = [];
+      const values: unknown[] = [];
       const { clause, values: resultValues } = model.buildWhereClause(
         [{ id: 1 }, { email: 'a@x.com' }],
         true,
@@ -224,7 +256,7 @@ describe('QueryModel', () => {
     });
 
     test('should build clause from $or condition array', () => {
-      const values = [];
+      const values: unknown[] = [];
       const where = [
         { $or: [{ id: 1 }, { id: 2 }] },
         { email: { $ilike: '%@x.com' } },
@@ -239,7 +271,7 @@ describe('QueryModel', () => {
     });
 
     test('should build clause from nested $or and AND blocks', () => {
-      const values = [];
+      const values: unknown[] = [];
       const where = [
         { $or: [{ id: 1 }, { id: 2 }] },
         { $or: [{ email: 'a@x.com' }, { email: 'b@x.com' }] },
@@ -257,7 +289,7 @@ describe('QueryModel', () => {
     });
 
     test('should allow empty object if requireNonEmpty is false', () => {
-      const values = [];
+      const values: unknown[] = [];
       const { clause, values: resultValues } = model.buildWhereClause(
         {},
         false,
@@ -276,6 +308,7 @@ describe('QueryModel', () => {
     test('should throw on object with invalid condition structure', () => {
       // const values = [];
       // const invalidClause = [{ id: { not_supported: 123 } }];
+      // @ts-expect-error deliberately passes a string instead of conditions
       expect(() => model.buildWhereClause('invalidClause', true)).toThrow(
         'WHERE clause must be an array or plain object'
       );
@@ -322,7 +355,7 @@ describe('QueryModel', () => {
     test('countWhere applies the WHERE clause when given a plain object (issue 9)', async () => {
       mockDb.one.mockResolvedValue({ count: '1' });
       await model.countWhere({ email: 'a@x.com' });
-      const [query, values] = mockDb.one.mock.calls.at(-1);
+      const [query, values] = mockDb.one.mock.calls.at(-1)!;
       expect(query).toContain('WHERE');
       expect(query).toContain('"email" = $1');
       expect(values).toEqual(['a@x.com']);
@@ -331,15 +364,17 @@ describe('QueryModel', () => {
     test('findWhere accepts a plain object as conditions (issue 9)', async () => {
       mockDb.any.mockResolvedValue([]);
       await model.findWhere({ email: 'a@x.com' });
-      const [query, values] = mockDb.any.mock.calls.at(-1);
+      const [query, values] = mockDb.any.mock.calls.at(-1)!;
       expect(query).toContain('"email" = $1');
       expect(values).toEqual(['a@x.com']);
     });
 
     test('findWhere and countWhere reject conditions that are neither array nor object (issue 9)', async () => {
+      // @ts-expect-error deliberately passes a raw SQL string as conditions
       await expect(model.findWhere('email = 1')).rejects.toThrow(
         'Conditions must be an array or a plain object'
       );
+      // @ts-expect-error deliberately passes a number as conditions
       await expect(model.countWhere(42)).rejects.toThrow(
         'Conditions must be an array or a plain object'
       );
@@ -350,6 +385,7 @@ describe('QueryModel', () => {
         model.findWhere([{ id: 1 }], 'AND', { limit: 'abc' })
       ).rejects.toThrow('Invalid limit: "abc"');
       await expect(
+        // @ts-expect-error deliberately passes an object as offset
         model.findWhere([{ id: 1 }], 'AND', { offset: {} })
       ).rejects.toThrow('Invalid offset');
       await expect(
@@ -360,7 +396,7 @@ describe('QueryModel', () => {
     test('findWhere honors limit: 0 and offset: 0 (suggestion 5)', async () => {
       mockDb.any.mockResolvedValue([]);
       await model.findWhere([{ id: 1 }], 'AND', { limit: 0, offset: 0 });
-      const [query] = mockDb.any.mock.calls.at(-1);
+      const [query] = mockDb.any.mock.calls.at(-1)!;
       expect(query).toContain('LIMIT 0');
       expect(query).toContain('OFFSET 0');
     });
@@ -405,10 +441,12 @@ describe('QueryModel', () => {
 
   describe('Error Handling', () => {
     test('findById should throw on invalid id', async () => {
+      // @ts-expect-error deliberately passes null as the id
       await expect(model.findById(null)).rejects.toThrow('Invalid ID format');
     });
 
     test('exists should throw if conditions is not an object', async () => {
+      // @ts-expect-error deliberately passes null as conditions
       await expect(model.exists(null)).rejects.toThrow(
         'Conditions must be a non-empty object'
       );

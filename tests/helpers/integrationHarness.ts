@@ -9,20 +9,38 @@
 import 'dotenv/config';
 import crypto from 'crypto';
 import DB from '../../src/DB.js';
+import type { ExtendedDb } from '../../src/DB.js';
 import { createTableSQL } from '../../src/utils/schemaBuilder.js';
 import TableModel from '../../src/TableModel.js';
+import type { DbConnection, TableSchema } from '../../src/schemaTypes.js';
+import type { IMain } from 'pg-promise';
 
-export async function createTestContext(schema, seed = null) {
+export interface TestContext {
+  ctx: { db: ExtendedDb };
+  model: TableModel;
+  teardown: () => Promise<void>;
+  pgp: IMain;
+}
+
+export async function createTestContext(
+  schema: TableSchema,
+  seed: ((db: ExtendedDb) => unknown) | null = null
+): Promise<TestContext> {
   const uniqueSchemaName = `${schema.dbSchema}_${crypto.randomUUID().replace(/-/g, '')}`;
   const schemaCopy = { ...schema, dbSchema: uniqueSchemaName };
 
   class Model extends TableModel {
-    constructor(db, pgp) {
+    constructor(db: DbConnection, pgp: IMain) {
       super(db, pgp, schemaCopy);
     }
   }
 
-  const { db, pgp } = await DB.init(process.env.DATABASE_URL, { model: Model });
+  const { db, pgp } = await DB.init(process.env.DATABASE_URL as string, {
+    model: Model,
+  });
+  // The Repositories interface is intentionally left empty for consumers to
+  // augment, so the attached `model` repository is accessed via a local cast.
+  const dbAny = db as any;
 
   // console.log(`🧪 Using schema: ${schemaCopy.dbSchema}`);
   await db.none(
@@ -31,7 +49,7 @@ export async function createTestContext(schema, seed = null) {
   // Build the table from the model's normalized schema (audit + soft-delete
   // columns applied). The harness previously passed schemaCopy here and only
   // worked because the constructor used to mutate it as a side effect.
-  await db.none(createTableSQL(db.model.schema));
+  await db.none(createTableSQL(dbAny.model.schema));
 
   if (typeof seed === 'function') {
     await seed(db);
@@ -42,5 +60,5 @@ export async function createTestContext(schema, seed = null) {
     await pgp.end();
   }
 
-  return { ctx: { db }, model: db.model, teardown, pgp };
+  return { ctx: { db }, model: dbAny.model as TableModel, teardown, pgp };
 }

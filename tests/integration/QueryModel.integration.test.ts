@@ -35,19 +35,24 @@ it('should fail Zod validation for string updated_at instead of Date', () => {
 
   const result = testZodSchema.safeParse(input);
   expect(result.success).toBe(false);
-  expect(result.error.issues[0]).toMatchObject({
+  expect(result.error!.issues[0]).toMatchObject({
     path: ['updated_at'],
     expected: 'date',
   });
 });
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createTestContext } from '../helpers/integrationHarness.js';
+import type { TestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
+import type TableModel from '../../src/TableModel.js';
 import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
-let ctx, model, teardown, inserted;
+let ctx: TestContext['ctx'],
+  model: TableModel,
+  teardown: () => Promise<void>,
+  inserted: any;
 
 describe('QueryModel Integration', () => {
   beforeAll(async () => {
@@ -191,6 +196,7 @@ describe('QueryModel Integration', () => {
   });
 
   it('should throw error for invalid findAfterCursor input', async () => {
+    // @ts-expect-error deliberately invalid cursor input (string, not object)
     await expect(model.findAfterCursor('not-an-id')).rejects.toThrow();
   });
 
@@ -207,9 +213,10 @@ describe('QueryModel Integration', () => {
     });
 
     const result = await model.findWhere([{ created_by: 'Admin' }], 'AND', {
+      // FiltersInput only declares lowercase and/or groups; $and is handled at runtime
       filters: {
         $and: [{ email: { $ilike: '%findbyuser%' } }],
-      },
+      } as any,
     });
 
     expect(result.length).toBeGreaterThan(0);
@@ -257,6 +264,7 @@ describe('QueryModel Integration', () => {
 
   it('should throw on unsupported operator in findWhere', async () => {
     await expect(
+      // @ts-expect-error deliberately unsupported operator to assert the runtime error
       model.findWhere([{ email: { likee: 'bad' } }])
     ).rejects.toThrow('Unsupported operator: likee');
   });

@@ -5,9 +5,10 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { generateZodFromTableSchema } from '../../src/utils/generateZodValidator.js';
+import type { TableSchema } from '../../src/schemaTypes.js';
 
 describe('generateZodFromTableSchema', () => {
-  const tableSchema = {
+  const tableSchema: TableSchema = {
     table: 'test_table',
     dbSchema: 'public',
     columns: [
@@ -36,7 +37,7 @@ describe('generateZodFromTableSchema', () => {
       created_at: new Date(),
     });
     expect(result.success).toBe(false);
-    expect(result.error.issues.some(i => i.path.includes('id'))).toBe(true);
+    expect(result.error!.issues.some(i => i.path.includes('id'))).toBe(true);
   });
 
   it('should allow optional nullable fields to be null on insert', () => {
@@ -61,7 +62,7 @@ describe('generateZodFromTableSchema', () => {
   it('should fail on invalid email format in baseValidator', () => {
     const result = baseValidator.safeParse({ email: 'invalid', id: 'abc' });
     expect(result.success).toBe(false);
-    expect(result.error.issues.some(i => i.path.includes('email'))).toBe(true);
+    expect(result.error!.issues.some(i => i.path.includes('email'))).toBe(true);
   });
 
   it('should pass with valid UUID and proper email format', () => {
@@ -138,6 +139,8 @@ describe('generateZodFromTableSchema', () => {
   });
 
   it('validates integer, bigint, timestamptz, numeric(p,s) and bare varchar instead of z.any() (suggestion 3)', () => {
+    // dbSchema is intentionally omitted; the generator only reads columns
+    // and constraints.
     const schema = {
       table: 'wide_types',
       columns: [
@@ -152,7 +155,9 @@ describe('generateZodFromTableSchema', () => {
       constraints: {},
     };
 
-    const { insertValidator } = generateZodFromTableSchema(schema);
+    const { insertValidator } = generateZodFromTableSchema(
+      schema as unknown as TableSchema
+    );
 
     expect(
       insertValidator.safeParse({

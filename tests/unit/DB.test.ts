@@ -4,14 +4,22 @@
 
 // DB.test.js
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { DB } from '../../src/DB.js'; // Adjust path
+import type { ExtendedDb } from '../../src/DB.js';
 import { callDb } from '../../src/utils/callDB.js'; // Adjust path
 import pgPromise from 'pg-promise';
+import type { IMain } from 'pg-promise';
+import type { DbConnection } from '../../src/schemaTypes.js';
+
+interface MockInitOptions {
+  extend?: (obj: unknown, dc: unknown) => void;
+}
 
 vi.mock('pg-promise', () => {
   return {
-    default: vi.fn(initOptions => {
-      return connection => {
+    default: vi.fn((initOptions: MockInitOptions | undefined) => {
+      return (connection: unknown) => {
         const db = { mockDb: true };
         if (initOptions && typeof initOptions.extend === 'function') {
           initOptions.extend(db, null);
@@ -23,7 +31,9 @@ vi.mock('pg-promise', () => {
 });
 
 class FakeRepo {
-  constructor(db, pgp) {
+  db: DbConnection;
+  pgp: IMain;
+  constructor(db: DbConnection, pgp: IMain) {
     this.db = db;
     this.pgp = pgp;
   }
@@ -31,9 +41,9 @@ class FakeRepo {
 
 describe('DB', () => {
   beforeEach(() => {
-    DB.db = undefined;
-    DB.pgp = undefined;
-    pgPromise.mockClear();
+    DB.db = undefined as unknown as ExtendedDb;
+    DB.pgp = undefined as unknown as IMain;
+    (pgPromise as unknown as Mock).mockClear();
   });
 
   it('should initialize db and pgp properly', () => {
@@ -45,8 +55,9 @@ describe('DB', () => {
     expect(pgPromise).toHaveBeenCalledTimes(1);
     expect(DB.db).toBeDefined();
     expect(DB.pgp).toBeDefined();
-    expect(typeof DB.db.users).toBe('object');
-    expect(DB.db.users).toBeInstanceOf(FakeRepo);
+    const extendedDb = DB.db as ExtendedDb & { users: FakeRepo };
+    expect(typeof extendedDb.users).toBe('object');
+    expect(extendedDb.users).toBeInstanceOf(FakeRepo);
     expect(dbClass).toBe(DB);
   });
 
@@ -67,6 +78,7 @@ describe('DB', () => {
   it('should throw error if connection is undefined', () => {
     const repositories = { users: FakeRepo };
     expect(() => {
+      // @ts-expect-error deliberately passes undefined as the connection
       DB.init(undefined, repositories);
     }).toThrow(Error);
   });
@@ -74,6 +86,7 @@ describe('DB', () => {
   it('should throw error if repositories are undefined', () => {
     const connection = {};
     expect(() => {
+      // @ts-expect-error deliberately passes undefined as the repositories map
       DB.init(connection, undefined);
     }).toThrow(Error);
   });
@@ -95,17 +108,21 @@ describe('DB', () => {
   it('should throw error if repositories is null', () => {
     const connection = {};
     expect(() => {
+      // @ts-expect-error deliberately passes null as the repositories map
       DB.init(connection, null);
     }).toThrow(Error);
   });
 });
 
 class FakeSchemaRepo {
-  constructor(db, pgp) {
+  db: DbConnection;
+  pgp: IMain;
+  schema?: string;
+  constructor(db: DbConnection, pgp: IMain) {
     this.db = db;
     this.pgp = pgp;
   }
-  forSchema(name) {
+  forSchema(name: string): this {
     this.schema = name;
     return this;
   }
@@ -113,9 +130,9 @@ class FakeSchemaRepo {
 
 describe('callDb logic', () => {
   beforeEach(() => {
-    DB.db = undefined;
-    DB.pgp = undefined;
-    pgPromise.mockClear();
+    DB.db = undefined as unknown as ExtendedDb;
+    DB.pgp = undefined as unknown as IMain;
+    (pgPromise as unknown as Mock).mockClear();
   });
 
   it('callDb(<model>, <schema>) should return model instance with correct schema', () => {
@@ -124,7 +141,10 @@ describe('callDb logic', () => {
 
     DB.init(connection, repositories);
 
-    const instance = callDb(DB.db.foo, 'test_schema');
+    const instance = callDb(
+      (DB.db as ExtendedDb & { foo: FakeSchemaRepo }).foo,
+      'test_schema'
+    );
     expect(instance).toBeInstanceOf(FakeSchemaRepo);
     expect(instance.schema).toBe('test_schema');
   });

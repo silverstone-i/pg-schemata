@@ -3,7 +3,9 @@
  */
 
 import { createTestContext } from '../helpers/integrationHarness.js';
+import type { TestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
+import type TableModel from '../../src/TableModel.js';
 import {
   setAuditActorResolver,
   clearAuditActorResolver,
@@ -20,7 +22,7 @@ const softDeleteSchema = {
   ],
 };
 
-let ctx, model, teardown;
+let ctx: TestContext['ctx'], model: TableModel, teardown: () => Promise<void>;
 
 describe('Soft delete integration tests', () => {
   beforeAll(async () => {
@@ -126,7 +128,7 @@ describe('Soft delete integration tests', () => {
     });
 
     const restored = await model.restoreWhere({ id: row.id });
-    expect(restored?.rowCount ?? 0).toBe(0);
+    expect((restored as any)?.rowCount ?? 0).toBe(0);
 
     const found = await model.findWhere([{ id: row.id }]);
     expect(found.length).toBe(1);

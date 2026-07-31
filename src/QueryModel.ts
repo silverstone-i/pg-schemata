@@ -248,7 +248,7 @@ class QueryModel<TRow = any> {
     if (Object.keys(filters).length) {
       whereClauses.push(
         this.buildCondition(
-          [filters],
+          [filters] as WhereCondition[],
           'AND',
           values,
           includeDeactivated === true
@@ -361,7 +361,7 @@ class QueryModel<TRow = any> {
         } else {
           whereClauses.push(
             this.buildCondition(
-              [filters],
+              [filters] as WhereCondition[],
               'AND',
               values,
               includeDeactivated === true
@@ -531,7 +531,7 @@ class QueryModel<TRow = any> {
     if (Object.keys(filters).length) {
       whereClauses.push(
         this.buildCondition(
-          [filters],
+          [filters] as WhereCondition[],
           'AND',
           values,
           includeDeactivated === true

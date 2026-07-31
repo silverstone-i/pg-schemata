@@ -8,12 +8,17 @@
 
 import { stat } from 'fs';
 import { createTestContext } from '../helpers/integrationHarness.js';
+import type { TestContext } from '../helpers/integrationHarness.js';
 import { testUserSchema } from '../helpers/testUserSchema.js';
+import type TableModel from '../../src/TableModel.js';
 import path from 'path';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
-let ctx, model, teardown, inserted;
+let ctx: TestContext['ctx'],
+  model: TableModel,
+  teardown: () => Promise<void>,
+  inserted: any;
 
 describe('TableModel Integration', () => {
   beforeAll(async () => {
@@ -378,7 +383,7 @@ describe('TableModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
-    let count;
+    let count: number | undefined;
     try {
       count = await model.updateWhere([{ email: { $ilike: '%ilike%' } }], {
         updated_by: 'ilike-editor',
@@ -388,7 +393,7 @@ describe('TableModel Integration', () => {
     }
 
     expect(count).toBeGreaterThanOrEqual(2);
-    let updated;
+    let updated: any;
     try {
       updated = await model.findWhere([{ updated_by: 'ilike-editor' }]);
     } catch (error) {
@@ -696,7 +701,7 @@ describe('TableModel Integration', () => {
       `../helpers/test_users_two_sheets.xlsx`
     );
 
-    let result;
+    let result: any;
     try {
       result = await model.importFromSpreadsheet(filePath, 0);
     } catch (error) {
@@ -717,7 +722,7 @@ describe('TableModel Integration', () => {
       `../helpers/test_users_two_sheets.xlsx`
     );
 
-    let result;
+    let result: any;
     try {
       result = await model.importFromSpreadsheet(filePath, 1);
     } catch (error) {

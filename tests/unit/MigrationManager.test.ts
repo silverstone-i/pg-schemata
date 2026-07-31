@@ -5,31 +5,33 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import pgPromise from 'pg-promise';
+import type { IMain } from 'pg-promise';
 import { DB } from '../../src/DB.js';
 import { MigrationManager } from '../../src/migrate/MigrationManager.js';
 import { columnSetCache } from '../../src/utils/schemaBuilder.js';
+import type { DbConnection } from '../../src/schemaTypes.js';
 
 const pgp = pgPromise({});
 
-function makeStubT(captured) {
+function makeStubT(captured: string[]) {
   return {
-    none: sql => {
+    none: (sql: string) => {
       captured.push(sql);
       return Promise.resolve(null);
     },
-    one: sql => {
+    one: (sql: string) => {
       captured.push(sql);
       return Promise.resolve({});
     },
-    oneOrNone: sql => {
+    oneOrNone: (sql: string) => {
       captured.push(sql);
       return Promise.resolve(null);
     },
-  };
+  } as unknown as DbConnection;
 }
 
 describe('MigrationManager', () => {
-  let savedPgp;
+  let savedPgp: IMain;
 
   beforeEach(() => {
     columnSetCache.clear();
@@ -42,7 +44,7 @@ describe('MigrationManager', () => {
   });
 
   it('ensure() creates schema_migrations in the target schema (issue 3)', async () => {
-    const captured = [];
+    const captured: string[] = [];
     const manager = new MigrationManager({ schema: 'tenant_abc' });
 
     await manager.ensure(makeStubT(captured));
@@ -55,7 +57,7 @@ describe('MigrationManager', () => {
   });
 
   it('creates schema_migrations with NOT NULL constraints (N6)', async () => {
-    const captured = [];
+    const captured: string[] = [];
     await new MigrationManager({}).ensure(makeStubT(captured));
 
     expect(captured[0]).toContain('"schema_name" text NOT NULL');
@@ -64,7 +66,7 @@ describe('MigrationManager', () => {
   });
 
   it('ensure() defaults to public', async () => {
-    const captured = [];
+    const captured: string[] = [];
     const manager = new MigrationManager({});
 
     await manager.ensure(makeStubT(captured));
@@ -75,16 +77,16 @@ describe('MigrationManager', () => {
   });
 
   it('currentVersion() reads from the same schema ensure() wrote to', async () => {
-    const captured = [];
+    const captured: string[] = [];
     const manager = new MigrationManager({ schema: 'tenant_abc' });
     const t = {
       ...makeStubT(captured),
-      oneOrNone: (sql, params) => {
+      oneOrNone: (sql: string, params: unknown) => {
         captured.push(sql);
         expect(params).toEqual(['tenant_abc']);
         return Promise.resolve({ v: 4 });
       },
-    };
+    } as unknown as DbConnection;
 
     await manager.ensure(t);
     const version = await manager.currentVersion(t);

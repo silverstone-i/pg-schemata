@@ -4,10 +4,12 @@
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import QueryModel from '../../src/QueryModel.js';
+import type { IMain } from 'pg-promise';
+import type { DbConnection, TableSchema } from '../../src/schemaTypes.js';
 
 const fakePgp = {
   as: {
-    name: vi.fn(x => `"${x}"`),
+    name: vi.fn((x: string) => `"${x}"`),
   },
   helpers: {
     ColumnSet: vi.fn(() => ({})),
@@ -19,7 +21,7 @@ const mockDb = {
   one: vi.fn(),
 };
 
-const schemaWithSoftDelete = {
+const schemaWithSoftDelete: TableSchema = {
   dbSchema: 'test_schema',
   table: 'test_users',
   softDelete: true,
@@ -31,10 +33,14 @@ const schemaWithSoftDelete = {
   ],
 };
 
-let model;
+let model: QueryModel;
 
 beforeEach(() => {
-  model = new QueryModel(mockDb, fakePgp, schemaWithSoftDelete);
+  model = new QueryModel(
+    mockDb as unknown as DbConnection,
+    fakePgp as unknown as IMain,
+    schemaWithSoftDelete
+  );
   mockDb.any.mockReset();
   mockDb.one.mockReset();
 });
@@ -45,7 +51,7 @@ describe('QueryModel - soft delete support', () => {
     const result = await model.findSoftDeleted([{ email: 'test@example.com' }]);
 
     expect(mockDb.any).toHaveBeenCalled();
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql).toMatch(/"deactivated_at"\s+IS\s+NOT\s+NULL/);
     expect(result).toEqual([{ id: 1 }]);
   });
@@ -56,7 +62,7 @@ describe('QueryModel - soft delete support', () => {
     const result = await model.isSoftDeleted('abc-123');
 
     expect(mockDb.one).toHaveBeenCalled();
-    const sql = mockDb.one.mock.calls[0][0];
+    const sql = mockDb.one.mock.calls[0]![0];
     expect(sql).toMatch(/"deactivated_at"\s+IS\s+NOT\s+NULL/);
     expect(sql).toContain('"id" =');
     expect(result).toBe(true);
@@ -67,7 +73,7 @@ describe('QueryModel - soft delete support', () => {
 
     await model.findWhere([{ email: 'active@example.com' }]);
 
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql).toMatch(/deactivated_at IS NULL/);
   });
 
@@ -78,7 +84,7 @@ describe('QueryModel - soft delete support', () => {
       includeDeactivated: true,
     });
 
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql).not.toMatch(/deactivated_at IS NULL/);
   });
 
@@ -103,7 +109,7 @@ describe('QueryModel - soft delete support', () => {
       filters: { id: 'abc' },
     });
 
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql.match(/deactivated_at IS NULL/g)).toHaveLength(1);
   });
 
@@ -113,7 +119,7 @@ describe('QueryModel - soft delete support', () => {
     // axerra's ViewController shape: no conditions, filters only.
     await model.findWhere([], 'AND', { filters: { email: 'x@example.com' } });
 
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql).toMatch(/deactivated_at IS NULL/);
   });
 
@@ -122,7 +128,7 @@ describe('QueryModel - soft delete support', () => {
 
     await model.countWhere([], 'AND', { filters: { email: 'x@example.com' } });
 
-    const sql = mockDb.one.mock.calls[0][0];
+    const sql = mockDb.one.mock.calls[0]![0];
     expect(sql).toMatch(/deactivated_at IS NULL/);
   });
 
@@ -131,7 +137,7 @@ describe('QueryModel - soft delete support', () => {
 
     await model.findAll();
 
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql).toMatch(/WHERE deactivated_at IS NULL/);
     expect(sql).not.toContain('IS NOT NULL');
   });
@@ -141,7 +147,7 @@ describe('QueryModel - soft delete support', () => {
 
     await model.findWhere([{ id: { $max: true } }]);
 
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql).toContain(
       '(SELECT MAX("id") FROM "test_schema"."test_users" WHERE deactivated_at IS NULL)'
     );
@@ -154,7 +160,7 @@ describe('QueryModel - soft delete support', () => {
       includeDeactivated: true,
     });
 
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql).toContain('(SELECT MAX("id") FROM "test_schema"."test_users")');
   });
 
@@ -163,7 +169,7 @@ describe('QueryModel - soft delete support', () => {
 
     await model.reload('abc-123');
 
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql).toMatch(/deactivated_at IS NULL/);
   });
 
@@ -172,7 +178,7 @@ describe('QueryModel - soft delete support', () => {
 
     const row = await model.reload('abc-123', { includeDeactivated: true });
 
-    const sql = mockDb.any.mock.calls[0][0];
+    const sql = mockDb.any.mock.calls[0]![0];
     expect(sql).not.toMatch(/deactivated_at IS NULL/);
     expect(row).toEqual({ id: 4 });
   });

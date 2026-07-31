@@ -11,17 +11,28 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import pgPromise from 'pg-promise';
 import QueryModel from '../../src/QueryModel.js';
 import { columnSetCache } from '../../src/utils/schemaBuilder.js';
+import type {
+  ColumnDefinition,
+  DbConnection,
+  TableSchema,
+} from '../../src/schemaTypes.js';
 
 const pgp = pgPromise({});
 const stubDb = {
   one: async () => ({}),
   any: async () => [],
   oneOrNone: async () => null,
-};
+} as unknown as DbConnection;
 
 const AUDIT_COLUMNS = ['created_at', 'created_by', 'updated_at', 'updated_by'];
 
-function makeSchema({ hasAuditFields, softDelete }, table) {
+function makeSchema(
+  {
+    hasAuditFields,
+    softDelete,
+  }: { hasAuditFields: boolean; softDelete: boolean },
+  table: string
+): TableSchema {
   return {
     dbSchema: 'public',
     table,
@@ -103,7 +114,10 @@ describe('QueryModel constructor schema normalization (real schemaBuilder)', () 
       constraints: { primaryKey: ['id'] },
     });
 
-    const [id, label] = model.schema.columns;
+    const [id, label] = model.schema.columns as [
+      ColumnDefinition,
+      ColumnDefinition,
+    ];
     expect(id.notNull).toBe(true);
     expect('nullable' in id).toBe(false);
     expect('notNull' in label).toBe(false);
@@ -140,7 +154,7 @@ describe('column defaults through the real ColumnSet (N3)', () => {
 
   it('emits the DEFAULT keyword when a defaulted column is omitted from the DTO', () => {
     const model = new QueryModel(stubDb, pgp, schema);
-    const sql = pgp.helpers.insert({ name: 'x' }, model.cs[schema.table]);
+    const sql = pgp.helpers.insert({ name: 'x' }, model.cs[schema.table]!);
     expect(sql).toBe(
       'insert into "public"."n3_defaults"("name","status") values(\'x\',DEFAULT)'
     );
@@ -150,7 +164,7 @@ describe('column defaults through the real ColumnSet (N3)', () => {
     const model = new QueryModel(stubDb, pgp, schema);
     const sql = pgp.helpers.insert(
       { name: 'x', status: "o'k" },
-      model.cs[schema.table]
+      model.cs[schema.table]!
     );
     expect(sql).toBe(
       'insert into "public"."n3_defaults"("name","status") values(\'x\',\'o\'\'k\')'

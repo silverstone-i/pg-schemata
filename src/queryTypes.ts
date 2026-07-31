@@ -79,13 +79,19 @@ export type WhereCondition =
 export type WhereInput = WhereCondition | WhereCondition[];
 
 /**
- * The `filters` option additionally accepts top-level `and` / `or` groups
- * (see findAfterCursor).
+ * The `filters` option: column-keyed conditions plus optional top-level
+ * boolean groups (`$and`/`$or`, or the legacy lowercase `and`/`or` special
+ * cased by findAfterCursor).
  */
-export type FiltersInput = FieldConditions & {
+export interface FiltersInput {
+  $and?: WhereCondition[];
+  $or?: WhereCondition[];
+  /** @deprecated Use `$and`. */
   and?: WhereCondition[];
+  /** @deprecated Use `$or`. */
   or?: WhereCondition[];
-};
+  [column: string]: Scalar | OperatorCondition | WhereCondition[] | undefined;
+}
 
 /** Logical joiner between conditions. */
 export type JoinType = 'AND' | 'OR';

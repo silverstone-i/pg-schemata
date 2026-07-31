@@ -9,7 +9,7 @@ import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 // ================================
 // Mocks
 // ================================
-const mockDb = {
+const mockDb: any = {
   one: vi.fn(),
   any: vi.fn(),
   oneOrNone: vi.fn(),
@@ -17,7 +17,7 @@ const mockDb = {
   none: vi.fn(),
 };
 
-const mockPgp = {
+const mockPgp: any = {
   as: {
     name: vi.fn(name => `"${name}"`),
     format: vi.fn((query, values) => query.replace('$1', values[0])),
@@ -36,7 +36,7 @@ const mockPgp = {
   },
 };
 
-const mockSchema = {
+const mockSchema: any = {
   dbSchema: 'public',
   table: 'users',
   columns: [{ name: 'id' }, { name: 'email' }, { name: 'password' }],
@@ -60,8 +60,8 @@ vi.mock('../../src/utils/schemaBuilder.js', () => ({
 const TEST_ERROR = new Error('db error');
 
 describe('TableModel (Unit)', () => {
-  let model;
-  let spyHandleDbError;
+  let model: any;
+  let spyHandleDbError: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,12 +79,14 @@ describe('TableModel (Unit)', () => {
   // ================================
   describe('Constructor Validation', () => {
     test('should throw if schema is not an object', () => {
+      // @ts-expect-error deliberately passing a string instead of a schema object
       expect(() => new TableModel(mockDb, mockPgp, 'invalid')).toThrow(
         'Primary key must be defined in the schema'
       );
     });
 
     test('should throw if required parameters are missing', () => {
+      // @ts-expect-error deliberately passing an empty object as the schema
       expect(() => new TableModel(mockDb, mockPgp, {})).toThrow(
         'Primary key must be defined in the schema'
       );
@@ -528,7 +530,7 @@ describe('TableModel (Unit)', () => {
         };
         await txFunction(mockTx);
 
-        const query = mockTx.result.mock.calls[0][0];
+        const query = (mockTx.result.mock.calls[0] as any[])[0];
         expect(query).toContain('"password" = EXCLUDED."password"');
         expect(query).not.toContain('status = EXCLUDED.status');
       });
@@ -550,7 +552,7 @@ describe('TableModel (Unit)', () => {
         };
         await txFunction(mockTx);
 
-        const query = mockTx.result.mock.calls[0][0];
+        const query = (mockTx.result.mock.calls[0] as any[])[0];
         expect(query).toContain('updated_at = NOW()');
         expect(query).toContain('updated_by = EXCLUDED.updated_by');
       });
@@ -580,7 +582,7 @@ describe('TableModel (Unit)', () => {
 
         const spySanitizeDto = vi
           .spyOn(model, 'sanitizeDto')
-          .mockImplementation(dto => ({
+          .mockImplementation((dto: any) => ({
             email: dto.email,
             password: 'sanitized',
           }));
@@ -807,7 +809,7 @@ describe('TableModel (Unit)', () => {
 
       try {
         await model.importFromSpreadsheet('mock.xlsx');
-      } catch (err) {
+      } catch (err: any) {
         expect(err.message).toMatch('Spreadsheet is empty or invalid format');
       }
     });

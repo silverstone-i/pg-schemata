@@ -7,10 +7,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTableSQL } from '../../src/utils/schemaBuilder.js';
 import TableModel from '../../src/TableModel.js';
 import DB from '../../src/DB.js';
+import type { DbConnection } from '../../src/schemaTypes.js';
+import type { IMain } from 'pg-promise';
 
 // Create a User model for testing
 class Users extends TableModel {
-  constructor(db, pgp) {
+  constructor(db: DbConnection, pgp: IMain) {
     super(db, pgp, {
       dbSchema: 'test_schema',
       table: 'test_users',
@@ -29,7 +31,7 @@ class Users extends TableModel {
 // Initialize the database
 const repositories = { users: Users };
 
-const { db, pgp } = DB.init(process.env.DATABASE_URL, repositories);
+const { db, pgp } = DB.init(process.env.DATABASE_URL as string, repositories);
 
 describe('pg-schemata integration', () => {
   beforeAll(async () => {
@@ -44,7 +46,7 @@ describe('pg-schemata integration', () => {
   });
 
   it('should create a table successfully', async () => {
-    const createSQL = createTableSQL(db.users.schema);
+    const createSQL = createTableSQL((db as any).users.schema);
 
     await db.none(createSQL);
 
