@@ -8,6 +8,8 @@ Latest commit: `99c75e3`
 
 ---
 
+## [Unreleased]
+
 ## [v1.7.0] - 2026-07-31
 
 ### ✨ Features
