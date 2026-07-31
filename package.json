@@ -3,14 +3,21 @@
   "version": "1.6.0",
   "homepage": "https://silverstone-i.github.io/pg-schemata/",
   "description": "A lightweight Postgres-first ORM layer built on top of pg-promise",
-  "main": "src/index.js",
+  "main": "./dist/index.js",
   "type": "module",
   "engines": {
     "node": ">=18.0.0"
   },
-  "types": "src/schemaTypes.d.ts",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
-    "src",
+    "dist",
     "README.md"
   ],
   "keywords": [
@@ -29,6 +36,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "check:exports": "attw --pack . --profile esm-only",
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run test:unit && npm run build && npm run check:exports",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
