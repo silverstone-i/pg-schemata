@@ -102,6 +102,10 @@ jobs:
         if: steps.bump.outputs.type != 'none'
         run: npm ci
 
+      - name: Typecheck
+        if: steps.bump.outputs.type != 'none'
+        run: npm run typecheck
+
       - name: Run tests
         if: steps.bump.outputs.type != 'none'
         run: npm run test:unit
@@ -109,6 +113,10 @@ jobs:
       - name: Run linting
         if: steps.bump.outputs.type != 'none'
         run: npm run lint
+
+      - name: Build
+        if: steps.bump.outputs.type != 'none'
+        run: npm run build
 
       - name: Bump version and promote changelog
         if: contains(fromJSON('["patch","minor","major"]'), steps.bump.outputs.type)
