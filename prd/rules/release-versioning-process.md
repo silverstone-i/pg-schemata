@@ -38,7 +38,7 @@ A hotfix is just a working branch with a `release:patch` label; it needs no spec
 
 1. **Branch**: `git switch main && git pull && git switch -c <branch-name>`
 2. **Work**: implement, add tests, record changes under `## [Unreleased]` in CHANGELOG.md.
-3. **Push**: `auto-pr.yml` opens a PR to `main` automatically if one is not already open.
+3. **Push**: push the branch freely — pushing has no side effects, so it is safe for syncing work between machines. When the work is ready, open the PR: `gh pr create --base main` (or GitHub's "Compare & pull request" button).
 4. **Label**: add exactly one release label (`release:patch` / `release:minor` / `release:major`), or none for CI/docs-only changes.
 5. **Merge**: once CI is green, self-approve and merge. The branch is auto-deleted.
 6. **CI releases** (`release-on-merge.yml`): on merge of a labeled PR it
