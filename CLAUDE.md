@@ -5,7 +5,7 @@ Project-level instructions for Claude Code sessions on pg-schemata.
 ## Branch & PR Rules
 
 - **Solo-developer flow: create a working branch off `main`, do the work, merge back into `main` via PR.** There is no `dev` branch in the flow.
-- Pushing a branch auto-opens a PR to `main` (`auto-pr.yml`).
+- Pushing a branch has no side effects (safe for syncing between machines). When the work is ready, open the PR deliberately: `gh pr create --base main`.
 - Before merging, add exactly one release label to the PR: `release:patch`, `release:minor`, or `release:major`. On merge, CI bumps the version, promotes the CHANGELOG `[Unreleased]` section, tags, and publishes (`release-on-merge.yml`).
 - Leave the PR unlabeled for CI/docs-only changes — it merges without a version bump or publish.
 - See `prd/rules/release-versioning-process.md` for the full release workflow.
