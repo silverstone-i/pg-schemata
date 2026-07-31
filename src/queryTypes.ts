@@ -58,9 +58,10 @@ export interface OperatorCondition {
  * Column-keyed conditions: each key is a column name mapped to a scalar
  * (equality / IS NULL) or an {@link OperatorCondition}.
  */
-export interface FieldConditions {
-  [column: string]: Scalar | OperatorCondition | undefined;
-}
+export type FieldConditions = Record<
+  string,
+  Scalar | OperatorCondition | undefined
+>;
 
 /**
  * A single WHERE condition node: nested boolean logic via `$and` / `$or`

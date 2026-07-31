@@ -11,8 +11,6 @@
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": false,
     "noEmit": true,
     "types": ["node", "vitest/globals"]
   },

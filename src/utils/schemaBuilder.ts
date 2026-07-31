@@ -138,6 +138,7 @@ function createTableSQL(
           defaultValue = `'${defaultValue.replace(/'/g, "''")}'`;
         }
       }
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions -- schema defaults are scalars/SQL expressions; implicit stringification is the documented behavior
       def += ` DEFAULT ${defaultValue}`;
     }
     return def;
@@ -447,6 +448,7 @@ function createIndexesSQL(
     } else {
       const prefix = unique || index.unique ? 'uidx' : 'idx';
       indexName =
+        // eslint-disable-next-line @typescript-eslint/no-base-to-string -- auto-generated names from object-form columns match the historical behavior
         `${prefix}_${schema.table}_${columns.join('_')}`.toLowerCase();
     }
 
@@ -490,6 +492,7 @@ function createIndexesSQL(
         return expr;
       } else {
         // Treat as expression string
+        // eslint-disable-next-line @typescript-eslint/no-base-to-string -- runtime fallback for raw expression inputs outside the declared type
         return String(col);
       }
     });

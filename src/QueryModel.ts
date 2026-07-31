@@ -37,6 +37,7 @@ import type { ColumnSet } from 'pg-promise';
 import { ZodError } from 'zod';
 import type { ZodTypeAny } from 'zod';
 import _ from 'lodash';
+// eslint-disable-next-line @typescript-eslint/unbound-method -- lodash functions are this-free
 const { cloneDeep } = _;
 
 /**
@@ -598,7 +599,7 @@ class QueryModel<TRow = any> {
    * @param data - Array of rows (object or array form)
    * @returns VALUES clause for direct embedding in SQL
    */
-  buildValuesClause(data: Array<Row | unknown[]>): string {
+  buildValuesClause(data: (Row | unknown[])[]): string {
     if (!Array.isArray(data) || data.length === 0) return '';
     // this.cs is the container { [table], insert, update }; helpers.values
     // needs the ColumnSet itself (issue 13).
@@ -696,7 +697,7 @@ class QueryModel<TRow = any> {
     // guarantees the entry was produced from this instance.
     let clone = modelCloneCache.get(key) as this | undefined;
     if (!clone) {
-      clone = Object.create(Object.getPrototypeOf(this)) as this;
+      clone = Object.create(Object.getPrototypeOf(this) as object) as this;
       Object.assign(clone, this);
       clone._schema = { ...this._schema, dbSchema: name };
       clone.cs = createColumnSet(clone._schema, this.pgp);

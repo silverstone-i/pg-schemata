@@ -35,7 +35,7 @@ export async function createTestContext(
     }
   }
 
-  const { db, pgp } = await DB.init(process.env.DATABASE_URL as string, {
+  const { db, pgp } = DB.init(process.env.DATABASE_URL!, {
     model: Model,
   });
   // The Repositories interface is intentionally left empty for consumers to
@@ -57,7 +57,7 @@ export async function createTestContext(
 
   async function teardown() {
     await db.none(`DROP SCHEMA IF EXISTS "${schemaCopy.dbSchema}" CASCADE`);
-    await pgp.end();
+    pgp.end();
   }
 
   return { ctx: { db }, model: dbAny.model as TableModel, teardown, pgp };

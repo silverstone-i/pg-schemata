@@ -407,28 +407,28 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
    * @returns Number of rows affected or array of rows if returning specified.
    */
   async bulkUpsert(
-    records: Array<Partial<TRow> & Row>,
+    records: (Partial<TRow> & Row)[],
     conflictColumns: string[],
     updateColumns: string[] | null,
     returning: [string, ...string[]],
     options?: TxOption
   ): Promise<Partial<TRow>[]>;
   async bulkUpsert(
-    records: Array<Partial<TRow> & Row>,
+    records: (Partial<TRow> & Row)[],
     conflictColumns: string[],
     updateColumns?: string[] | null,
     returning?: null,
     options?: TxOption
   ): Promise<number>;
   async bulkUpsert(
-    records: Array<Partial<TRow> & Row>,
+    records: (Partial<TRow> & Row)[],
     conflictColumns: string[],
     updateColumns?: string[] | null,
     returning?: string[] | null,
     options?: TxOption
   ): Promise<number | Partial<TRow>[]>;
   async bulkUpsert(
-    records: Array<Partial<TRow> & Row>,
+    records: (Partial<TRow> & Row)[],
     conflictColumns: string[],
     updateColumns: string[] | null = null,
     returning: string[] | null = null,
@@ -517,13 +517,13 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       const exec = tx ?? this.tx ?? null;
       if (exec) {
         if (returning) {
-          return (await exec.any(query)) as Partial<TRow>[];
+          return await exec.any(query);
         }
         return await exec.result(query, undefined, r => r.rowCount);
       }
       return await this.db.tx(async t => {
         if (returning) {
-          return (await t.any(query)) as Partial<TRow>[];
+          return await t.any(query);
         }
         // undefined, not []: an empty array still runs the formatter over the
         // finished statement and throws on any $n token in the data (N5).
@@ -640,7 +640,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
     });
 
-    const setClause = this.pgp.helpers.update(safeUpdates, updateCs);
+    const setClause = this.pgp.helpers.update(safeUpdates, updateCs) as string;
 
     const { clause, values } = this.buildWhereClause(
       where,
@@ -678,22 +678,22 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
    * @throws {SchemaDefinitionError} If records or returning are invalid.
    */
   async bulkInsert(
-    records: Array<Partial<TRow> & Row>,
+    records: (Partial<TRow> & Row)[],
     returning: [string, ...string[]],
     options?: TxOption
   ): Promise<Partial<TRow>[]>;
   async bulkInsert(
-    records: Array<Partial<TRow> & Row>,
+    records: (Partial<TRow> & Row)[],
     returning?: null,
     options?: TxOption
   ): Promise<number>;
   async bulkInsert(
-    records: Array<Partial<TRow> & Row>,
+    records: (Partial<TRow> & Row)[],
     returning?: string[] | null,
     options?: TxOption
   ): Promise<number | Partial<TRow>[]>;
   async bulkInsert(
-    records: Array<Partial<TRow> & Row>,
+    records: (Partial<TRow> & Row)[],
     returning: string[] | null = null,
     { tx: txOption = null }: TxOption = {}
   ): Promise<number | Partial<TRow>[]> {
@@ -782,13 +782,13 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       // finished statement and throws on any $n token in the data (N5).
       if (tx) {
         if (returning) {
-          return (await tx.any(query)) as Partial<TRow>[];
+          return await tx.any(query);
         }
         return await tx.result(query, undefined, r => r.rowCount);
       } else {
         return await this.db.tx(async t => {
           if (returning) {
-            return (await t.any(query)) as Partial<TRow>[];
+            return await t.any(query);
           }
           return await t.result(query, undefined, r => r.rowCount);
         });
@@ -806,10 +806,10 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
    * @throws {SchemaDefinitionError} If input or IDs are invalid.
    */
   async bulkUpdate(
-    records: Array<Partial<TRow> & Row>,
+    records: (Partial<TRow> & Row)[],
     returning: string[] | null = null,
     { tx: txOption = null }: TxOption = {}
-  ): Promise<Array<number | Partial<TRow>[]>> {
+  ): Promise<(number | Partial<TRow>[])[]> {
     const tx = txOption ?? this.tx ?? null;
     const pk = this._schema.constraints?.primaryKey;
     if (!pk) {
@@ -895,10 +895,10 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     try {
       const runBatch = (
         t: ITask<unknown>
-      ): Promise<Array<number | Partial<TRow>[]>> => {
-        const jobs: Array<Promise<number | Partial<TRow>[]>> = queries.map(q =>
+      ): Promise<(number | Partial<TRow>[])[]> => {
+        const jobs: Promise<number | Partial<TRow>[]>[] = queries.map(q =>
           returning
-            ? (t.any(q.query) as Promise<Partial<TRow>[]>)
+            ? t.any(q.query)
             : t.result(q.query, undefined, r => r.rowCount)
         );
         return t.batch(jobs);
@@ -987,7 +987,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     }
 
     const inserted = await this.bulkInsert(
-      rows as Array<Partial<TRow> & Row>,
+      rows as (Partial<TRow> & Row)[],
       returning,
       { tx }
     );

@@ -226,7 +226,7 @@ describe('QueryModel', () => {
         columnWhitelist: ['id'],
         filters: {
           and: [{ email: { $like: '%example.com' } }],
-        } as FiltersInput,
+        },
       });
       expect(result.rows).toEqual([{ id: 3 }]);
     });

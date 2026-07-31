@@ -73,10 +73,10 @@ describe('forSchema', () => {
 
   it('bakes the schema into the clone ColumnSet (protects the issue-2 trap)', () => {
     const a = model.forSchema('tenant_a');
-    expect(a.cs[schema.table]!.table!.toString()).toBe(
+    expect(a.cs[schema.table]!.table.toString()).toBe(
       '"tenant_a"."fs_tenants"'
     );
-    expect(model.cs[schema.table]!.table!.toString()).toBe(
+    expect(model.cs[schema.table]!.table.toString()).toBe(
       '"public"."fs_tenants"'
     );
   });

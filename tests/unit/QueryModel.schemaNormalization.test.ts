@@ -154,7 +154,7 @@ describe('column defaults through the real ColumnSet (N3)', () => {
 
   it('emits the DEFAULT keyword when a defaulted column is omitted from the DTO', () => {
     const model = new QueryModel(stubDb, pgp, schema);
-    const sql = pgp.helpers.insert({ name: 'x' }, model.cs[schema.table]!);
+    const sql = pgp.helpers.insert({ name: 'x' }, model.cs[schema.table]);
     expect(sql).toBe(
       'insert into "public"."n3_defaults"("name","status") values(\'x\',DEFAULT)'
     );
@@ -164,7 +164,7 @@ describe('column defaults through the real ColumnSet (N3)', () => {
     const model = new QueryModel(stubDb, pgp, schema);
     const sql = pgp.helpers.insert(
       { name: 'x', status: "o'k" },
-      model.cs[schema.table]!
+      model.cs[schema.table]
     );
     expect(sql).toBe(
       'insert into "public"."n3_defaults"("name","status") values(\'x\',\'o\'\'k\')'

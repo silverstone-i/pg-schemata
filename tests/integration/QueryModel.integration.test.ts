@@ -216,7 +216,7 @@ describe('QueryModel Integration', () => {
       // FiltersInput only declares lowercase and/or groups; $and is handled at runtime
       filters: {
         $and: [{ email: { $ilike: '%findbyuser%' } }],
-      } as any,
+      },
     });
 
     expect(result.length).toBeGreaterThan(0);

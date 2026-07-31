@@ -3,6 +3,7 @@
  */
 
 import _ from 'lodash';
+// eslint-disable-next-line @typescript-eslint/unbound-method -- lodash functions are this-free
 const { isPlainObject } = _;
 
 /**

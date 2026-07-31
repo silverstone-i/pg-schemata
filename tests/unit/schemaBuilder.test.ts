@@ -221,7 +221,7 @@ describe('Schema Utilities', () => {
       );
 
       const nameOf = (sql: string) =>
-        sql.match(/CONSTRAINT "(fk_orders_[a-z0-9]{6})"/)![1];
+        /CONSTRAINT "(fk_orders_[a-z0-9]{6})"/.exec(sql)![1];
       expect(nameOf(sqlWithoutSchema)).toBe(nameOf(sqlWithIgnoredSchema));
     });
 
@@ -467,7 +467,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
@@ -488,7 +488,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).not.toContain('CREATE INDEX');
@@ -508,7 +508,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).toMatch(
@@ -537,7 +537,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       expect(sql).toContain(
         'CONSTRAINT "uq_accounts_tenant_code" UNIQUE NULLS NOT DISTINCT ("tenant_id", "code")'
@@ -562,7 +562,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       // Simple format should work as before (no NULLS NOT DISTINCT)
       expect(sql).toMatch(
@@ -588,7 +588,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       // Should NOT contain NULLS NOT DISTINCT
       expect(sql).toMatch(
@@ -1024,10 +1024,10 @@ describe('Schema Utilities', () => {
       );
 
       expect(
-        statusCol!.skip!({ exists: false } as IColumnDescriptor<unknown>)
+        statusCol!.skip({ exists: false } as IColumnDescriptor<unknown>)
       ).toBe(true);
       expect(
-        statusCol!.skip!({ exists: true } as IColumnDescriptor<unknown>)
+        statusCol!.skip({ exists: true } as IColumnDescriptor<unknown>)
       ).toBe(false);
     });
 
@@ -1094,7 +1094,7 @@ describe('Schema Utilities', () => {
       expect(addressCol!.mod).toBe(':json');
       expect(typeof addressCol!.skip).toBe('function');
       expect(
-        addressCol!.skip!({ exists: false } as IColumnDescriptor<unknown>)
+        addressCol!.skip({ exists: false } as IColumnDescriptor<unknown>)
       ).toBe(true);
     });
 

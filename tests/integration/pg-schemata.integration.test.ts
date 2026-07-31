@@ -31,7 +31,7 @@ class Users extends TableModel {
 // Initialize the database
 const repositories = { users: Users };
 
-const { db, pgp } = DB.init(process.env.DATABASE_URL as string, repositories);
+const { db, pgp } = DB.init(process.env.DATABASE_URL!, repositories);
 
 describe('pg-schemata integration', () => {
   beforeAll(async () => {
@@ -42,7 +42,7 @@ describe('pg-schemata integration', () => {
   afterAll(async () => {
     // Clean up after tests
     await db.none(`DROP TABLE IF EXISTS test_schema.test_users`);
-    await pgp.end(); // close db connection
+    pgp.end(); // close db connection
   });
 
   it('should create a table successfully', async () => {

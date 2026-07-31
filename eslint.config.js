@@ -47,7 +47,10 @@ export default tseslint.config(
       },
     },
   },
-  ...tseslint.configs.recommended.map(cfg => ({
+  ...[
+    ...tseslint.configs.recommendedTypeChecked,
+    ...tseslint.configs.stylisticTypeChecked,
+  ].map(cfg => ({
     ...cfg,
     files: ['**/*.ts', '**/*.mts'],
   })),
@@ -57,6 +60,31 @@ export default tseslint.config(
       globals: {
         ...globals.node,
       },
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      // The migration must be behavior-identical: several `||` fallbacks are
+      // load-bearing for empty strings ('' must fall through), which `??`
+      // would change.
+      '@typescript-eslint/prefer-nullish-coalescing': 'off',
+    },
+  },
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': [
+        'error',
+        { allowExpressions: true, allowTypedFunctionExpressions: true },
+      ],
+      '@typescript-eslint/explicit-module-boundary-types': 'error',
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { fixStyle: 'separate-type-imports' },
+      ],
+      '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
     },
   },
   {
@@ -77,6 +105,13 @@ export default tseslint.config(
       'no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/unbound-method': 'off',
     },
   },
   {

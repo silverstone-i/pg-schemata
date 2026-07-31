@@ -36,6 +36,7 @@ export function logMessage({
   data = null,
 }: LogMessageParams): void {
   if (!logger) return;
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked below via fn.call(logger, ...)
   const fn = logger[level];
   if (typeof fn !== 'function') return;
 

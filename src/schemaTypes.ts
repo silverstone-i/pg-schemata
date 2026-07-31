@@ -186,7 +186,7 @@ export interface Constraints {
   /** Foreign key definitions. */
   foreignKeys?: ConstraintDefinition[];
   /** Check constraints; bare SQL expression strings are also accepted. */
-  checks?: Array<CheckConstraintDefinition | string>;
+  checks?: (CheckConstraintDefinition | string)[];
   /** Index definitions for query optimization. */
   indexes?: IndexDefinition[];
 }

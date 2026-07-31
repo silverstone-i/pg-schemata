@@ -42,7 +42,7 @@ declare module '@nap-sft/tablsx' {
     addRow(values: unknown[]): this;
     addRows(rows: unknown[][]): this;
     addObjects(
-      objects: Array<Record<string, unknown>>,
+      objects: Record<string, unknown>[],
       options?: Record<string, unknown>
     ): this;
     build(): Sheet;
