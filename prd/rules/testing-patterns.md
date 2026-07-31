@@ -45,6 +45,7 @@ tests/
 - Extension: Always `.test.js`
 
 Examples:
+
 - `TableModel.test.js` — Unit tests for TableModel
 - `TableModel.softDelete.test.js` — Unit tests focused on soft delete
 - `pg-schemata.integration.test.js` — Integration tests
@@ -96,6 +97,7 @@ Integration tests use a real PostgreSQL database via the integration harness.
 ### Harness (`tests/helpers/integrationHarness.js`)
 
 The harness provides:
+
 - Database connection setup using environment variables (`.env`)
 - Schema creation and teardown (drops and recreates test schema)
 - Table creation for test schemas
@@ -113,13 +115,13 @@ The harness provides:
 
 ## NPM Scripts
 
-| Script | Command | Purpose |
-|--------|---------|---------|
-| `npm test` | `vitest run` | Run all tests |
-| `npm run test:unit` | `vitest run tests/unit` | Unit tests only |
-| `npm run test:integration` | `vitest run tests/integration` | Integration tests only |
-| `npm run test:watch` | `vitest` | Watch mode |
-| `npm run test:coverage` | `vitest run --coverage` | Generate coverage report |
+| Script                     | Command                        | Purpose                  |
+| -------------------------- | ------------------------------ | ------------------------ |
+| `npm test`                 | `vitest run`                   | Run all tests            |
+| `npm run test:unit`        | `vitest run tests/unit`        | Unit tests only          |
+| `npm run test:integration` | `vitest run tests/integration` | Integration tests only   |
+| `npm run test:watch`       | `vitest`                       | Watch mode               |
+| `npm run test:coverage`    | `vitest run --coverage`        | Generate coverage report |
 
 ---
 

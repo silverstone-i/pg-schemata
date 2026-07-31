@@ -38,12 +38,12 @@ class Users extends TableModel {
 
 Both models receive three required parameters from pg-promise's `extend` event:
 
-| Parameter | Type | Description |
-|---|---|---|
-| `db` | `IDatabase` | The pg-promise database or transaction instance |
-| `pgp` | `IMain` | The pg-promise library instance |
-| `schema` | `TableSchema` | Your schema definition object |
-| `logger` | `object` | Optional logger (must have `.error()`, `.info()` methods) |
+| Parameter | Type          | Description                                               |
+| --------- | ------------- | --------------------------------------------------------- |
+| `db`      | `IDatabase`   | The pg-promise database or transaction instance           |
+| `pgp`     | `IMain`       | The pg-promise library instance                           |
+| `schema`  | `TableSchema` | Your schema definition object                             |
+| `logger`  | `object`      | Optional logger (must have `.error()`, `.info()` methods) |
 
 ## The repository pattern
 
@@ -82,11 +82,9 @@ class Users extends TableModel {
   }
 
   async findActiveByTenant(tenantId) {
-    return this.findWhere(
-      [{ tenant_id: tenantId, is_active: true }],
-      'AND',
-      { orderBy: 'email' }
-    );
+    return this.findWhere([{ tenant_id: tenantId, is_active: true }], 'AND', {
+      orderBy: 'email',
+    });
   }
 
   async deactivateUser(id) {
@@ -102,9 +100,9 @@ Every model instance exposes its schema and table identifiers:
 ```js
 const model = database.users;
 
-model.schema;      // the full schema definition object
-model.schemaName;  // escaped PostgreSQL schema name (e.g. "public")
-model.tableName;   // escaped table name (e.g. "users")
+model.schema; // the full schema definition object
+model.schemaName; // escaped PostgreSQL schema name (e.g. "public")
+model.tableName; // escaped table name (e.g. "users")
 ```
 
 ## Switching schemas at runtime
@@ -113,7 +111,7 @@ Use `forSchema()` to get a model bound to another PostgreSQL schema. The origina
 
 ```js
 const tenantModel = model.forSchema('tenant_abc');
-const rows = await tenantModel.findAll();  // queries tenant_abc.users
+const rows = await tenantModel.findAll(); // queries tenant_abc.users
 ```
 
 `setSchemaName()` still works but is deprecated: it mutates the shared model instance and races under concurrent requests.

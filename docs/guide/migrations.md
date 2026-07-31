@@ -31,10 +31,10 @@ export async function up({ db, schema }) {
 
 The `up` function receives:
 
-| Parameter | Type | Description |
-|---|---|---|
-| `db` | `ITask` | A pg-promise transaction object — all queries run inside the transaction |
-| `schema` | `string` | The PostgreSQL schema name being migrated |
+| Parameter | Type     | Description                                                              |
+| --------- | -------- | ------------------------------------------------------------------------ |
+| `db`      | `ITask`  | A pg-promise transaction object — all queries run inside the transaction |
+| `schema`  | `string` | The PostgreSQL schema name being migrated                                |
 
 ## Using bootstrap for initial setup
 
@@ -62,8 +62,8 @@ export async function up({ db, schema }) {
 import { MigrationManager } from 'pg-schemata';
 
 const manager = new MigrationManager({
-  schema: 'public',       // PostgreSQL schema to target
-  dir: 'migrations',      // directory containing migration files
+  schema: 'public', // PostgreSQL schema to target
+  dir: 'migrations', // directory containing migration files
 });
 
 const result = await manager.applyAll();
@@ -76,19 +76,20 @@ console.log(result);
 ### Constructor
 
 ```js
-new MigrationManager({ schema, dir })
+new MigrationManager({ schema, dir });
 ```
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `schema` | `string` | `'public'` | PostgreSQL schema to target |
-| `dir` | `string` | `'migrations'` | Directory containing migration files |
+| Option   | Type     | Default        | Description                          |
+| -------- | -------- | -------------- | ------------------------------------ |
+| `schema` | `string` | `'public'`     | PostgreSQL schema to target          |
+| `dir`    | `string` | `'migrations'` | Directory containing migration files |
 
 ### applyAll()
 
 Applies all pending migrations in a single transaction. Returns `{ applied, files }`.
 
 The method:
+
 1. Acquires a PostgreSQL advisory lock (per schema) to prevent concurrent runs
 2. Ensures the `schema_migrations` table exists
 3. Discovers pending migration files

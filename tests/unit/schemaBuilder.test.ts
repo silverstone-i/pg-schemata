@@ -1,0 +1,1170 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
+// schema-utils.test.js
+import {
+  createTableSQL,
+  addAuditFields,
+  createIndexesSQL,
+  normalizeSQL,
+  createColumnSet,
+  columnSetCache,
+} from '../../src/utils/schemaBuilder.js';
+import { LRUCache } from 'lru-cache';
+import type { IMain, IColumnDescriptor } from 'pg-promise';
+import type {
+  TableSchema,
+  ForeignKeyReference,
+} from '../../src/schemaTypes.js';
+import type { TableColumnSets } from '../../src/internalTypes.js';
+
+// Mock pg-promise and its helpers
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+const mockExtend = vi.fn(columns => ({ extendedWith: columns }));
+
+const mockColumnSet = vi.fn((columns, options) => ({
+  columns,
+  options,
+  extend: mockExtend,
+}));
+
+const mockPgp = {
+  helpers: {
+    ColumnSet: mockColumnSet,
+  },
+} as unknown as IMain;
+
+describe('Schema Utilities', () => {
+  describe('createTableSQL', () => {
+    it('should generate correct CREATE TABLE SQL with columns and constraints', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'name', type: 'varchar(255)', notNull: true },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          unique: [['name']],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain('CREATE SCHEMA IF NOT EXISTS "public"');
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
+      expect(sql).toContain('"id" serial NOT NULL');
+      expect(sql).toContain('"name" varchar(255) NOT NULL');
+      expect(sql).toContain('PRIMARY KEY ("id")');
+      expect(sql).toMatch(
+        /CONSTRAINT "uidx_users_name_[a-z0-9]{6}" UNIQUE \("name"\)/
+      );
+    });
+
+    it('should generate correct CREATE TABLE SQL with foreign keys', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'posts',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'user_id', type: 'int', notNull: true },
+          { name: 'tenant_id', type: 'uuid', notNull: true },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          foreignKeys: [
+            {
+              columns: ['user_id', 'tenant_id'],
+              references: {
+                dbSchema: 'public',
+                table: 'users',
+                columns: ['id', 'tenant_id'], // <-- Added this
+              },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."posts"');
+      expect(sql).toContain('"id" serial NOT NULL');
+      expect(sql).toContain('"user_id" int NOT NULL');
+      expect(sql).toContain('PRIMARY KEY ("id")');
+      expect(normalizeSQL(sql)).toMatch(
+        /CONSTRAINT "fk_posts_[a-z0-9]{6}" FOREIGN KEY \("user_id", "tenant_id"\) REFERENCES "public"\."users" \("id", "tenant_id"\)/
+      );
+    });
+
+    it('should resolve cross-schema FK target via dotted references.table', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['country_id'],
+              references: { table: 'admin.countries', columns: ['id'] },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
+    });
+
+    it('should resolve cross-schema FK target via explicit references.schema', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['country_id'],
+              references: {
+                schema: 'admin',
+                table: 'countries',
+                columns: ['id'],
+              },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
+    });
+
+    it('should fall back to own schemaName for bare same-schema FK references', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'user_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['user_id'],
+              references: { table: 'users', columns: ['id'] },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "public"\."users"/);
+    });
+
+    it('should let dotted references.table win when both dotted form and schema are supplied', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['country_id'],
+              references: {
+                schema: 'ignored',
+                table: 'admin.countries',
+                columns: ['id'],
+              },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
+    });
+
+    it('should produce identical constraint names for dotted FKs regardless of references.schema', () => {
+      const baseSchema = (refs: ForeignKeyReference) =>
+        ({
+          schemaName: 'tenant_a',
+          table: 'orders',
+          columns: [
+            { name: 'id', type: 'serial', notNull: true },
+            { name: 'country_id', type: 'int', notNull: true },
+          ],
+          constraints: {
+            foreignKeys: [{ columns: ['country_id'], references: refs }],
+          },
+        }) as unknown as TableSchema;
+
+      const sqlWithoutSchema = createTableSQL(
+        baseSchema({ table: 'admin.countries', columns: ['id'] })
+      );
+      const sqlWithIgnoredSchema = createTableSQL(
+        baseSchema({
+          schema: 'ignored',
+          table: 'admin.countries',
+          columns: ['id'],
+        })
+      );
+
+      const nameOf = (sql: string) =>
+        /CONSTRAINT "(fk_orders_[a-z0-9]{6})"/.exec(sql)![1];
+      expect(nameOf(sqlWithoutSchema)).toBe(nameOf(sqlWithIgnoredSchema));
+    });
+
+    it('should throw on a multi-dot references.table value', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['country_id'],
+              references: { table: 'a.b.c', columns: ['id'] },
+            },
+          ],
+        },
+      };
+
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
+        /expected '<schema>\.<table>'/
+      );
+    });
+
+    it('should produce distinct constraint names for FKs differing only by references.schema', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'a_country_id', type: 'int', notNull: true },
+          { name: 'b_country_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['a_country_id'],
+              references: {
+                schema: 'admin',
+                table: 'countries',
+                columns: ['id'],
+              },
+            },
+            {
+              columns: ['b_country_id'],
+              references: {
+                schema: 'archive',
+                table: 'countries',
+                columns: ['id'],
+              },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+      const names = [
+        ...sql.matchAll(/CONSTRAINT "(fk_orders_[a-z0-9]{6})"/g),
+      ].map(m => m[1]);
+      expect(names).toHaveLength(2);
+      expect(names[0]).not.toBe(names[1]);
+    });
+
+    it('should resolve bare references.table against non-public owning schemaName', () => {
+      const schema = {
+        schemaName: 'tenant_a',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'user_id', type: 'int', notNull: true },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['user_id'],
+              references: { table: 'users', columns: ['id'] },
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+      expect(normalizeSQL(sql)).toMatch(/REFERENCES "tenant_a"\."users"/);
+    });
+
+    it('should throw an error for invalid foreign key reference', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'posts',
+        columns: [{ name: 'id', type: 'serial' }],
+        constraints: {
+          foreignKeys: [
+            { columns: ['user_id'], references: 'invalid' }, // should be object
+          ],
+        },
+      };
+
+      // @ts-expect-error deliberately invalid references value (string instead of object)
+      expect(() => createTableSQL(schema)).toThrow(
+        'Invalid foreign key reference for table posts: expected object, got string'
+      );
+    });
+
+    it('should generate correct CREATE TABLE SQL with checks', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'products',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'price', type: 'decimal', notNull: true },
+        ],
+        constraints: {
+          checks: [{ expression: 'price > 0' }],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."products"');
+      expect(sql).toContain('"id" serial NOT NULL');
+      expect(sql).toContain('"price" decimal NOT NULL');
+      expect(sql).toContain('CHECK (price > 0)');
+    });
+
+    it('should handle NOT NULL and DEFAULT in createTableSQL', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'products',
+        columns: [
+          {
+            name: 'id',
+            type: 'serial',
+            notNull: true,
+            default: "nextval('products_id_seq')",
+          },
+        ],
+        constraints: {},
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain(
+        '"id" serial NOT NULL DEFAULT nextval(\'products_id_seq\')'
+      );
+    });
+
+    it('escapes quotes inside string defaults (issue 7)', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'people',
+        columns: [{ name: 'surname', type: 'text', default: "O'Brien" }],
+        constraints: {},
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain(`"surname" text DEFAULT 'O''Brien'`);
+    });
+
+    it('should handle schema with no constraints', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'simple_table',
+        columns: [{ name: 'id', type: 'serial' }],
+        // ❌ No constraints field at all
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain('"id" serial'); // Basic check
+    });
+
+    it('should generate FOREIGN KEY with ON DELETE and ON UPDATE actions', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial' },
+          { name: 'user_id', type: 'integer' },
+        ],
+        constraints: {
+          foreignKeys: [
+            {
+              columns: ['user_id'],
+              references: {
+                dbSchema: 'public',
+                table: 'users',
+                columns: ['id'],
+              },
+              onDelete: 'CASCADE',
+              onUpdate: 'SET NULL',
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain('ON DELETE CASCADE');
+      expect(sql).toContain('ON UPDATE SET NULL');
+    });
+
+    it('should generate correct CREATE TABLE SQL with generated columns', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          {
+            name: 'schema_name',
+            type: 'varchar(63)',
+            generated: 'always',
+            expression: 'lower(tenant_code)',
+            stored: true,
+          },
+        ],
+        constraints: {
+          primaryKey: ['tenant_code'],
+        },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain(
+        '"schema_name" varchar(63) GENERATED ALWAYS AS (lower(tenant_code)) STORED'
+      );
+    });
+
+    it('should automatically include index creation when indexes are defined', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial', primaryKey: true },
+          { name: 'email', type: 'varchar(255)', notNull: true },
+          { name: 'username', type: 'varchar(100)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          indexes: [{ columns: ['email'] }, { columns: ['username'] }],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
+    });
+
+    it('should not include indexes when no indexes are defined', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial', primaryKey: true },
+          { name: 'email', type: 'varchar(255)', notNull: true },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          // No indexes defined
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
+      expect(sql).not.toContain('CREATE INDEX');
+    });
+
+    it('should generate UNIQUE constraint with NULLS NOT DISTINCT (PostgreSQL 15+)', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'external_id', type: 'varchar(255)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          unique: [{ columns: ['external_id'], nullsNotDistinct: true }],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
+      expect(sql).toMatch(
+        /CONSTRAINT "uidx_users_external_id_[a-z0-9]{6}" UNIQUE NULLS NOT DISTINCT \("external_id"\)/
+      );
+    });
+
+    it('should generate UNIQUE constraint with custom name and NULLS NOT DISTINCT', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'accounts',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'tenant_id', type: 'uuid' },
+          { name: 'code', type: 'varchar(50)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          unique: [
+            {
+              columns: ['tenant_id', 'code'],
+              nullsNotDistinct: true,
+              name: 'uq_accounts_tenant_code',
+            },
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      expect(sql).toContain(
+        'CONSTRAINT "uq_accounts_tenant_code" UNIQUE NULLS NOT DISTINCT ("tenant_id", "code")'
+      );
+    });
+
+    it('should support mixed unique constraint formats (simple array and object)', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'items',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'email', type: 'varchar(255)' },
+          { name: 'external_ref', type: 'varchar(100)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          unique: [
+            ['email'], // Simple array format
+            { columns: ['external_ref'], nullsNotDistinct: true }, // Object format
+          ],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      // Simple format should work as before (no NULLS NOT DISTINCT)
+      expect(sql).toMatch(
+        /CONSTRAINT "uidx_items_email_[a-z0-9]{6}" UNIQUE \("email"\)/
+      );
+      // Object format with nullsNotDistinct
+      expect(sql).toMatch(
+        /CONSTRAINT "uidx_items_external_ref_[a-z0-9]{6}" UNIQUE NULLS NOT DISTINCT \("external_ref"\)/
+      );
+    });
+
+    it('should generate standard UNIQUE when nullsNotDistinct is false or not specified in object format', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'products',
+        columns: [
+          { name: 'id', type: 'serial', notNull: true },
+          { name: 'sku', type: 'varchar(50)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          unique: [{ columns: ['sku'], nullsNotDistinct: false }],
+        },
+      };
+
+      const sql = createTableSQL(schema);
+
+      // Should NOT contain NULLS NOT DISTINCT
+      expect(sql).toMatch(
+        /CONSTRAINT "uidx_products_sku_[a-z0-9]{6}" UNIQUE \("sku"\)/
+      );
+      expect(sql).not.toContain('NULLS NOT DISTINCT');
+    });
+  });
+
+  describe('addAuditFields', () => {
+    it('should add audit fields to the schema columns with boolean true (backward compatible)', () => {
+      const schema = { hasAuditFields: true, columns: [] };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      expect(updatedSchema.columns).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'created_at' }),
+          expect.objectContaining({ name: 'created_by' }),
+          expect.objectContaining({ name: 'updated_at' }),
+          expect.objectContaining({ name: 'updated_by' }),
+        ])
+      );
+
+      // Verify default varchar(50) type for user fields
+      const createdBy = updatedSchema.columns.find(
+        col => col.name === 'created_by'
+      );
+      const updatedBy = updatedSchema.columns.find(
+        col => col.name === 'updated_by'
+      );
+      expect(createdBy!.type).toBe('varchar(50)');
+      expect(updatedBy!.type).toBe('varchar(50)');
+    });
+
+    it('should not add audit fields when hasAuditFields is false (backward compatible)', () => {
+      const schema = { hasAuditFields: false, columns: [] };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      expect(updatedSchema.columns).toHaveLength(0);
+    });
+
+    it('should add audit fields with uuid type when using object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'uuid', nullable: true, default: null },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      expect(updatedSchema.columns).toHaveLength(4);
+
+      // Verify timestamp fields remain unchanged
+      const createdAt = updatedSchema.columns.find(
+        col => col.name === 'created_at'
+      );
+      const updatedAt = updatedSchema.columns.find(
+        col => col.name === 'updated_at'
+      );
+      expect(createdAt!.type).toBe('timestamptz');
+      expect(updatedAt!.type).toBe('timestamptz');
+      expect(createdAt!.default).toBe('now()');
+
+      // Verify user fields use uuid type
+      const createdBy = updatedSchema.columns.find(
+        col => col.name === 'created_by'
+      );
+      const updatedBy = updatedSchema.columns.find(
+        col => col.name === 'updated_by'
+      );
+      expect(createdBy!.type).toBe('uuid');
+      expect(updatedBy!.type).toBe('uuid');
+      expect(createdBy!.default).toBeUndefined();
+      expect(updatedBy!.default).toBeUndefined();
+    });
+
+    it('should use defaults when only type is specified in object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'int' },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      const createdBy = updatedSchema.columns.find(
+        col => col.name === 'created_by'
+      );
+      const updatedBy = updatedSchema.columns.find(
+        col => col.name === 'updated_by'
+      );
+
+      expect(createdBy!.type).toBe('int');
+      expect(updatedBy!.type).toBe('int');
+      // nullable defaults to true, default defaults to null (should be undefined in object)
+      expect(createdBy!.default).toBeUndefined();
+      expect(updatedBy!.default).toBeUndefined();
+    });
+
+    it('should not add audit fields when object format has enabled: false', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: false,
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      expect(updatedSchema.columns).toHaveLength(0);
+    });
+
+    it('should use default varchar(50) when userFields is not specified in object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      const createdBy = updatedSchema.columns.find(
+        col => col.name === 'created_by'
+      );
+      const updatedBy = updatedSchema.columns.find(
+        col => col.name === 'updated_by'
+      );
+
+      expect(createdBy!.type).toBe('varchar(50)');
+      expect(updatedBy!.type).toBe('varchar(50)');
+    });
+
+    it('should support custom default values in object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'varchar(100)', default: `'admin'` },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      const createdBy = updatedSchema.columns.find(
+        col => col.name === 'created_by'
+      );
+      const updatedBy = updatedSchema.columns.find(
+        col => col.name === 'updated_by'
+      );
+
+      expect(createdBy!.type).toBe('varchar(100)');
+      expect(createdBy!.default).toBe(`'admin'`);
+      expect(updatedBy!.default).toBe(`'admin'`);
+    });
+
+    it('should handle bigint type in object format', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'bigint', nullable: false, default: 0 },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      const createdBy = updatedSchema.columns.find(
+        col => col.name === 'created_by'
+      );
+      const updatedBy = updatedSchema.columns.find(
+        col => col.name === 'updated_by'
+      );
+
+      expect(createdBy!.type).toBe('bigint');
+      expect(createdBy!.default).toBe(0);
+      expect(updatedBy!.type).toBe('bigint');
+      expect(updatedBy!.default).toBe(0);
+    });
+
+    it('should not duplicate audit fields if already present', () => {
+      const schema = {
+        hasAuditFields: true,
+        columns: [{ name: 'created_at', type: 'timestamptz' }],
+      };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      const createdAtFields = updatedSchema.columns.filter(
+        col => col.name === 'created_at'
+      );
+      expect(createdAtFields).toHaveLength(1);
+    });
+
+    it('should add system default when nullable is false and no default provided', () => {
+      const schema = {
+        hasAuditFields: {
+          enabled: true,
+          userFields: { type: 'varchar(50)', nullable: false },
+        },
+        columns: [],
+      };
+      const updatedSchema = addAuditFields(schema as unknown as TableSchema);
+
+      const createdBy = updatedSchema.columns.find(
+        col => col.name === 'created_by'
+      );
+      expect(createdBy!.default).toBe(`'system'`);
+    });
+  });
+
+  describe('createIndexesSQL', () => {
+    it('should generate correct CREATE INDEX SQL', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'users',
+        constraints: {
+          indexes: [{ columns: ['email'] }, { columns: ['username'] }],
+        },
+      };
+
+      const sql = createIndexesSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
+    });
+
+    it('should handle schema without indexes gracefully', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'users',
+        constraints: {
+          // ❌ no indexes field
+        },
+      };
+
+      expect(() =>
+        createIndexesSQL(schema as unknown as TableSchema)
+      ).toThrow();
+      // or handle it gracefully if you want (up to you!)
+    });
+
+    it('should generate correct unique CREATE INDEX SQL', () => {
+      const schema = {
+        schemaName: 'public',
+        table: 'users',
+        constraints: {
+          indexes: [{ columns: ['email'] }, { columns: ['username'] }],
+        },
+      };
+
+      const sql = createIndexesSQL(schema as unknown as TableSchema, true);
+
+      expect(sql).toContain(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "uidx_users_email"'
+      );
+      expect(sql).toContain(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "uidx_users_username"'
+      );
+    });
+
+    it('should generate advanced index with custom name and options', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'posts',
+        constraints: {
+          indexes: [
+            {
+              name: 'posts_title_gin_idx',
+              columns: ['title'],
+              using: 'gin',
+              where: 'deleted_at IS NULL',
+            },
+          ],
+        },
+      };
+
+      const sql = createIndexesSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "posts_title_gin_idx"');
+      expect(sql).toContain('USING GIN');
+      expect(sql).toContain('WHERE deleted_at IS NULL');
+    });
+
+    it('should generate partial unique index with storage parameters', () => {
+      const schema = {
+        dbSchema: 'analytics',
+        table: 'events',
+        constraints: {
+          indexes: [
+            {
+              columns: ['user_id', 'event_type'],
+              unique: true,
+              where: 'active = true',
+              with: {
+                fillfactor: 80,
+                parallel_workers: 4,
+              },
+              tablespace: 'fast_ssd',
+            },
+          ],
+        },
+      };
+
+      const sql = createIndexesSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain('CREATE UNIQUE INDEX');
+      expect(sql).toContain('WHERE active = true');
+      expect(sql).toContain('WITH (fillfactor = 80, parallel_workers = 4)');
+      expect(sql).toContain('TABLESPACE fast_ssd');
+    });
+  });
+
+  describe('normalizeSQL', () => {
+    it('should normalize SQL by collapsing spaces and removing semicolons', () => {
+      const rawSQL = `
+        CREATE TABLE test (
+          id SERIAL PRIMARY KEY
+        );
+      `;
+
+      const normalized = normalizeSQL(rawSQL);
+
+      expect(normalized).toBe('CREATE TABLE test ( id SERIAL PRIMARY KEY );');
+    });
+  });
+
+  describe('createColumnSet', () => {
+    beforeEach(() => {
+      mockColumnSet.mockClear();
+      mockExtend.mockClear();
+      columnSetCache.clear(); // Clear the cache before each test
+    });
+
+    it('should create ColumnSet with insert and update extensions', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        hasAuditFields: true,
+        columns: [
+          { name: 'id', type: 'serial' },
+          { name: 'name', type: 'varchar(255)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+        },
+      };
+
+      const auditSchema = addAuditFields(schema);
+      const columnSet = createColumnSet(auditSchema, mockPgp);
+
+      expect(mockColumnSet).toHaveBeenCalledTimes(1);
+      expect(columnSet).toHaveProperty('users');
+      expect(columnSet).toHaveProperty('insert');
+      expect(columnSet).toHaveProperty('update');
+      expect(mockExtend).toHaveBeenCalledTimes(2);
+      expect((columnSet.insert as any).extendedWith).toEqual(
+        expect.arrayContaining(['created_by', 'updated_by'])
+      );
+      expect((columnSet.update as any).extendedWith).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'updated_at',
+            mod: '^',
+            def: 'CURRENT_TIMESTAMP',
+          }),
+          'updated_by',
+        ])
+      );
+    });
+
+    it('should not extend insert and update if audit fields are missing', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'products',
+        columns: [
+          { name: 'id', type: 'serial' },
+          { name: 'description', type: 'text' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+
+      expect(columnSet.insert).toBe(columnSet.products);
+      expect(columnSet.update).toBe(columnSet.products);
+      expect(mockExtend).not.toHaveBeenCalled();
+    });
+
+    it('maps a SQL default to the raw DEFAULT sentinel, not a literal value (N3)', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial' },
+          { name: 'status', type: 'varchar(50)', default: 'pending' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+
+      const statusCol = columnSet.orders!.columns.find(
+        c => c.name === 'status'
+      );
+      expect(statusCol!.def).toMatchObject({ rawType: true });
+      expect(statusCol!.def.toPostgres()).toBe('DEFAULT');
+    });
+
+    it('should skip missing columns correctly', () => {
+      const schema: TableSchema = {
+        dbSchema: 'public',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'serial' },
+          {
+            name: 'status',
+            type: 'varchar(50)',
+            default: 'pending',
+            nullable: true,
+            colProps: { skip: c => !c.exists },
+          },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+      const statusCol = columnSet.orders!.columns.find(
+        col => col.name === 'status'
+      );
+
+      expect(
+        statusCol!.skip({ exists: false } as IColumnDescriptor<unknown>)
+      ).toBe(true);
+      expect(
+        statusCol!.skip({ exists: true } as IColumnDescriptor<unknown>)
+      ).toBe(false);
+    });
+
+    it('should recognize primary key columns that are not serial or uuid with default', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'orders',
+        columns: [
+          { name: 'id', type: 'int', colProps: { cnd: true } },
+          { name: 'status', type: 'varchar(50)' },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+      const idCol = columnSet.orders!.columns.find(col => col.name === 'id');
+
+      expect(idCol!.cnd).toBe(true);
+    });
+
+    it('should skip columns with type uuid and is a primary key and has a default value in createColumnSet', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'test_table',
+        columns: [
+          { name: 'id', type: 'uuid', default: 'uuid_generate_v4()' }, // Should be skipped
+          { name: 'email', type: 'varchar(255)' }, // Should stay
+        ],
+        constraints: {
+          primaryKey: ['id'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+      const columnNames = columnSet.test_table!.columns.map(col => col.name);
+      expect(columnNames).not.toContain('id'); // 'id' should NOT be there
+      expect(columnNames).toContain('email'); // 'email' should be there
+    });
+
+    it('should apply colProps for pg-promise column configuration', () => {
+      const schema: TableSchema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          {
+            name: 'address',
+            type: 'jsonb',
+            colProps: { mod: ':json', skip: c => !c.exists },
+          },
+          { name: 'email', type: 'varchar(255)' },
+        ],
+        constraints: {
+          primaryKey: ['email'],
+        },
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+      const addressCol = columnSet.users!.columns.find(
+        col => col.name === 'address'
+      );
+
+      expect(addressCol!.mod).toBe(':json');
+      expect(typeof addressCol!.skip).toBe('function');
+      expect(
+        addressCol!.skip({ exists: false } as IColumnDescriptor<unknown>)
+      ).toBe(true);
+    });
+
+    it('should handle schema without primary key in createColumnSet', () => {
+      const schema: TableSchema = {
+        dbSchema: 'public',
+        table: 'products',
+        columns: [
+          {
+            name: 'name',
+            type: 'varchar(255)',
+            nullable: true,
+            colProps: { skip: c => !c.exists },
+          },
+          { name: 'price', type: 'numeric' },
+        ],
+        // ❌ No constraints.primaryKey
+        constraints: {}, // <- empty constraints
+      };
+
+      const columnSet = createColumnSet(schema, mockPgp);
+
+      const columnNames = columnSet.products!.columns.map(col => col.name);
+
+      expect(columnNames).toContain('name');
+      expect(columnNames).toContain('price');
+
+      // Make sure 'skip' was added (non-primary key columns have skip)
+      const nameCol = columnSet.products!.columns.find(
+        col => col.name === 'name'
+      );
+      expect(typeof nameCol!.skip).toBe('function');
+    });
+  });
+  // LRU Cache tests for columnSetCache
+  describe('columnSetCache (LRU)', () => {
+    beforeEach(() => {
+      columnSetCache.clear();
+    });
+
+    it('should store and retrieve a cached value', () => {
+      const key = 'test-key';
+      const value = { dummy: true };
+      columnSetCache.set(key, value as unknown as TableColumnSets);
+      expect(columnSetCache.get(key)).toEqual(value);
+    });
+
+    it('should evict the oldest entry when max size is exceeded', () => {
+      const maxEntries = 20000;
+      // Add max + 1 entries
+      for (let i = 0; i <= maxEntries; i++) {
+        columnSetCache.set(`key-${i}`, {
+          value: i,
+        } as unknown as TableColumnSets);
+      }
+      expect(columnSetCache.get('key-0')).toBeUndefined(); // key-0 should be evicted
+    });
+
+    // Use a dedicated LRUCache instance with a short TTL for this test
+
+    it('should expire items after TTL', (done: any) => {
+      const testCache = new LRUCache({ max: 10, ttl: 100 }); // 100ms TTL
+      const key = 'ttl-key';
+      const value = { dummy: 'expired' };
+      testCache.set(key, value);
+
+      setTimeout(() => {
+        expect(testCache.get(key)).toBeUndefined();
+        done();
+      }, 200); // Wait longer than TTL
+    });
+  });
+});

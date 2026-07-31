@@ -54,9 +54,7 @@ export default defineConfig({
       '/examples/': [
         {
           text: 'Examples',
-          items: [
-            { text: 'Minimal Setup', link: '/examples/minimal-setup' },
-          ],
+          items: [{ text: 'Minimal Setup', link: '/examples/minimal-setup' }],
         },
       ],
     },

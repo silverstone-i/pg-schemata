@@ -48,28 +48,28 @@ The following exports from `src/index.js` constitute the **stable public API**. 
 
 ### Classes
 
-| Export | Source | Stability |
-|--------|--------|-----------|
-| `DB` | `DB.js` | Stable — `DB.init()`, `DB.db`, `DB.pgp` |
-| `TableModel` | `TableModel.js` | Stable — all public methods |
-| `QueryModel` | `QueryModel.js` | Stable — all public methods |
-| `MigrationManager` | `migrate/MigrationManager.js` | Stable |
-| `SchemaMigrations` | `models/SchemaMigrations.js` | Stable |
-| `migrationSchema` | `models/SchemaMigrations.js` | Stable — schema definition for `schema_migrations` table |
-| `DatabaseError` | `DatabaseError.js` | Stable (default export) |
-| `SchemaDefinitionError` | `SchemaDefinitionError.js` | Stable (default export) |
+| Export                  | Source                        | Stability                                                |
+| ----------------------- | ----------------------------- | -------------------------------------------------------- |
+| `DB`                    | `DB.js`                       | Stable — `DB.init()`, `DB.db`, `DB.pgp`                  |
+| `TableModel`            | `TableModel.js`               | Stable — all public methods                              |
+| `QueryModel`            | `QueryModel.js`               | Stable — all public methods                              |
+| `MigrationManager`      | `migrate/MigrationManager.js` | Stable                                                   |
+| `SchemaMigrations`      | `models/SchemaMigrations.js`  | Stable                                                   |
+| `migrationSchema`       | `models/SchemaMigrations.js`  | Stable — schema definition for `schema_migrations` table |
+| `DatabaseError`         | `DatabaseError.js`            | Stable (default export)                                  |
+| `SchemaDefinitionError` | `SchemaDefinitionError.js`    | Stable (default export)                                  |
 
 ### Functions
 
-| Export | Source | Stability |
-|--------|--------|-----------|
-| `db()` | `DB.js` | Stable — returns initialized db instance |
-| `pgp()` | `DB.js` | Stable — returns pg-promise root |
-| `callDb()` | `utils/callDB.js` | Stable — schema-aware model binding |
-| `bootstrap()` | `migrate/bootstrap.js` | Stable |
-| `setAuditActorResolver(fn)` | `auditActorResolver.js` | Stable |
-| `clearAuditActorResolver()` | `auditActorResolver.js` | Stable |
-| `getAuditActor()` | `auditActorResolver.js` | Stable |
+| Export                      | Source                  | Stability                                |
+| --------------------------- | ----------------------- | ---------------------------------------- |
+| `db()`                      | `DB.js`                 | Stable — returns initialized db instance |
+| `pgp()`                     | `DB.js`                 | Stable — returns pg-promise root         |
+| `callDb()`                  | `utils/callDB.js`       | Stable — schema-aware model binding      |
+| `bootstrap()`               | `migrate/bootstrap.js`  | Stable                                   |
+| `setAuditActorResolver(fn)` | `auditActorResolver.js` | Stable                                   |
+| `clearAuditActorResolver()` | `auditActorResolver.js` | Stable                                   |
+| `getAuditActor()`           | `auditActorResolver.js` | Stable                                   |
 
 ### Internal (not part of public API)
 
@@ -87,22 +87,22 @@ The following are implementation details and may change without a major version 
 
 ## 4. Technical Requirements
 
-| Requirement | Value |
-|-------------|-------|
-| Runtime | Node.js >= 18 |
-| Database | PostgreSQL >= 12 |
-| Module System | ESM only (`"type": "module"`) |
-| Peer Dependency | pg-promise >= 11.x |
+| Requirement     | Value                         |
+| --------------- | ----------------------------- |
+| Runtime         | Node.js >= 18                 |
+| Database        | PostgreSQL >= 12              |
+| Module System   | ESM only (`"type": "module"`) |
+| Peer Dependency | pg-promise >= 11.x            |
 
 ### Runtime Dependencies
 
-| Package | Purpose | Rationale |
-|---------|---------|-----------|
-| pg-promise | Database driver | See ADR-0001 |
-| zod | DTO validation | See ADR-0006 |
-| lodash | cloneDeep, isPlainObject | Minimal usage; candidate for removal |
-| @nap-sft/tablsx | Excel I/O | See ADR-0009 |
-| lru-cache | ColumnSet caching | See ADR-0008 |
+| Package         | Purpose                  | Rationale                            |
+| --------------- | ------------------------ | ------------------------------------ |
+| pg-promise      | Database driver          | See ADR-0001                         |
+| zod             | DTO validation           | See ADR-0006                         |
+| lodash          | cloneDeep, isPlainObject | Minimal usage; candidate for removal |
+| @nap-sft/tablsx | Excel I/O                | See ADR-0009                         |
+| lru-cache       | ColumnSet caching        | See ADR-0008                         |
 
 ---
 
@@ -114,17 +114,18 @@ This section defines every public method signature, parameter contract, return t
 
 #### `DB.init(connection, repositories, logger?, options?)`
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `connection` | `object \| string` | Yes | pg-promise connection config or connection string |
-| `repositories` | `Object<string, Function>` | Yes | Map of repository names to constructor classes |
-| `logger` | `object \| null` | No | Logger instance passed to every repository |
-| `options` | `object` | No | Additional config |
-| `options.auditActorResolver` | `() => string \| null` | No | Callback for dynamic audit actor resolution |
+| Parameter                    | Type                       | Required | Description                                       |
+| ---------------------------- | -------------------------- | -------- | ------------------------------------------------- |
+| `connection`                 | `object \| string`         | Yes      | pg-promise connection config or connection string |
+| `repositories`               | `Object<string, Function>` | Yes      | Map of repository names to constructor classes    |
+| `logger`                     | `object \| null`           | No       | Logger instance passed to every repository        |
+| `options`                    | `object`                   | No       | Additional config                                 |
+| `options.auditActorResolver` | `() => string \| null`     | No       | Callback for dynamic audit actor resolution       |
 
 **Returns:** `typeof DB` (the class itself, for chaining)
 
 **Behavior:**
+
 1. Guards against double-initialization — if `DB.db` already exists, returns immediately
 2. Validates `connection` is not null/undefined; validates `repositories` is a non-array object
 3. Initializes pg-promise with `{ capSQL: true }` and an `extend()` hook
@@ -133,6 +134,7 @@ This section defines every public method signature, parameter contract, return t
 6. If `options.auditActorResolver` is provided, calls `setAuditActorResolver(fn)`
 
 **Invariants:**
+
 - Only one initialization per process (singleton)
 - Each repository constructor receives `(db, pgp, logger)` — the `db` argument is the pg-promise connection/task object, not `DB.db`
 - The `extend()` hook fires on every new connection/task, so repositories are available within transactions
@@ -149,20 +151,22 @@ This section defines every public method signature, parameter contract, return t
 
 #### Constructor: `new QueryModel(db, pgp, schema, logger?)`
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `db` | `IDatabase` | Yes | pg-promise database or task instance |
-| `pgp` | `IMain` | Yes | pg-promise root library |
-| `schema` | `TableSchema` | Yes | Schema definition object |
-| `logger` | `object \| null` | No | Logger with `.error()`, `.info()`, `.debug()` methods |
+| Parameter | Type             | Required | Description                                           |
+| --------- | ---------------- | -------- | ----------------------------------------------------- |
+| `db`      | `IDatabase`      | Yes      | pg-promise database or task instance                  |
+| `pgp`     | `IMain`          | Yes      | pg-promise root library                               |
+| `schema`  | `TableSchema`    | Yes      | Schema definition object                              |
+| `logger`  | `object \| null` | No       | Logger with `.error()`, `.info()`, `.debug()` methods |
 
 **Behavior:**
+
 1. Validates `schema` is an object with `table` and `columns` properties; validates `db` and `pgp` are truthy
 2. Deep-clones the schema (via `lodash.cloneDeep`). If `hasAuditFields` is truthy, calls `addAuditFields(schema)` before cloning
 3. Creates the ColumnSet via `createColumnSet(this.schema, this.pgp)`
 4. Stores `db`, `pgp`, `logger`, `_schema`, and `cs` as instance properties
 
 **Getters:**
+
 - `schema` → `this._schema` (the processed schema object)
 - `schemaName` → `pgp.as.name(this._schema.dbSchema)` (escaped identifier)
 - `tableName` → `pgp.as.name(this._schema.table)` (escaped identifier)
@@ -217,6 +221,7 @@ findWhere(
 ```
 
 **SQL pattern:**
+
 ```sql
 SELECT {columnWhitelist || *} FROM "dbSchema"."table"
   WHERE ({conditions clause}) AND {filters clause}
@@ -225,6 +230,7 @@ SELECT {columnWhitelist || *} FROM "dbSchema"."table"
 ```
 
 **Behavior:**
+
 1. Validates `conditions` is an array
 2. If `conditions.length > 0`, builds WHERE via `buildWhereClause(conditions, true, [], joinType, includeDeactivated)`
 3. If `filters` has keys, appends via `buildCondition([filters], 'AND', values)`
@@ -261,6 +267,7 @@ findAfterCursor(
 ```
 
 **SQL pattern:**
+
 ```sql
 SELECT {cols} FROM "dbSchema"."table"
   WHERE (col1, col2) > ($1, $2)        -- or < for descending
@@ -271,6 +278,7 @@ SELECT {cols} FROM "dbSchema"."table"
 ```
 
 **Behavior:**
+
 1. If `cursor` has keys, maps `orderBy` columns to cursor values (throws if any column missing from cursor)
 2. Uses PostgreSQL tuple comparison: `(escapedCols) > (placeholders)` (or `<` when `descending: true`)
 3. Filters support `{ and: [...] }` / `{ or: [...] }` top-level nesting
@@ -437,25 +445,25 @@ buildCondition(group: Object[], joiner: 'AND' | 'OR' = 'AND', values: any[] = []
 
 Iterates each item in `group`. For each key-value pair:
 
-| Value shape | SQL output |
-|-------------|------------|
-| `null` | `"col" IS NULL` |
-| Scalar (string, number) | `"col" = $N` (parameterized) |
-| `{ $like: v }` | `"col" LIKE $N` |
-| `{ $ilike: v }` | `"col" ILIKE $N` |
-| `{ $from: v }` | `"col" >= $N` |
-| `{ $to: v }` | `"col" <= $N` |
-| `{ $in: [...] }` | `"col" IN ($N, $N+1, ...)` — throws if empty array |
-| `{ $eq: v }` | `"col" = $N` |
-| `{ $ne: null }` | `"col" IS NOT NULL` |
-| `{ $ne: v }` | `"col" != $N` |
-| `{ $is: null }` | `"col" IS NULL` — throws if value is not `null` |
-| `{ $not: null }` | `"col" IS NOT NULL` — throws if value is not `null` |
-| `{ $max: true }` | `"col" = (SELECT MAX("col") FROM "schema"."table")` |
-| `{ $min: true }` | `"col" = (SELECT MIN("col") FROM "schema"."table")` |
-| `{ $sum: true }` | `"col" = (SELECT SUM("col") FROM "schema"."table")` |
-| `{ $and: [...] }` or `{ and: [...] }` | `(recursive AND group)` |
-| `{ $or: [...] }` or `{ or: [...] }` | `(recursive OR group)` |
+| Value shape                           | SQL output                                          |
+| ------------------------------------- | --------------------------------------------------- |
+| `null`                                | `"col" IS NULL`                                     |
+| Scalar (string, number)               | `"col" = $N` (parameterized)                        |
+| `{ $like: v }`                        | `"col" LIKE $N`                                     |
+| `{ $ilike: v }`                       | `"col" ILIKE $N`                                    |
+| `{ $from: v }`                        | `"col" >= $N`                                       |
+| `{ $to: v }`                          | `"col" <= $N`                                       |
+| `{ $in: [...] }`                      | `"col" IN ($N, $N+1, ...)` — throws if empty array  |
+| `{ $eq: v }`                          | `"col" = $N`                                        |
+| `{ $ne: null }`                       | `"col" IS NOT NULL`                                 |
+| `{ $ne: v }`                          | `"col" != $N`                                       |
+| `{ $is: null }`                       | `"col" IS NULL` — throws if value is not `null`     |
+| `{ $not: null }`                      | `"col" IS NOT NULL` — throws if value is not `null` |
+| `{ $max: true }`                      | `"col" = (SELECT MAX("col") FROM "schema"."table")` |
+| `{ $min: true }`                      | `"col" = (SELECT MIN("col") FROM "schema"."table")` |
+| `{ $sum: true }`                      | `"col" = (SELECT SUM("col") FROM "schema"."table")` |
+| `{ $and: [...] }` or `{ and: [...] }` | `(recursive AND group)`                             |
+| `{ $or: [...] }` or `{ or: [...] }`   | `(recursive OR group)`                              |
 
 Unsupported operator keys throw `SchemaDefinitionError`.
 
@@ -471,13 +479,13 @@ handleDbError(err: Error) → never
 
 Logs via `logger.error` if available. Maps PostgreSQL SQLSTATE codes to `DatabaseError`:
 
-| SQLSTATE | Message |
-|----------|---------|
-| `23505` | Unique constraint violation |
-| `23503` | Foreign key constraint violation |
-| `23514` | Check constraint violation |
-| `22P02` | Invalid input syntax for type |
-| (default) | Database operation failed |
+| SQLSTATE  | Message                          |
+| --------- | -------------------------------- |
+| `23505`   | Unique constraint violation      |
+| `23503`   | Foreign key constraint violation |
+| `23514`   | Check constraint violation       |
+| `22P02`   | Invalid input syntax for type    |
+| (default) | Database operation failed        |
 
 Always throws `DatabaseError(message, err)`.
 
@@ -490,6 +498,7 @@ Extends `QueryModel`. Adds write operations, Zod validation, audit field resolut
 #### Constructor: `new TableModel(db, pgp, schema, logger?)`
 
 **Behavior:**
+
 1. Throws `SchemaDefinitionError('Primary key must be defined in the schema')` if `schema.constraints?.primaryKey` is falsy
 2. Calls `super(db, pgp, schema, logger)`
 3. Determines `_auditUserDefault`:
@@ -507,6 +516,7 @@ insert(dto: Object) → Promise<Object>
 ```
 
 **Behavior:**
+
 1. Rejects if `dto` is not a plain object
 2. Validates via `insertValidator.parse(dto)` — rejects with `SchemaDefinitionError` on failure
 3. Sanitizes via `sanitizeDto(dto)` (includes immutable columns)
@@ -524,6 +534,7 @@ update(id: number | string, dto: Object) → Promise<Object | null>
 ```
 
 **Behavior:**
+
 1. Rejects if `id` is invalid or `dto` is empty/not-object
 2. Validates via `updateValidator.parse(dto)`
 3. Sanitizes via `sanitizeDto(dto, { includeImmutable: false })` — immutable columns are stripped
@@ -558,6 +569,7 @@ upsert(
 ```
 
 **Behavior:**
+
 1. Validates `dto` is plain object, `conflictColumns` is non-empty array
 2. Sanitizes `dto`, sets `created_by` and `updated_by` via actor resolution if audit fields enabled
 3. Builds a dynamic `ColumnSet` from `Object.keys(safeDto)`
@@ -565,6 +577,7 @@ upsert(
 5. Appends audit update clause: `updated_at = NOW(), updated_by = EXCLUDED.updated_by`
 
 **SQL pattern:**
+
 ```sql
 INSERT INTO "schema"."table" (...) VALUES (...)
 ON CONFLICT (conflictCol1, conflictCol2)
@@ -624,6 +637,7 @@ updateWhere(
 ```
 
 **Behavior:**
+
 1. Validates `where` and `updates` are non-empty
 2. Validates `updates` via `updateValidator`
 3. Sanitizes `updates` with `{ includeImmutable: false }`
@@ -641,6 +655,7 @@ bulkInsert(records: Object[], returning?: string[] = null) → Promise<number | 
 ```
 
 **Behavior:**
+
 1. Validates records array is non-empty, validates `returning` is array or null
 2. Validates all records via `insertValidator` using `validateDto(records, validator)`
 3. Sanitizes each record; sets `created_by` via actor resolution if audit
@@ -659,6 +674,7 @@ bulkUpdate(records: Object[], returning?: string[] = null) → Promise<Array>
 ```
 
 **Behavior:**
+
 1. Validates schema has `primaryKey`, records array is non-empty
 2. Validates all records via `updateValidator`
 3. For each record: validates `id`, sanitizes with `{ includeImmutable: false }`, sets `updated_by`, removes `id` from update payload
@@ -681,6 +697,7 @@ importFromSpreadsheet(
 ```
 
 **Behavior:**
+
 1. Reads file via `readFileSync`, parses via `@nap-sft/tablsx.WorkbookReader.fromBuffer()`
 2. Validates sheet index is in bounds
 3. First row is treated as headers; subsequent rows are mapped to objects
@@ -774,6 +791,7 @@ bootstrap({
 ```
 
 **Behavior:**
+
 1. Validates `models` is an object
 2. Enables each PostgreSQL extension: `CREATE EXTENSION IF NOT EXISTS $1:name`
 3. For each model class: instantiates `new ModelClass(t, DB.pgp)`, calls `setSchemaName(schema)`, calls `createTable()`
@@ -809,10 +827,10 @@ Returns `_auditActorResolver?.() ?? null`.
 
 #### Constructor: `new MigrationManager({ schema?, dir? }?)`
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `schema` | `string` | `'public'` | Target PostgreSQL schema |
-| `dir` | `string` | `'migrations'` | Directory containing migration files |
+| Parameter | Type     | Default        | Description                          |
+| --------- | -------- | -------------- | ------------------------------------ |
+| `schema`  | `string` | `'public'`     | Target PostgreSQL schema             |
+| `dir`     | `string` | `'migrations'` | Directory containing migration files |
 
 #### `ensure(t)`
 
@@ -847,6 +865,7 @@ applyAll() → Promise<{ applied: number, files: string[] }>
 ```
 
 **Behavior:**
+
 1. Opens a transaction via `DB.db.tx()`
 2. Acquires advisory lock: `SELECT pg_advisory_xact_lock(hashtext($1))` with `this.schema`
 3. Calls `ensure(t)` to create tracking table
@@ -860,6 +879,7 @@ applyAll() → Promise<{ applied: number, files: string[] }>
 6. Returns count and file names of applied migrations
 
 **Invariants:**
+
 - All migrations run in a single transaction — failure rolls back everything
 - Advisory lock prevents concurrent migration runs on the same schema
 - The `db` parameter passed to `up()` is the transaction object, not `DB.db`
@@ -872,13 +892,13 @@ new SchemaMigrations(db, pgp, logger?)
 
 Extends `TableModel` with the built-in `migrationSchema`. The schema defines the `schema_migrations` table:
 
-| Column | Type | Constraints |
-|--------|------|-------------|
-| `schema_name` | `text` | NOT NULL, part of composite PK |
-| `version` | `integer` | NOT NULL, part of composite PK |
-| `hash` | `text` | NOT NULL |
-| `label` | `text` | nullable |
-| `applied_at` | `timestamptz` | NOT NULL, DEFAULT `now()` |
+| Column        | Type          | Constraints                    |
+| ------------- | ------------- | ------------------------------ |
+| `schema_name` | `text`        | NOT NULL, part of composite PK |
+| `version`     | `integer`     | NOT NULL, part of composite PK |
+| `hash`        | `text`        | NOT NULL                       |
+| `label`       | `text`        | nullable                       |
+| `applied_at`  | `timestamptz` | NOT NULL, DEFAULT `now()`      |
 
 **Constraints:** Composite primary key `(schema_name, version)`. Index on `(schema_name, version)`. Audit fields enabled (`hasAuditFields: true`).
 
@@ -895,6 +915,7 @@ While `schemaBuilder.js` is internal, its behavior defines the SQL contracts tha
 **Cache:** LRU cache keyed by `"${table}::${dbSchema}"`, max 20,000 entries, 1-hour TTL.
 
 **Behavior:**
+
 1. Returns cached result if available
 2. Validates `colProps.skip` is a function if provided (throws `SchemaDefinitionError` otherwise)
 3. Filters out audit field columns (`created_at`, `created_by`, `updated_at`, `updated_by`) from base columns
@@ -906,11 +927,11 @@ While `schemaBuilder.js` is internal, its behavior defines the SQL contracts tha
    - Sets `def` from column `default` or `colProps.def`
 6. Creates three `ColumnSet` variants:
 
-| Variant | Content | Purpose |
-|---------|---------|---------|
-| `cs[tableName]` | Base columns (no audit fields) | General use |
-| `cs.insert` | Base + `created_by` | INSERT operations |
-| `cs.update` | Base + `updated_at` (with `mod: '^'`, `def: 'CURRENT_TIMESTAMP'`) + `updated_by` | UPDATE operations |
+| Variant         | Content                                                                          | Purpose           |
+| --------------- | -------------------------------------------------------------------------------- | ----------------- |
+| `cs[tableName]` | Base columns (no audit fields)                                                   | General use       |
+| `cs.insert`     | Base + `created_by`                                                              | INSERT operations |
+| `cs.update`     | Base + `updated_at` (with `mod: '^'`, `def: 'CURRENT_TIMESTAMP'`) + `updated_by` | UPDATE operations |
 
 The `mod: '^'` on `updated_at` means the value is injected as raw SQL (not parameterized), so `CURRENT_TIMESTAMP` is used literally.
 
@@ -925,6 +946,7 @@ When `hasAuditFields` is false, `cs.insert` and `cs.update` both equal `cs[table
 Generates the full DDL statement for creating a table and its indexes.
 
 **SQL pattern:**
+
 ```sql
 CREATE SCHEMA IF NOT EXISTS "dbSchema";
 CREATE TABLE IF NOT EXISTS "dbSchema"."table" (
@@ -939,11 +961,13 @@ CREATE INDEX IF NOT EXISTS "idx_table_col" ON "dbSchema"."table" ("col");
 ```
 
 **Constraint naming conventions:**
+
 - Unique constraints: `uidx_{table}_{columns joined by _}_{6-char MD5 hash}`
 - Foreign keys: `fk_{table}_{6-char MD5 hash}` (hash of `table + refTable + columns`)
 - Hash function: `crypto.createHash('md5').update(input).digest('hex').slice(0, 6)`
 
 **Default value quoting rules:**
+
 - SQL functions (containing `(...)`) → unquoted: `DEFAULT gen_random_uuid()`
 - Numeric values → unquoted: `DEFAULT 0`
 - Quoted strings with type casts (`'...'::type`) → preserved as-is
@@ -957,6 +981,7 @@ CREATE INDEX IF NOT EXISTS "idx_table_col" ON "dbSchema"."table" ("col");
 #### `createIndexesSQL(schema, unique?, logger?)`
 
 **Index SQL pattern:**
+
 ```sql
 CREATE [UNIQUE] INDEX [IF NOT EXISTS] "indexName"
   ON "dbSchema"."table" [USING METHOD]
@@ -969,6 +994,7 @@ CREATE [UNIQUE] INDEX [IF NOT EXISTS] "indexName"
 **Index naming:** `{prefix}_{table}_{columns joined by _}` (lowercase), where prefix is `uidx` for unique, `idx` for regular. Custom names via `index.name` property.
 
 **Column expressions support:**
+
 - Simple string: `"colName"`
 - Object: `{ column: 'name', opclass: 'text_ops', order: 'DESC' }`
 
@@ -976,11 +1002,11 @@ CREATE [UNIQUE] INDEX [IF NOT EXISTS] "indexName"
 
 Mutates the schema's `columns` array by pushing audit fields if not already present:
 
-| `hasAuditFields` format | `created_by` / `updated_by` type | Default value |
-|------------------------|----------------------------------|---------------|
-| `true` (boolean) | `varchar(50)` | `'system'` (single-quoted for DDL) |
-| `{ enabled: true }` (no userFields) | `varchar(50)` | `null` (nullable, no default) |
-| `{ enabled: true, userFields: { type, nullable, default } }` | Custom type | Custom default |
+| `hasAuditFields` format                                      | `created_by` / `updated_by` type | Default value                      |
+| ------------------------------------------------------------ | -------------------------------- | ---------------------------------- |
+| `true` (boolean)                                             | `varchar(50)`                    | `'system'` (single-quoted for DDL) |
+| `{ enabled: true }` (no userFields)                          | `varchar(50)`                    | `null` (nullable, no default)      |
+| `{ enabled: true, userFields: { type, nullable, default } }` | Custom type                      | Custom default                     |
 
 Also adds `deactivated_at timestamptz` (nullable, no default) if `softDelete: true`.
 
@@ -996,24 +1022,26 @@ Returns `{ baseValidator: ZodObject, insertValidator: ZodObject, updateValidator
 
 **Type mapping:**
 
-| SQL Type | Zod Type |
-|----------|----------|
-| `varchar(N)` | `z.string().max(N)` |
-| `text` | `z.string()` |
-| `uuid` | `z.string().uuid()` |
-| `int`, `serial` | `z.number().int()` |
-| `numeric` | `z.number()` |
-| `boolean` | `z.boolean()` |
-| `timestamp`, `date` | `z.coerce.date()` |
-| `jsonb` | `z.any()` |
-| (all others, including `timestamptz`) | `z.any()` |
+| SQL Type                              | Zod Type            |
+| ------------------------------------- | ------------------- |
+| `varchar(N)`                          | `z.string().max(N)` |
+| `text`                                | `z.string()`        |
+| `uuid`                                | `z.string().uuid()` |
+| `int`, `serial`                       | `z.number().int()`  |
+| `numeric`                             | `z.number()`        |
+| `boolean`                             | `z.boolean()`       |
+| `timestamp`, `date`                   | `z.coerce.date()`   |
+| `jsonb`                               | `z.any()`           |
+| (all others, including `timestamptz`) | `z.any()`           |
 
 **Validator variants:**
+
 - **baseValidator:** `notNull` → required; otherwise `zodType.nullable().optional()`
 - **insertValidator:** `notNull` AND no `default` → required; otherwise `nullable().optional()`
 - **updateValidator:** all fields `nullable().optional()`
 
 **Special behaviors:**
+
 - Column named `email` with string type: adds `.email()` validation
 - `colProps.validator` overrides the auto-generated Zod type for that column
 - CHECK constraints with `char_length(field) > N`: adds `.min(N+1)` to the Zod type
@@ -1030,6 +1058,7 @@ new DatabaseError(message: string, originalError: Error)
 ```
 
 **Properties:**
+
 - `name`: `'DatabaseError'`
 - `message`: The provided message string
 - `code`: `originalError.code` (SQLSTATE)
@@ -1045,6 +1074,7 @@ new SchemaDefinitionError(message: string, originalError?: Error = null)
 ```
 
 **Properties:**
+
 - `name`: `'SchemaDefinitionError'`
 - `message`: The provided message string
 - `original`: The `originalError` passed to the constructor (or `null`)
@@ -1055,6 +1085,7 @@ new SchemaDefinitionError(message: string, originalError?: Error = null)
 ### 5.10 ID Validation (Internal)
 
 `isValidId(id)` returns `true` if:
+
 - `id` is a finite number (`typeof id === 'number' && Number.isFinite(id)`), OR
 - `id` is a non-empty string after trimming
 
@@ -1079,6 +1110,7 @@ A table schema is a plain JavaScript object. The canonical structure is defined 
 **Constraints:** `primaryKey` (string[]), `unique` (string[] | UniqueConstraintDefinition)[], `foreignKeys` (ConstraintDefinition[]), `checks` (ConstraintDefinition[]), `indexes` (ConstraintDefinition[])
 
 **Invariants:**
+
 - TableModel requires `constraints.primaryKey` to be defined; constructor throws `SchemaDefinitionError` if missing
 - `notNull: true` is the canonical way to express NOT NULL (not the deprecated `nullable: false`)
 - String defaults must be single-quoted within the string: `default: "'user'"`
@@ -1095,17 +1127,19 @@ A table schema is a plain JavaScript object. The canonical structure is defined 
 **Automatic filtering:** These methods append `AND deactivated_at IS NULL` to WHERE clauses: `findById`, `findAll`, `findWhere`, `findOneBy`, `findAfterCursor`, `countWhere`, `countAll`, `exists`. Bypass with `{ includeDeactivated: true }`.
 
 **Operations:**
-| Method | Behavior | Affects |
-|--------|----------|---------|
-| `removeWhere(conditions)` | Sets `deactivated_at = NOW()` | Active records matching conditions |
-| `restoreWhere(conditions)` | Sets `deactivated_at = NULL` | Soft-deleted records matching conditions |
-| `purgeSoftDeleteWhere(conditions)` | Hard DELETE | Soft-deleted records matching conditions |
-| `purgeSoftDeleteById(id)` | Hard DELETE | One soft-deleted record by ID |
-| `findSoftDeleted()` | SELECT | Records where `deactivated_at IS NOT NULL` |
-| `delete(id)` | Hard DELETE | Active records only (adds `AND deactivated_at IS NULL` when softDelete enabled) |
-| `deleteWhere(conditions)` | Hard DELETE | Active records matching conditions (adds `AND deactivated_at IS NULL` when softDelete enabled) |
+
+| Method                             | Behavior                      | Affects                                                                                        |
+| ---------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `removeWhere(conditions)`          | Sets `deactivated_at = NOW()` | Active records matching conditions                                                             |
+| `restoreWhere(conditions)`         | Sets `deactivated_at = NULL`  | Soft-deleted records matching conditions                                                       |
+| `purgeSoftDeleteWhere(conditions)` | Hard DELETE                   | Soft-deleted records matching conditions                                                       |
+| `purgeSoftDeleteById(id)`          | Hard DELETE                   | One soft-deleted record by ID                                                                  |
+| `findSoftDeleted()`                | SELECT                        | Records where `deactivated_at IS NOT NULL`                                                     |
+| `delete(id)`                       | Hard DELETE                   | Active records only (adds `AND deactivated_at IS NULL` when softDelete enabled)                |
+| `deleteWhere(conditions)`          | Hard DELETE                   | Active records matching conditions (adds `AND deactivated_at IS NULL` when softDelete enabled) |
 
 **Invariants:**
+
 - `bulkInsert()` strips `deactivated_at` from input — new records are always active
 - `removeWhere` and `restoreWhere` set `updated_at` and `updated_by` when audit fields are enabled
 - The column name is always `deactivated_at` (not configurable)
@@ -1116,20 +1150,23 @@ A table schema is a plain JavaScript object. The canonical structure is defined 
 **Activation:** `hasAuditFields: true` (boolean) or `hasAuditFields: { enabled: true, userFields: { type, nullable, default } }` (object).
 
 **Columns added:**
-| Column | Type | Boolean format default | Object format default |
-|--------|------|----------------------|----------------------|
-| `created_at` | `timestamptz NOT NULL DEFAULT NOW()` | Same | Same (not configurable) |
-| `created_by` | `varchar(50) NOT NULL DEFAULT 'system'` | Same | Configurable via `userFields` |
-| `updated_at` | `timestamptz NOT NULL DEFAULT NOW()` | Same | Same (not configurable) |
-| `updated_by` | `varchar(50) NOT NULL DEFAULT 'system'` | Same | Configurable via `userFields` |
+
+| Column       | Type                                    | Boolean format default | Object format default         |
+| ------------ | --------------------------------------- | ---------------------- | ----------------------------- |
+| `created_at` | `timestamptz NOT NULL DEFAULT NOW()`    | Same                   | Same (not configurable)       |
+| `created_by` | `varchar(50) NOT NULL DEFAULT 'system'` | Same                   | Configurable via `userFields` |
+| `updated_at` | `timestamptz NOT NULL DEFAULT NOW()`    | Same                   | Same (not configurable)       |
+| `updated_by` | `varchar(50) NOT NULL DEFAULT 'system'` | Same                   | Configurable via `userFields` |
 
 **Actor resolution priority:** (1) audit actor resolver callback, (2) schema `_auditUserDefault`, (3) `'system'` (boolean format), (4) `null` (object format with `default: null`)
 
 **When fields are set:**
+
 - `created_at` / `created_by`: insert only (immutable after creation)
 - `updated_at` / `updated_by`: insert, update, updateWhere, touch, upsert (conflict), bulkUpsert (conflict), removeWhere, restoreWhere
 
 **Invariants:**
+
 - `created_at`, `created_by`, `updated_at`, `updated_by` are reserved names when audit fields are enabled
 - The resolver must be synchronous — async functions are not supported
 - Only one resolver can be active (module-level singleton)
@@ -1140,25 +1177,27 @@ A table schema is a plain JavaScript object. The canonical structure is defined 
 Conditions are passed as an **array of objects**. Each object is a set of AND conditions.
 
 **Operators:**
-| Operator | SQL | Null behavior |
-|----------|-----|---------------|
-| Direct value | `=` / `IS NULL` | `{ col: null }` → `col IS NULL` |
-| `$eq` | `=` | — |
-| `$ne` | `!=` / `IS NOT NULL` | `$ne: null` → `IS NOT NULL` |
-| `$like` | `LIKE` | — |
-| `$ilike` | `ILIKE` | — |
-| `$from` | `>=` | — |
-| `$to` | `<=` | — |
-| `$in` | `IN (...)` | Array must be non-empty |
-| `$is` | `IS NULL` | Only accepts `null` |
-| `$not` | `IS NOT NULL` | Only accepts `null` |
-| `$max` | `= (SELECT MAX(...))` | Subquery against same table |
-| `$min` | `= (SELECT MIN(...))` | Subquery against same table |
-| `$sum` | `= (SELECT SUM(...))` | Subquery against same table |
+
+| Operator     | SQL                   | Null behavior                   |
+| ------------ | --------------------- | ------------------------------- |
+| Direct value | `=` / `IS NULL`       | `{ col: null }` → `col IS NULL` |
+| `$eq`        | `=`                   | —                               |
+| `$ne`        | `!=` / `IS NOT NULL`  | `$ne: null` → `IS NOT NULL`     |
+| `$like`      | `LIKE`                | —                               |
+| `$ilike`     | `ILIKE`               | —                               |
+| `$from`      | `>=`                  | —                               |
+| `$to`        | `<=`                  | —                               |
+| `$in`        | `IN (...)`            | Array must be non-empty         |
+| `$is`        | `IS NULL`             | Only accepts `null`             |
+| `$not`       | `IS NOT NULL`         | Only accepts `null`             |
+| `$max`       | `= (SELECT MAX(...))` | Subquery against same table     |
+| `$min`       | `= (SELECT MIN(...))` | Subquery against same table     |
+| `$sum`       | `= (SELECT SUM(...))` | Subquery against same table     |
 
 **Boolean logic:** `$and` / `$or` (or `and` / `or` without prefix) nest condition groups.
 
 **Invariants:**
+
 - All values are parameterized via pg-promise — no SQL injection is possible
 - Unsupported operators throw `SchemaDefinitionError`
 - Soft delete filter is appended automatically when `softDelete: true` unless `includeDeactivated: true`
@@ -1166,6 +1205,7 @@ Conditions are passed as an **array of objects**. Each object is a set of AND co
 ### 6.5 Zod Validation
 
 Three validators are auto-generated per schema from `generateZodFromTableSchema()`:
+
 - **baseValidator** — All fields, notNull enforced
 - **insertValidator** — Only required fields (notNull without default)
 - **updateValidator** — All fields optional
@@ -1173,6 +1213,7 @@ Three validators are auto-generated per schema from `generateZodFromTableSchema(
 **Type mapping:** varchar/text/char → `z.string()`, uuid → `z.string().uuid()`, int/serial → `z.number().int()`, numeric → `z.number()`, boolean → `z.boolean()`, date/timestamp → `z.coerce.date()`, jsonb → `z.any()`. Note: `timestamptz` falls through to `z.any()` (the regex only matches exact `timestamp` and `date`).
 
 **Invariants:**
+
 - Validation runs automatically on `insert`, `update`, `bulkInsert`, `bulkUpdate`
 - Validation failures throw `SchemaDefinitionError` with the ZodError as `original`
 - Custom validators via `colProps.validator` override the auto-generated validator for that column
@@ -1187,6 +1228,7 @@ Three validators are auto-generated per schema from `generateZodFromTableSchema(
 **SQLSTATE mapping:** 23505 (unique violation), 23503 (FK violation), 23514 (check violation), 22P02 (invalid input syntax)
 
 **Invariants:**
+
 - PostgreSQL errors are always wrapped in `DatabaseError` via `handleDbError()`
 - Validation/config errors always use `SchemaDefinitionError`
 - The `original` error is always preserved for tracing
@@ -1201,6 +1243,7 @@ Three validators are auto-generated per schema from `generateZodFromTableSchema(
 **Required export:** `async up({ db, schema })`
 
 **Invariants:**
+
 - All pending migrations run in a single transaction — any failure rolls back the entire batch
 - SHA-256 hash of each file is stored in `schema_migrations` at application time
 - `pg_advisory_xact_lock(hashtext(schema))` prevents concurrent migrations on the same schema
@@ -1211,6 +1254,7 @@ Three validators are auto-generated per schema from `generateZodFromTableSchema(
 `findAfterCursor()` implements keyset pagination.
 
 **Invariants:**
+
 - Uses tuple comparison: `WHERE (col1, col2) > ($1, $2) ORDER BY col1, col2 LIMIT $3`
 - Consistent O(N) performance regardless of page depth
 - Soft delete filter applied before cursor comparison
@@ -1219,6 +1263,7 @@ Three validators are auto-generated per schema from `generateZodFromTableSchema(
 ### 6.9 Multi-Schema Support
 
 **Invariants:**
+
 - `dbSchema` property on schema objects determines the PostgreSQL schema
 - `setSchemaName()` switches schema at runtime
 - Single pg-promise connection pool shared across all schemas/tenants
@@ -1230,6 +1275,7 @@ Three validators are auto-generated per schema from `generateZodFromTableSchema(
 - `exportToSpreadsheet(filePath, where?, joinType?, options?)` — Queries and writes to `.xlsx`
 
 **Invariants:**
+
 - Import strips `deactivated_at` when `softDelete: true`
 - Import validates via Zod before inserting
 - Export respects soft delete filter
@@ -1240,16 +1286,16 @@ Three validators are auto-generated per schema from `generateZodFromTableSchema(
 
 Decisions the project has explicitly accepted. These are not bugs — they are intentional boundaries.
 
-| Constraint | Rationale |
-|-----------|-----------|
-| PostgreSQL only — no MySQL, SQLite, etc. | Principle #1: PostgreSQL-first. Multi-database support would water down every feature. |
-| Single database connection per process | pg-promise best practice. Multi-db would require architectural changes to DB singleton. |
-| ESM only — no CommonJS | Aligns with Node.js ecosystem direction. CJS consumers must use dynamic `import()`. |
-| Synchronous audit actor resolver | Keeps the insert/update hot path simple. Async resolution would complicate every write method. |
-| One resolver at a time (global) | Module-level singleton. Per-model resolvers would add complexity for a rare use case. |
-| `deactivated_at` column name is fixed | Standardization across all pg-schemata consumers. Custom column names would multiply code paths. |
-| No eager/lazy relationship loading | Principle #3: stay close to SQL. Relationship loading is an ORM pattern that hides queries. |
-| No connection pooling management | Deferred to pg-promise, which handles this well. Duplicating it adds no value. |
+| Constraint                               | Rationale                                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| PostgreSQL only — no MySQL, SQLite, etc. | Principle #1: PostgreSQL-first. Multi-database support would water down every feature.           |
+| Single database connection per process   | pg-promise best practice. Multi-db would require architectural changes to DB singleton.          |
+| ESM only — no CommonJS                   | Aligns with Node.js ecosystem direction. CJS consumers must use dynamic `import()`.              |
+| Synchronous audit actor resolver         | Keeps the insert/update hot path simple. Async resolution would complicate every write method.   |
+| One resolver at a time (global)          | Module-level singleton. Per-model resolvers would add complexity for a rare use case.            |
+| `deactivated_at` column name is fixed    | Standardization across all pg-schemata consumers. Custom column names would multiply code paths. |
+| No eager/lazy relationship loading       | Principle #3: stay close to SQL. Relationship loading is an ORM pattern that hides queries.      |
+| No connection pooling management         | Deferred to pg-promise, which handles this well. Duplicating it adds no value.                   |
 
 ---
 
@@ -1259,31 +1305,31 @@ Planned enhancements, ordered by priority. Items move to the behavioral contract
 
 ### Priority 1 — Near Term
 
-| Enhancement | Description | Value |
-|-------------|-------------|-------|
-| Auto-index on `deactivated_at` | Generate index when `softDelete: true` | Query performance for soft-delete-heavy tables |
-| Default audit field indexes | Auto-index `created_at`, `updated_at` | Common query pattern optimization |
-| `markInactive(id)` | Shortcut: `removeWhere({ id })` | Developer convenience |
-| `isActive(id)` | Boolean check: `deactivated_at IS NULL` for given ID | Developer convenience |
+| Enhancement                    | Description                                          | Value                                          |
+| ------------------------------ | ---------------------------------------------------- | ---------------------------------------------- |
+| Auto-index on `deactivated_at` | Generate index when `softDelete: true`               | Query performance for soft-delete-heavy tables |
+| Default audit field indexes    | Auto-index `created_at`, `updated_at`                | Common query pattern optimization              |
+| `markInactive(id)`             | Shortcut: `removeWhere({ id })`                      | Developer convenience                          |
+| `isActive(id)`                 | Boolean check: `deactivated_at IS NULL` for given ID | Developer convenience                          |
 
 ### Priority 2 — Medium Term
 
-| Enhancement | Description | Value |
-|-------------|-------------|-------|
-| `softDeletedSince(daysAgo)` | Records where `deactivated_at` older than N days | Data lifecycle management |
-| Partial unique constraints | `UNIQUE ... WHERE deactivated_at IS NULL` | Correct uniqueness with soft delete |
-| Per-column DDL comments | `COMMENT ON COLUMN ...` from schema definition | Self-documenting database |
-| `autoPurge(thresholdDays)` | Scheduled permanent deletion of old soft-deleted records | Data lifecycle management |
+| Enhancement                 | Description                                              | Value                               |
+| --------------------------- | -------------------------------------------------------- | ----------------------------------- |
+| `softDeletedSince(daysAgo)` | Records where `deactivated_at` older than N days         | Data lifecycle management           |
+| Partial unique constraints  | `UNIQUE ... WHERE deactivated_at IS NULL`                | Correct uniqueness with soft delete |
+| Per-column DDL comments     | `COMMENT ON COLUMN ...` from schema definition           | Self-documenting database           |
+| `autoPurge(thresholdDays)`  | Scheduled permanent deletion of old soft-deleted records | Data lifecycle management           |
 
 ### Priority 3 — Long Term
 
-| Enhancement | Description | Value |
-|-------------|-------------|-------|
-| DTO versioning/migrations | Multiple Zod DTO versions per schema version | API evolution support |
-| Automatic migration script generation | DDL diffing between schema versions | CI/CD workflow support |
-| Role-based permissions at model level | `readRoles`, `writeRoles` in schema metadata | Declarative access control |
-| Embedded relationships | Declarative joins/lookups in schema | Scaffolding and code generation |
-| Column type plugins | Extensible field types (IP, geometric, etc.) | PostgreSQL type ecosystem |
+| Enhancement                           | Description                                  | Value                           |
+| ------------------------------------- | -------------------------------------------- | ------------------------------- |
+| DTO versioning/migrations             | Multiple Zod DTO versions per schema version | API evolution support           |
+| Automatic migration script generation | DDL diffing between schema versions          | CI/CD workflow support          |
+| Role-based permissions at model level | `readRoles`, `writeRoles` in schema metadata | Declarative access control      |
+| Embedded relationships                | Declarative joins/lookups in schema          | Scaffolding and code generation |
+| Column type plugins                   | Extensible field types (IP, geometric, etc.) | PostgreSQL type ecosystem       |
 
 ### Out of Scope (will not be built)
 
@@ -1297,17 +1343,17 @@ Planned enhancements, ordered by priority. Items move to the behavioral contract
 
 ## 9. Version History
 
-| Version | Date | Type | Highlights |
-|---------|------|------|------------|
-| v0.1.0-beta.1 | 2025-04-17 | Beta | Schema definitions, ColumnSet generation, base CRUD |
-| v0.2.0-beta.1 | 2025-06-22 | Beta | Zod validation, spreadsheet I/O, cursor pagination, WHERE builders, error classes |
-| v1.0.0 | 2025-08-16 | Major | First stable release: upsert/bulkUpsert, soft delete, TypeScript types |
-| v1.1.0 | 2025-09-23 | Minor | Migration management, bootstrap utility |
-| v1.2.0 | 2026-01-28 | Minor | Configurable audit fields (object format) |
-| v1.2.1 | 2026-01-29 | Patch | NULLS NOT DISTINCT unique constraints |
-| v1.2.2 | 2026-02-02 | Patch | Excel library migration (exceljs → xlsxjs) |
-| v1.2.3 | 2026-02-02 | Patch | Fix xlsxjs import path |
-| v1.3.0 | 2026-02-13 | Minor | Audit actor resolver, upsert/soft-delete audit fixes |
+| Version       | Date       | Type  | Highlights                                                                        |
+| ------------- | ---------- | ----- | --------------------------------------------------------------------------------- |
+| v0.1.0-beta.1 | 2025-04-17 | Beta  | Schema definitions, ColumnSet generation, base CRUD                               |
+| v0.2.0-beta.1 | 2025-06-22 | Beta  | Zod validation, spreadsheet I/O, cursor pagination, WHERE builders, error classes |
+| v1.0.0        | 2025-08-16 | Major | First stable release: upsert/bulkUpsert, soft delete, TypeScript types            |
+| v1.1.0        | 2025-09-23 | Minor | Migration management, bootstrap utility                                           |
+| v1.2.0        | 2026-01-28 | Minor | Configurable audit fields (object format)                                         |
+| v1.2.1        | 2026-01-29 | Patch | NULLS NOT DISTINCT unique constraints                                             |
+| v1.2.2        | 2026-02-02 | Patch | Excel library migration (exceljs → xlsxjs)                                        |
+| v1.2.3        | 2026-02-02 | Patch | Fix xlsxjs import path                                                            |
+| v1.3.0        | 2026-02-13 | Minor | Audit actor resolver, upsert/soft-delete audit fixes                              |
 
 Full details in `CHANGELOG.md`.
 

@@ -19,6 +19,7 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD, fle
   - Automatic migration tracking in `schema_migrations` table
   - Transaction-safe migration execution
   - Bootstrap utility with PostgreSQL extension support
+- Written in TypeScript — ships full type declarations; opt-in typed rows via `TableModel<UserRow>` and a `Repositories` augmentation for a fully typed `db()`
 - Schema-driven table configuration via plain JavaScript objects
 - Automatic `ColumnSet` generation for efficient pg-promise integration
 - Full CRUD operations, including:
@@ -69,7 +70,7 @@ See the supported modifiers used in `findWhere`, `updateWhere`, and other condit
 export const userSchema = {
   dbSchema: 'public',
   table: 'users',
-  hasAuditFields: true,  // Adds created_at, created_by, updated_at, updated_by
+  hasAuditFields: true, // Adds created_at, created_by, updated_at, updated_by
   softDelete: true,
   columns: [
     { name: 'id', type: 'uuid', notNull: true },
@@ -119,14 +120,46 @@ import { TableModel } from 'pg-schemata';
 import { userSchema } from '../schemas/userSchema.js';
 
 class User extends TableModel {
-  constructor(db) {
-    super(db, userSchema);
+  constructor(db, pgp, logger) {
+    super(db, pgp, userSchema, logger);
   }
 
   async findByEmail(email) {
-    return this.db.oneOrNone(`SELECT * FROM ${this.schema.schema}.${this.schema.table} WHERE email = $1`, [email]);
+    return this.db.oneOrNone(
+      `SELECT * FROM ${this.schemaName}.${this.tableName} WHERE email = $1`,
+      [email]
+    );
   }
 }
+```
+
+**TypeScript:** pass a row interface to get typed CRUD results, and augment
+`Repositories` once so `db()` and `callDb()` know your repository names:
+
+```typescript
+import { TableModel } from 'pg-schemata';
+import type { DbConnection, Logger } from 'pg-schemata';
+import type { IMain } from 'pg-promise';
+
+interface UserRow {
+  id: string;
+  email: string;
+  password_hash: string;
+}
+
+class Users extends TableModel<UserRow> {
+  constructor(db: DbConnection, pgp: IMain, logger?: Logger | null) {
+    super(db, pgp, userSchema, logger);
+  }
+}
+
+declare module 'pg-schemata' {
+  interface Repositories {
+    users: Users;
+  }
+}
+
+// db().users.insert(...) now returns Promise<UserRow>
 ```
 
 ---
@@ -141,9 +174,14 @@ import { User } from './models/User.js';
 DB.init(process.env.DATABASE_URL, { users: User });
 
 async function example() {
-  const created = await db().users.insert({ email: 'test@example.com', password: 'secret' });
+  const created = await db().users.insert({
+    email: 'test@example.com',
+    password: 'secret',
+  });
   const one = await db().users.findById(created.id);
-  const updated = await db().users.update(created.id, { password: 'newpassword' });
+  const updated = await db().users.update(created.id, {
+    password: 'newpassword',
+  });
   const list = await db().users.findAll({ limit: 10 });
   const removed = await db().users.delete(created.id);
 }

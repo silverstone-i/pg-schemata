@@ -13,38 +13,38 @@ try {
   await db().users.insert({ email: 'duplicate@example.com' });
 } catch (err) {
   if (err instanceof DatabaseError) {
-    console.log(err.message);    // 'Unique constraint violation'
-    console.log(err.code);       // '23505'
+    console.log(err.message); // 'Unique constraint violation'
+    console.log(err.code); // '23505'
     console.log(err.constraint); // 'users_email_key'
-    console.log(err.table);      // 'users'
-    console.log(err.detail);     // 'Key (email)=(duplicate@example.com) already exists.'
+    console.log(err.table); // 'users'
+    console.log(err.detail); // 'Key (email)=(duplicate@example.com) already exists.'
   }
 }
 ```
 
 ### Properties
 
-| Property | Type | Description |
-|---|---|---|
-| `message` | `string` | Human-readable description |
-| `name` | `string` | Always `'DatabaseError'` |
-| `code` | `string` | PostgreSQL SQLSTATE error code |
-| `detail` | `string` | Detailed error message from PostgreSQL |
-| `constraint` | `string` | Name of the violated constraint |
-| `table` | `string` | Table where the error occurred |
-| `original` | `Error` | The original PostgreSQL error object |
+| Property     | Type     | Description                            |
+| ------------ | -------- | -------------------------------------- |
+| `message`    | `string` | Human-readable description             |
+| `name`       | `string` | Always `'DatabaseError'`               |
+| `code`       | `string` | PostgreSQL SQLSTATE error code         |
+| `detail`     | `string` | Detailed error message from PostgreSQL |
+| `constraint` | `string` | Name of the violated constraint        |
+| `table`      | `string` | Table where the error occurred         |
+| `original`   | `Error`  | The original PostgreSQL error object   |
 
 ### SQLSTATE code mapping
 
 pg-schemata translates common PostgreSQL error codes into descriptive messages:
 
-| Code | Message |
-|---|---|
-| `23505` | Unique constraint violation |
+| Code    | Message                          |
+| ------- | -------------------------------- |
+| `23505` | Unique constraint violation      |
 | `23503` | Foreign key constraint violation |
-| `23514` | Check constraint violation |
-| `22P02` | Invalid input syntax for type |
-| Other | Database operation failed |
+| `23514` | Check constraint violation       |
+| `22P02` | Invalid input syntax for type    |
+| Other   | Database operation failed        |
 
 ## SchemaDefinitionError
 
@@ -57,20 +57,20 @@ try {
   await db().users.insert({ invalid_column: 'value' });
 } catch (err) {
   if (err instanceof SchemaDefinitionError) {
-    console.log(err.message);  // 'DTO must contain at least one valid column'
-    console.log(err.cause);    // Zod error details (if validation failed)
+    console.log(err.message); // 'DTO must contain at least one valid column'
+    console.log(err.cause); // Zod error details (if validation failed)
   }
 }
 ```
 
 ### Properties
 
-| Property | Type | Description |
-|---|---|---|
-| `message` | `string` | Description of the schema or validation issue |
-| `name` | `string` | Always `'SchemaDefinitionError'` |
-| `original` | `Error \| null` | Optional original error |
-| `cause` | `ZodError \| Error` | Zod validation details (when validation fails) |
+| Property   | Type                | Description                                    |
+| ---------- | ------------------- | ---------------------------------------------- |
+| `message`  | `string`            | Description of the schema or validation issue  |
+| `name`     | `string`            | Always `'SchemaDefinitionError'`               |
+| `original` | `Error \| null`     | Optional original error                        |
+| `cause`    | `ZodError \| Error` | Zod validation details (when validation fails) |
 
 ## Handling errors in application code
 

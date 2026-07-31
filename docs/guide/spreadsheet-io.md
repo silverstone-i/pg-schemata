@@ -7,9 +7,7 @@ pg-schemata can import data from and export data to Excel `.xlsx` files using [@
 `exportToSpreadsheet` is available on both `QueryModel` and `TableModel`:
 
 ```js
-const result = await db().users.exportToSpreadsheet(
-  './users-export.xlsx'
-);
+const result = await db().users.exportToSpreadsheet('./users-export.xlsx');
 // { exported: 42, filePath: './users-export.xlsx' }
 ```
 
@@ -18,9 +16,9 @@ const result = await db().users.exportToSpreadsheet(
 ```js
 const result = await db().users.exportToSpreadsheet(
   './active-admins.xlsx',
-  [{ role: 'admin', is_active: true }],  // WHERE conditions
-  'AND',                                  // join type
-  { orderBy: 'email' }                   // query options
+  [{ role: 'admin', is_active: true }], // WHERE conditions
+  'AND', // join type
+  { orderBy: 'email' } // query options
 );
 ```
 
@@ -40,9 +38,7 @@ const result = await db().users.exportToSpreadsheet(
 `importFromSpreadsheet` is available on `TableModel`:
 
 ```js
-const result = await db().users.importFromSpreadsheet(
-  './users-import.xlsx'
-);
+const result = await db().users.importFromSpreadsheet('./users-import.xlsx');
 // { inserted: { ... } }
 ```
 
@@ -53,7 +49,7 @@ The first row of the spreadsheet is treated as column headers.
 ```js
 const result = await db().users.importFromSpreadsheet(
   './data.xlsx',
-  1  // sheet index (0-based)
+  1 // sheet index (0-based)
 );
 ```
 
@@ -65,7 +61,7 @@ Transform each row before insertion with an optional callback:
 const result = await db().users.importFromSpreadsheet(
   './users-import.xlsx',
   0,
-  async (row) => {
+  async row => {
     // Normalize email to lowercase
     row.email = row.email.toLowerCase();
     // Set a default role
@@ -84,7 +80,7 @@ const result = await db().users.importFromSpreadsheet(
   './users-import.xlsx',
   0,
   null,
-  ['id', 'email']  // returning columns
+  ['id', 'email'] // returning columns
 );
 ```
 

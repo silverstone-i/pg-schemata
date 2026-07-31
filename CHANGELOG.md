@@ -8,6 +8,34 @@ Latest commit: `99c75e3`
 
 ---
 
+## [Unreleased]
+
+### ✨ Features
+
+- **TypeScript migration**: the entire library is now written in TypeScript under `strict` + `noUncheckedIndexedAccess`, compiled to `dist/` with full `.d.ts` declarations and an `exports` map with a `types` condition. Published types are verified with `@arethetypeswrong/cli` in CI and `prepublishOnly`
+- **Typed rows (opt-in)**: `QueryModel<TRow = any>` / `TableModel<TRow = any>` — existing subclasses compile and behave unchanged; pass a row interface (`class Users extends TableModel<UserRow>`) to get typed CRUD and query results
+- **`Repositories` augmentation**: declare `interface Repositories { users: Users }` via module augmentation and `DB.db`, `db()`, and `callDb('users', …)` become fully typed
+- **New public type exports**: `TableSchema`, `ColumnDefinition`, `IndexDefinition`, `WhereCondition`, `FindOptions`, `CursorPage`, `Logger`, and friends, plus runtime constants `CONDITION_OPERATORS` and `PG_ERROR_MESSAGES`
+- **`DatabaseError` and `SchemaDefinitionError` are now exported from the package root** — previously they were default-only module exports that `export *` silently dropped, despite being documented as public
+
+### 🔧 Changed
+
+- **Packaging**: `main`/`types` now point at `dist/`; `src/` is no longer published. Undocumented deep imports (`pg-schemata/src/...`) no longer resolve — import from the package root
+- **`constraints.indexes` type corrected**: the published type said `ConstraintDefinition[]`, but the SQL generator supports `name`, `unique`, `using`, `where`, `with`, `tablespace`, `ifNotExists`, and object-form columns — now accurately typed as `IndexDefinition[]`. `ConstraintDefinition` also gains the previously missing `onUpdate`
+- **Bare-string check constraints generate valid DDL**: `constraints.checks` entries that are plain SQL strings (already accepted by the validator generator) previously produced `CHECK (undefined)` in `createTableSQL`; they now emit the expression
+- **`importFromSpreadsheet` callback type**: documented as sync-only, but async callbacks were always awaited — now typed `(row) => Row | Promise<Row>`
+- **Copyright headers**: all source and test files now carry the NapSoft LLC copyright notice, enforced by ESLint
+- Tooling: Prettier, typescript-eslint (type-checked presets, explicit return types required in `src/`), typecheck/build/format gates in CI and `prepublishOnly`
+
+### 🐛 Fixes
+
+- **Example schema (`tableSchema`)**: the foreign-key example used `references.column` (a key nothing reads) and a `(id)` suffix in the table name; corrected to `references.columns` / `'admin.tenants'`
+
+### 📝 Notes
+
+- `removeWhere`'s "soft delete not enabled" rejection carries a non-standard `status: 403` property on the Error — now explicitly typed; flagged for removal in 2.0.0
+- The deprecated `this.tx` instance property and legacy `schema.schemaName` / top-level `schema.indexes` fallbacks are now visible in the types as `@deprecated` optionals
+
 ## [v1.6.0] - 2026-07-27
 
 > Released to npm as **1.6.0**. Versions 1.4.0 and 1.5.0 were bumped by the release automation but never published: the publish step failed before the workflow's tag handling was fixed, and each rerun re-counted the same release label. All changes below shipped together in 1.6.0.

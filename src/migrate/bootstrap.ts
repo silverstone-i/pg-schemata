@@ -1,0 +1,85 @@
+/*
+ * Copyright © 2026 – present NapSoft LLC. All rights reserved.
+ */
+
+// src/migrate/bootstrap.ts
+//
+// Utility to create all defined tables on first run.
+//
+// The `bootstrap` function is a convenience wrapper that walks through
+// your repository map (as passed to `DB.init()`) and calls the
+// `createTable()` method on each TableModel subclass. It can also enable
+// PostgreSQL extensions as needed (defaults to pgcrypto for UUID support).
+//
+// It should be executed before any migrations if your database does not yet
+// have the required tables. Use it from within a migration or during initial setup.
+
+import { DB } from '../DB.js';
+import type { DbConnection, RepositoryCtor } from '../schemaTypes.js';
+
+/** Options accepted by {@link bootstrap}. */
+export interface BootstrapOptions {
+  /** Map of repository names to their constructors. */
+  models: Record<string, RepositoryCtor>;
+  /** Target Postgres schema. Defaults to 'public'. */
+  schema?: string;
+  /** PostgreSQL extensions to enable before creating tables. */
+  extensions?: string[];
+  /** Optional pg-promise transaction/connection to use (avoids nested transaction deadlock). */
+  db?: DbConnection | null;
+}
+
+/**
+ * Structural shape of a bootstrappable model instance: forSchema and
+ * createTable are duck-typed exactly as the untyped code did.
+ */
+interface BootstrapModel {
+  forSchema?(schemaName: string): BootstrapModel;
+  createTable?(): Promise<unknown>;
+}
+
+/**
+ * Create all tables defined by the provided models. This runs inside a
+ * single transaction to ensure that either all tables are created or
+ * none are if an error occurs.
+ */
+export async function bootstrap({
+  models,
+  schema = 'public',
+  extensions = ['pgcrypto'],
+  db = null,
+}: BootstrapOptions): Promise<void> {
+  if (!models || typeof models !== 'object') {
+    throw new TypeError(
+      'models option must be an object mapping names to Model classes'
+    );
+  }
+
+  async function doBootstrap(t: DbConnection): Promise<void> {
+    // Enable PostgreSQL extensions if specified
+    if (extensions && Array.isArray(extensions)) {
+      for (const extension of extensions) {
+        await t.none('CREATE EXTENSION IF NOT EXISTS $1:name', extension);
+      }
+    }
+
+    for (const [, ModelClass] of Object.entries(models)) {
+      // Skip values that are not classes
+      if (typeof ModelClass !== 'function') continue;
+      let instance = new ModelClass(t, DB.pgp) as BootstrapModel;
+      if (schema && typeof instance.forSchema === 'function') {
+        instance = instance.forSchema(schema);
+      }
+      if (typeof instance.createTable === 'function') {
+        await instance.createTable();
+      }
+    }
+  }
+
+  // Use provided transaction or create a new one
+  if (db) {
+    await doBootstrap(db);
+  } else {
+    await DB.db.tx(doBootstrap);
+  }
+}

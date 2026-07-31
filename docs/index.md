@@ -2,8 +2,8 @@
 layout: home
 
 hero:
-  name: "pg-schemata"
-  text: "PostgreSQL-first ORM for Node.js"
+  name: 'pg-schemata'
+  text: 'PostgreSQL-first ORM for Node.js'
   tagline: Define your schema once. Get CRUD, migrations, validation, and multi-tenancy — all built on pg-promise.
   actions:
     - theme: brand

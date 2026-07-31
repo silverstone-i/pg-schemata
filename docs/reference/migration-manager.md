@@ -14,10 +14,10 @@ import { MigrationManager } from 'pg-schemata';
 new MigrationManager({ schema?, dir? })
 ```
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `schema` | `string` | `'public'` | PostgreSQL schema to target |
-| `dir` | `string` | `'migrations'` | Directory containing migration files |
+| Option   | Type     | Default        | Description                          |
+| -------- | -------- | -------------- | ------------------------------------ |
+| `schema` | `string` | `'public'`     | PostgreSQL schema to target          |
+| `dir`    | `string` | `'migrations'` | Directory containing migration files |
 
 ## Methods
 
@@ -28,6 +28,7 @@ Applies all pending migrations in a single transaction.
 **Returns:** `Promise<{ applied: number, files: string[] }>`
 
 The method:
+
 1. Acquires a PostgreSQL advisory lock scoped to the schema name
 2. Creates the `schema_migrations` table if it doesn't exist
 3. Discovers migration files with version > current version
@@ -39,9 +40,9 @@ The method:
 
 Returns pending migration files (version > current applied version).
 
-| Parameter | Type | Description |
-|---|---|---|
-| `t` | `ITask` | pg-promise transaction or connection |
+| Parameter | Type    | Description                          |
+| --------- | ------- | ------------------------------------ |
+| `t`       | `ITask` | pg-promise transaction or connection |
 
 **Returns:** `Promise<Array<{ file: string, version: number, full: string }>>`
 
@@ -49,9 +50,9 @@ Returns pending migration files (version > current applied version).
 
 Returns the highest applied migration version.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `t` | `ITask` | pg-promise transaction or connection |
+| Parameter | Type    | Description                          |
+| --------- | ------- | ------------------------------------ |
+| `t`       | `ITask` | pg-promise transaction or connection |
 
 **Returns:** `Promise<number>` — current version, or `0` if no migrations applied
 
@@ -59,9 +60,9 @@ Returns the highest applied migration version.
 
 Creates the `schema_migrations` table if it doesn't exist.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `t` | `ITask` | pg-promise transaction or connection |
+| Parameter | Type    | Description                          |
+| --------- | ------- | ------------------------------------ |
+| `t`       | `ITask` | pg-promise transaction or connection |
 
 ## Migration file format
 
@@ -87,21 +88,21 @@ export async function up({ db, schema }) {
 }
 ```
 
-| Parameter | Type | Description |
-|---|---|---|
-| `db` | `ITask` | pg-promise transaction — all queries run inside the transaction |
-| `schema` | `string` | Target PostgreSQL schema name |
+| Parameter | Type     | Description                                                     |
+| --------- | -------- | --------------------------------------------------------------- |
+| `db`      | `ITask`  | pg-promise transaction — all queries run inside the transaction |
+| `schema`  | `string` | Target PostgreSQL schema name                                   |
 
 ## schema_migrations table
 
 Applied migrations are tracked with:
 
-| Column | Type | Description |
-|---|---|---|
-| `schema_name` | `varchar` | PostgreSQL schema name |
-| `version` | `integer` | Migration version number |
-| `hash` | `varchar(64)` | SHA-256 hash of the migration file |
-| `label` | `varchar` | Migration file name |
-| `applied_at` | `timestamptz` | When the migration was applied |
+| Column        | Type          | Description                        |
+| ------------- | ------------- | ---------------------------------- |
+| `schema_name` | `varchar`     | PostgreSQL schema name             |
+| `version`     | `integer`     | Migration version number           |
+| `hash`        | `varchar(64)` | SHA-256 hash of the migration file |
+| `label`       | `varchar`     | Migration file name                |
+| `applied_at`  | `timestamptz` | When the migration was applied     |
 
 Composite primary key: `(schema_name, version)`.

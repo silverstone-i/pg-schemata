@@ -10,12 +10,12 @@ pg-schemata is developed solo: work happens on short-lived branches cut from `ma
 
 pg-schemata follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`
 
-| Type | Label | When | Example |
-|------|-------|------|---------|
-| PATCH | `release:patch` | Bug fixes, dependency updates, documentation fixes | 1.2.1 -> 1.2.2 |
-| MINOR | `release:minor` | New features, new exports, new optional parameters | 1.2.1 -> 1.3.0 |
+| Type  | Label           | When                                                                         | Example        |
+| ----- | --------------- | ---------------------------------------------------------------------------- | -------------- |
+| PATCH | `release:patch` | Bug fixes, dependency updates, documentation fixes                           | 1.2.1 -> 1.2.2 |
+| MINOR | `release:minor` | New features, new exports, new optional parameters                           | 1.2.1 -> 1.3.0 |
 | MAJOR | `release:major` | Removed features, renamed exports, changed behavior, breaking schema changes | 1.2.1 -> 2.0.0 |
-| none | (no label) | CI or docs-only changes — merge without releasing | — |
+| none  | (no label)      | CI or docs-only changes — merge without releasing                            | —              |
 
 ---
 
@@ -25,9 +25,9 @@ pg-schemata follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PAT
 main --> working branch --PR (labeled)--> main --> CI bumps version, tags, publishes
 ```
 
-| Branch | Purpose |
-|--------|---------|
-| `main` | Production-ready code; every release is cut from here |
+| Branch           | Purpose                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| `main`           | Production-ready code; every release is cut from here                                  |
 | Working branches | All development — features, fixes, refactors, hotfixes (e.g., `fix-auth`, `forSchema`) |
 
 A hotfix is just a working branch with a `release:patch` label; it needs no special flow.
@@ -74,11 +74,11 @@ For changes that need validation in a consuming app before going `latest`, publi
 
 Publishing is CI-driven — never run `npm publish` manually.
 
-| Trigger | Workflow | npm dist-tag |
-|---------|----------|--------------|
-| Merge of a release-labeled PR into `main` | `release-on-merge.yml` | `latest` |
-| Manually pushed `vX.Y.Z` tag | `publish-release.yml` | `latest` |
-| Manually pushed `vX.Y.Z-rc.N` tag | `publish-rc.yml` | `rc` |
+| Trigger                                   | Workflow               | npm dist-tag |
+| ----------------------------------------- | ---------------------- | ------------ |
+| Merge of a release-labeled PR into `main` | `release-on-merge.yml` | `latest`     |
+| Manually pushed `vX.Y.Z` tag              | `publish-release.yml`  | `latest`     |
+| Manually pushed `vX.Y.Z-rc.N` tag         | `publish-rc.yml`       | `rc`         |
 
 The tag created by `release-on-merge.yml` is pushed with `GITHUB_TOKEN`, which deliberately does not trigger `publish-release.yml` — that workflow remains as the path for manually pushed tags, and there is no double publish.
 

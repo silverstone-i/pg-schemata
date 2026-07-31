@@ -49,8 +49,8 @@ Insert a row or update it on conflict:
 ```js
 const result = await db().users.upsert(
   { email: 'alice@example.com', first_name: 'Alice', role: 'admin' },
-  ['email'],           // conflict columns
-  ['first_name', 'role']  // columns to update on conflict (optional)
+  ['email'], // conflict columns
+  ['first_name', 'role'] // columns to update on conflict (optional)
 );
 ```
 
@@ -73,8 +73,8 @@ const count = await db().users.deleteWhere([
 
 ```js
 const count = await db().users.updateWhere(
-  [{ role: 'guest' }],          // WHERE conditions
-  { is_active: false },         // SET values
+  [{ role: 'guest' }], // WHERE conditions
+  { is_active: false }, // SET values
   { includeDeactivated: false } // options
 );
 ```
@@ -109,7 +109,7 @@ const rows = await db().users.bulkInsert(
     { email: 'bob@example.com', first_name: 'Bob' },
     { email: 'carol@example.com', first_name: 'Carol' },
   ],
-  ['id', 'email']  // columns to return
+  ['id', 'email'] // columns to return
 );
 // Returns array of { id, email } objects
 ```
@@ -132,9 +132,9 @@ const results = await db().users.bulkUpdate([
 ```js
 const rowCount = await db().users.bulkUpsert(
   records,
-  ['email'],              // conflict columns
+  ['email'], // conflict columns
   ['first_name', 'role'], // update columns (optional)
-  ['id', 'email']         // returning columns (optional)
+  ['id', 'email'] // returning columns (optional)
 );
 ```
 
@@ -163,7 +163,7 @@ Runs `TRUNCATE TABLE ... RESTART IDENTITY CASCADE`.
 Every mutating method accepts `options.tx`, a pg-promise task or transaction context. All statements from that call run on the supplied context:
 
 ```js
-await db().tx(async (t) => {
+await db().tx(async t => {
   const user = await db().users.insert(req.body, { tx: t });
   await db().profiles.insert({ user_id: user.id }, { tx: t });
   // both statements commit or roll back together
@@ -173,7 +173,7 @@ await db().tx(async (t) => {
 pg-promise also re-attaches every registered repository to each task and transaction context, so `t.<repo>` is bound to the transaction without any option:
 
 ```js
-await db().tx(async (t) => {
+await db().tx(async t => {
   const user = await t.users.insert(req.body);
   await t.profiles.insert({ user_id: user.id });
 });

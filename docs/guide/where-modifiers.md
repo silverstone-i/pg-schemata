@@ -28,27 +28,47 @@ Use operator objects for more expressive conditions:
 ### $eq — explicit equality
 
 ```js
-{ role: { $eq: 'admin' } }
+{
+  role: {
+    $eq: 'admin';
+  }
+}
 // WHERE "role" = 'admin'
 ```
 
 ### $ne — not equal
 
 ```js
-{ role: { $ne: 'guest' } }
+{
+  role: {
+    $ne: 'guest';
+  }
+}
 // WHERE "role" != 'guest'
 
-{ deleted_at: { $ne: null } }
+{
+  deleted_at: {
+    $ne: null;
+  }
+}
 // WHERE "deleted_at" IS NOT NULL
 ```
 
 ### $like / $ilike — pattern matching
 
 ```js
-{ email: { $like: '%@example.com' } }
+{
+  email: {
+    $like: '%@example.com';
+  }
+}
 // WHERE "email" LIKE '%@example.com'
 
-{ first_name: { $ilike: 'ali%' } }
+{
+  first_name: {
+    $ilike: 'ali%';
+  }
+}
 // WHERE "first_name" ILIKE 'ali%'
 ```
 
@@ -62,14 +82,22 @@ Use operator objects for more expressive conditions:
 Can be used separately:
 
 ```js
-{ age: { $from: 18 } }
+{
+  age: {
+    $from: 18;
+  }
+}
 // WHERE "age" >= 18
 ```
 
 ### $in — array membership
 
 ```js
-{ role: { $in: ['admin', 'moderator'] } }
+{
+  role: {
+    $in: ['admin', 'moderator'];
+  }
+}
 // WHERE "role" IN ('admin', 'moderator')
 ```
 
@@ -78,10 +106,18 @@ The array must be non-empty.
 ### $is / $not — null checks
 
 ```js
-{ deleted_at: { $is: null } }
+{
+  deleted_at: {
+    $is: null;
+  }
+}
 // WHERE "deleted_at" IS NULL
 
-{ deleted_at: { $not: null } }
+{
+  deleted_at: {
+    $not: null;
+  }
+}
 // WHERE "deleted_at" IS NOT NULL
 ```
 
@@ -90,13 +126,25 @@ Currently `$is` and `$not` only support `null`. `{ $not: null }` and `{ $ne: nul
 ### $max / $min / $sum — subquery operators
 
 ```js
-{ score: { $max: true } }
+{
+  score: {
+    $max: true;
+  }
+}
 // WHERE "score" = (SELECT MAX("score") FROM "public"."users")
 
-{ score: { $min: true } }
+{
+  score: {
+    $min: true;
+  }
+}
 // WHERE "score" = (SELECT MIN("score") FROM "public"."users")
 
-{ amount: { $sum: true } }
+{
+  amount: {
+    $sum: true;
+  }
+}
 // WHERE "amount" = (SELECT SUM("amount") FROM "public"."users")
 ```
 
@@ -107,20 +155,14 @@ When soft delete is enabled, the subquery applies the same `deactivated_at IS NU
 ### Multiple conditions with AND (default)
 
 ```js
-await db().users.findWhere(
-  [{ role: 'admin' }, { is_active: true }],
-  'AND'
-);
+await db().users.findWhere([{ role: 'admin' }, { is_active: true }], 'AND');
 // WHERE "role" = 'admin' AND "is_active" = true
 ```
 
 ### OR conditions
 
 ```js
-await db().users.findWhere(
-  [{ role: 'admin' }, { role: 'moderator' }],
-  'OR'
-);
+await db().users.findWhere([{ role: 'admin' }, { role: 'moderator' }], 'OR');
 // WHERE "role" = 'admin' OR "role" = 'moderator'
 ```
 
@@ -129,10 +171,7 @@ await db().users.findWhere(
 ```js
 await db().users.findWhere([
   {
-    $or: [
-      { role: 'admin' },
-      { $and: [{ role: 'user' }, { is_active: true }] },
-    ],
+    $or: [{ role: 'admin' }, { $and: [{ role: 'user' }, { is_active: true }] }],
   },
 ]);
 // WHERE ("role" = 'admin' OR ("role" = 'user' AND "is_active" = true))
@@ -154,24 +193,20 @@ Multiple operators can be applied to one column:
 
 Most query methods accept an options object:
 
-| Option | Type | Description |
-|---|---|---|
-| `columnWhitelist` | `string[]` | Columns to return (SELECT list) |
-| `orderBy` | `string \| string[]` | Sort columns |
-| `limit` | `number` | Maximum rows to return |
-| `offset` | `number` | Rows to skip |
-| `includeDeactivated` | `boolean` | Include soft-deleted rows (default `false`) |
-| `filters` | `object` | Additional filter object applied with AND |
+| Option               | Type                 | Description                                 |
+| -------------------- | -------------------- | ------------------------------------------- |
+| `columnWhitelist`    | `string[]`           | Columns to return (SELECT list)             |
+| `orderBy`            | `string \| string[]` | Sort columns                                |
+| `limit`              | `number`             | Maximum rows to return                      |
+| `offset`             | `number`             | Rows to skip                                |
+| `includeDeactivated` | `boolean`            | Include soft-deleted rows (default `false`) |
+| `filters`            | `object`             | Additional filter object applied with AND   |
 
 ```js
-await db().users.findWhere(
-  [{ is_active: true }],
-  'AND',
-  {
-    columnWhitelist: ['id', 'email', 'first_name'],
-    orderBy: 'email',
-    limit: 25,
-    offset: 0,
-  }
-);
+await db().users.findWhere([{ is_active: true }], 'AND', {
+  columnWhitelist: ['id', 'email', 'first_name'],
+  orderBy: 'email',
+  limit: 25,
+  offset: 0,
+});
 ```
