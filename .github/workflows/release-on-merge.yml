@@ -131,8 +131,19 @@ jobs:
         run: |
           npm version "${{ steps.bump.outputs.type }}" --no-git-tag-version
           version=$(node -p "require('./package.json').version")
+          # Promote [Unreleased] and re-insert a fresh empty [Unreleased] above
+          # it, so the next branch never has to repair the heading. If the
+          # heading is missing entirely, self-heal: insert both headings above
+          # the first changelog content — entry lines as well as version
+          # sections, so unheaded notes end up under the promoted version.
           if grep -q '^## \[Unreleased\]' CHANGELOG.md; then
-            sed -i "s/^## \[Unreleased\]/## [v$version] - $(date +%F)/" CHANGELOG.md
+            sed -i "s/^## \[Unreleased\]/## [Unreleased]\n\n## [v$version] - $(date +%F)/" CHANGELOG.md
+          else
+            awk -v heading="## [v$version] - $(date +%F)" '
+              !done && (/^## \[/ || /^### / || /^[-*] /) { print "## [Unreleased]\n\n" heading "\n"; done=1 }
+              { print }
+              END { if (!done) print "\n## [Unreleased]\n\n" heading }
+            ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
