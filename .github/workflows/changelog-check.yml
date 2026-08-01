@@ -1,0 +1,37 @@
+# Enforces the changelog-before-merge rule: a PR carrying a release label
+# must update CHANGELOG.md (entries belong under the ## [Unreleased] heading;
+# the release workflow promotes that heading to the new version on merge).
+# Unlabeled PRs release nothing, so they always pass.
+#
+# Identical file in every repo on this release contract - edit in lockstep.
+
+name: Changelog Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: ['main']
+
+permissions:
+  pull-requests: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a CHANGELOG.md update on release-labeled PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          case " $LABELS " in
+            *" release:patch "*|*" release:minor "*|*" release:major "*) ;;
+            *) echo "No release label - changelog entry not required."; exit 0 ;;
+          esac
+          if gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename' | grep -qx 'CHANGELOG.md'; then
+            echo "Release-labeled PR updates CHANGELOG.md - OK."
+          else
+            echo "::error::This PR carries a release label but does not update CHANGELOG.md. Add your changes under the '## [Unreleased]' heading before merging - the release workflow promotes that heading to the new version."
+            exit 1
+          fi
