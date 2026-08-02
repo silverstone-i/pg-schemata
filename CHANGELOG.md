@@ -10,6 +10,30 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+### 💥 Breaking
+
+- **Migration tracking is now per `(schema_name, module_name, migration_id)`** — the `schema_migrations` table gains `module_name` and `migration_id` (text) columns and drops `version`/`label`; tracking is an applied-set, not a high-water mark. A 1.x-shape table is detected and the run aborts with upgrade guidance (nothing is modified) — see the migrations guide's "Upgrading from 1.x"
+- **Migration content hashes are verified on every run** — file bytes for directory-scanned migrations, `sha256(id + description + up.toString())` for registry migrations; a mismatch aborts before anything executes. Applied migrations are immutable: a correction is a new migration, never an edit
+- **`MigrationContext` enriched** — `up()` now receives `{schema, module, db, pgp, logger, models, ensureExtensions}` (was `{db, schema}`), with `models` bound to the target schema via `forSchema()`
+- **`MigrationManager.currentVersion()` removed** and the `PendingMigration` type replaced by `PendingMigrationInfo`; `applyAll()` returns `{schema, dryRun, moduleOrder, pending, applied}` instead of `{applied, files}`
+- **`setSchemaName()` removed** — use `forSchema()` (deprecated with a runtime warning since 1.6.0)
+- **Instance-level `model.tx` removed** — pass the transaction per call via `options.tx`, or use the repositories on the tx object (warned since 1.8.0)
+- **Column key `nullable` removed** — a schema still passing it throws `SchemaDefinitionError` at model construction (silently ignoring it would flip NOT NULL semantics); use `notNull` (warned since 1.6.0)
+- **`schema.schemaName` fallback removed** — rename to `dbSchema` (warned since 1.8.0)
+- **Top-level `schema.indexes` fallback removed** — move under `constraints.indexes` (warned since 1.8.0)
+- **Lowercase `and`/`or` WHERE keys removed** — use `$and`/`$or` (warned since 1.8.0). Side effect: `findAfterCursor` `$or` filters are now correctly parenthesized against the cursor predicate (the removed lowercase `or` branch emitted an unparenthesized `cursor AND x OR y`)
+- **Unknown column types throw** — a column type with no validator mapping raises `SchemaDefinitionError` at model construction instead of falling back to `z.any()` (warned since 1.6.0); supply a supported type or `colProps.validator`
+- **`removeWhere` error shape** — rejecting when soft delete is disabled now throws `SchemaDefinitionError` without the non-standard `status: 403` property; catch it and map to your own HTTP status
+
+### ✨ Features
+
+- **`defineMigration({id, description?, up})`** — frozen, checksummed migration objects for registry input; forward-only (no `down()`)
+- **Module registry input for `MigrationManager`** — `modules: [{name, models?, migrations}]` with per-module ordered migration arrays (array order is authoritative), mutually exclusive with the directory-scan mode
+- **Topological FK sorts** — module-level execution order (`resolveModuleOrder`) and model-level parent-first ordering (`orderModels`, also used by `bootstrap()`); cycles throw with the cycle path in the message; `topoSort` exported for direct use
+- **Dry run** — `applyAll({dryRun: true})` reports pending migrations per module and writes nothing
+- **Directory scan accepts `.js`** alongside `.mjs`
+- **`ensureExtensions` in the migration context** — `CREATE EXTENSION IF NOT EXISTS` with identifier quoting
+
 ## [v1.8.0] - 2026-08-02
 
 ### ⚠️ Deprecations

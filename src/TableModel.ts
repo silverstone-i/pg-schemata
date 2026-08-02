@@ -8,7 +8,6 @@ import { createTableSQL } from './utils/schemaBuilder.js';
 import { readFileSync } from 'node:fs';
 import { WorkbookReader } from '@nap-sft/tablsx';
 import { isValidId, isPlainObject } from './utils/validation.js';
-import { warnOnce } from './utils/deprecation.js';
 import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 import { getAuditActor } from './auditActorResolver.js';
@@ -53,27 +52,6 @@ const validatorCache = new WeakMap<TableSchema, TableValidators>();
 class TableModel<TRow = any> extends QueryModel<TRow> {
   /** Static fallback actor for audit fields, derived from the schema config. */
   private _auditUserDefault: string | null;
-
-  /**
-   * @deprecated Never assigned by the library; legacy instance-level
-   * task/transaction honored by `_exec()` for backward compatibility.
-   * Will be removed in 2.0.0 — pass the transaction per call via options.tx.
-   */
-  tx?: DbConnection | null;
-
-  /**
-   * Returns the deprecated instance-level tx, warning once when it is
-   * actually used as the executor fallback.
-   */
-  private _instanceTx(): DbConnection | null {
-    if (this.tx) {
-      warnOnce(
-        'tablemodel-tx',
-        'Assigning model.tx is deprecated and will be removed in 2.0.0. Pass the transaction per call via options.tx instead.'
-      );
-    }
-    return this.tx ?? null;
-  }
 
   constructor(
     db: DbConnection,
@@ -144,13 +122,13 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
   }
 
   /**
-   * Resolves the executor for a mutating call. An explicit options.tx wins,
-   * then the deprecated instance-level this.tx, then the base connection.
+   * Resolves the executor for a mutating call: an explicit options.tx wins,
+   * then the base connection.
    * @param tx - pg-promise task/transaction context.
    * @returns Executor exposing one/any/none/result.
    */
   _exec(tx: DbConnection | null = null): DbConnection {
-    return tx ?? this._instanceTx() ?? this.db;
+    return tx ?? this.db;
   }
 
   /**
@@ -530,7 +508,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     `;
 
     try {
-      const exec = tx ?? this._instanceTx();
+      const exec = tx ?? null;
       if (exec) {
         if (returning) {
           return await exec.any(query);
@@ -713,7 +691,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     returning: string[] | null = null,
     { tx: txOption = null }: TxOption = {}
   ): Promise<number | Partial<TRow>[]> {
-    const tx = txOption ?? this._instanceTx();
+    const tx = txOption;
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
@@ -826,7 +804,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     returning: string[] | null = null,
     { tx: txOption = null }: TxOption = {}
   ): Promise<(number | Partial<TRow>[])[]> {
-    const tx = txOption ?? this._instanceTx();
+    const tx = txOption;
     const pk = this._schema.constraints?.primaryKey;
     if (!pk) {
       throw new SchemaDefinitionError(
@@ -1022,11 +1000,9 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
    */
   async removeWhere(where: WhereInput, { tx }: TxOption = {}): Promise<number> {
     if (!this._schema.softDelete) {
-      const error: Error & { status?: number } = new Error(
-        'Soft delete is not enabled for this table. Let the client decide if the record should be deleted instead.'
+      return Promise.reject(
+        new SchemaDefinitionError('Soft delete is not enabled for this table')
       );
-      error.status = 403;
-      return Promise.reject(error);
     }
     const { clause, values } = this.buildWhereClause(where);
 

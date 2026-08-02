@@ -79,11 +79,6 @@ export interface ColumnDefinition {
   stored?: boolean;
   /** Whether the column is NOT NULL. Defaults to false. */
   notNull?: boolean;
-  /**
-   * @deprecated Legacy alias normalized onto `notNull` (`nullable: false` →
-   * `notNull: true`) and removed from the schema. Will be dropped in 2.0.0.
-   */
-  nullable?: boolean;
   /** Default value for the column. Can be a literal or SQL expression. */
   default?: unknown;
   /** If true, the column cannot be updated after creation. Defaults to false. */
@@ -214,8 +209,6 @@ export interface AuditFieldsConfig {
 export interface TableSchema {
   /** PostgreSQL schema name (e.g. 'public'). */
   dbSchema: string;
-  /** @deprecated Legacy alias for `dbSchema`; the DDL generator falls back to it. */
-  schemaName?: string;
   /** Table name. */
   table: string;
   /**
@@ -231,8 +224,6 @@ export interface TableSchema {
   columns: ColumnDefinition[];
   /** Table-level constraints. */
   constraints?: Constraints;
-  /** @deprecated Legacy top-level indexes; use `constraints.indexes`. */
-  indexes?: IndexDefinition[];
 }
 
 /**

@@ -18,7 +18,6 @@ import type {
   ForeignKeyReference,
 } from '../../src/schemaTypes.js';
 import type { TableColumnSets } from '../../src/internalTypes.js';
-import { _resetDeprecationWarnings } from '../../src/utils/deprecation.js';
 
 // Mock pg-promise and its helpers
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -148,13 +147,9 @@ describe('Schema Utilities', () => {
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "admin"\."countries"/);
     });
 
-    it('should fall back to own schemaName for bare same-schema FK references', () => {
-      _resetDeprecationWarnings();
-      const warnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => undefined);
+    it('should fall back to own dbSchema for bare same-schema FK references', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -172,10 +167,6 @@ describe('Schema Utilities', () => {
 
       const sql = createTableSQL(schema as unknown as TableSchema);
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "public"\."users"/);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('deprecated key "schemaName"')
-      );
-      warnSpy.mockRestore();
     });
 
     it('should let dotted references.table win when both dotted form and schema are supplied', () => {
@@ -296,13 +287,9 @@ describe('Schema Utilities', () => {
       expect(names[0]).not.toBe(names[1]);
     });
 
-    it('should resolve bare references.table against non-public owning schemaName', () => {
-      _resetDeprecationWarnings();
-      const warnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => undefined);
+    it('should resolve bare references.table against non-public owning dbSchema', () => {
       const schema = {
-        schemaName: 'tenant_a',
+        dbSchema: 'tenant_a',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -320,10 +307,6 @@ describe('Schema Utilities', () => {
 
       const sql = createTableSQL(schema as unknown as TableSchema);
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "tenant_a"\."users"/);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('deprecated key "schemaName"')
-      );
-      warnSpy.mockRestore();
     });
 
     it('should throw an error for invalid foreign key reference', () => {
@@ -830,11 +813,7 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
     });
 
-    it('should honor deprecated top-level indexes with a one-time warning', () => {
-      _resetDeprecationWarnings();
-      const warnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => undefined);
+    it('should ignore removed top-level indexes and throw for missing constraints.indexes', () => {
       const schema = {
         dbSchema: 'public',
         table: 'users',
@@ -842,14 +821,9 @@ describe('Schema Utilities', () => {
         constraints: {},
       };
 
-      const sql = createIndexesSQL(schema as unknown as TableSchema);
-
-      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('top-level "indexes"')
+      expect(() => createIndexesSQL(schema as unknown as TableSchema)).toThrow(
+        'No indexes defined in schema'
       );
-      expect(warnSpy).toHaveBeenCalledTimes(1);
-      warnSpy.mockRestore();
     });
 
     it('should handle schema without indexes gracefully', () => {
@@ -1048,7 +1022,6 @@ describe('Schema Utilities', () => {
             name: 'status',
             type: 'varchar(50)',
             default: 'pending',
-            nullable: true,
             colProps: { skip: c => !c.exists },
           },
         ],
@@ -1145,7 +1118,6 @@ describe('Schema Utilities', () => {
           {
             name: 'name',
             type: 'varchar(255)',
-            nullable: true,
             colProps: { skip: c => !c.exists },
           },
           { name: 'price', type: 'numeric' },

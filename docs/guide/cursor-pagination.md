@@ -63,9 +63,10 @@ const page = await db().users.findAfterCursor({}, 25, ['id'], {
 });
 ```
 
-::: warning Deprecated
-The lowercase `and` / `or` filter keys still work but emit a one-time runtime
-warning since 1.8.0 and will be removed in 2.0.0. Use `$and` / `$or`.
+::: info Removed in 2.0.0
+The lowercase `and` / `or` filter keys were removed in 2.0.0 (after warning at
+runtime in 1.8.0). Use `$and` / `$or`. As a side effect of the removal, `$or`
+filters are now correctly parenthesized against the cursor predicate.
 :::
 
 ## Soft delete awareness

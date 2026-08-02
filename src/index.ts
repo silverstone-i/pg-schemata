@@ -25,11 +25,27 @@ export {
 // Migration support
 export { MigrationManager } from './migrate/MigrationManager.js';
 export type {
-  MigrationContext,
+  ApplyAllResult,
   MigrationManagerOptions,
-  MigrationModule,
-  PendingMigration,
+  PendingMigrationInfo,
 } from './migrate/MigrationManager.js';
+export { defineMigration } from './migrate/defineMigration.js';
+export type { DefineMigrationInput } from './migrate/defineMigration.js';
+export type {
+  Migration,
+  MigrationContext,
+  MigrationModule,
+  ModuleDescriptor,
+} from './migrate/types.js';
+export {
+  getModelKey,
+  getTableDependencies,
+  isTableModel,
+  orderModels,
+  resolveModuleOrder,
+  topoSort,
+} from './migrate/modelPlanner.js';
+export type { TableModelLike } from './migrate/modelPlanner.js';
 export { bootstrap } from './migrate/bootstrap.js';
 export type { BootstrapOptions } from './migrate/bootstrap.js';
 export {

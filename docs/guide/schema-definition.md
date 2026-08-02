@@ -93,11 +93,11 @@ Check expressions and index predicates are deliberately raw SQL — they are emi
 :::
 | `indexes` | `IndexDefinition[]` | Index definitions for query optimization |
 
-::: warning Deprecated
+::: info Removed in 2.0.0
 Declaring `indexes` at the top level of the schema (outside `constraints`) and
-the `schemaName` alias for `dbSchema` still work but emit a one-time runtime
-warning since 1.8.0; both fallbacks will be removed in 2.0.0. The column key
-`nullable` is likewise deprecated — use `notNull`.
+the `schemaName` alias for `dbSchema` were removed in 2.0.0 after warning at
+runtime in 1.8.0. The column key `nullable` was removed too — a schema still
+passing it throws `SchemaDefinitionError` at model construction; use `notNull`.
 :::
 
 ## Audit fields

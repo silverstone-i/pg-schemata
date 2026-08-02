@@ -96,32 +96,27 @@ describe('QueryModel constructor schema normalization (real schemaBuilder)', () 
     expect(names).toEqual(['id', 'message']);
   });
 
-  it('maps deprecated nullable:false onto notNull:true (N6)', () => {
-    const model = new QueryModel(stubDb, pgp, {
-      dbSchema: 'public',
-      table: 'norm_nullable',
-      hasAuditFields: false,
-      softDelete: false,
-      columns: [
-        {
-          name: 'id',
-          type: 'uuid',
-          default: 'gen_random_uuid()',
-          nullable: false,
-        },
-        { name: 'label', type: 'text', nullable: true },
-      ],
-      constraints: { primaryKey: ['id'] },
-    });
-
-    const [id, label] = model.schema.columns as [
-      ColumnDefinition,
-      ColumnDefinition,
-    ];
-    expect(id.notNull).toBe(true);
-    expect('nullable' in id).toBe(false);
-    expect('notNull' in label).toBe(false);
-    expect('nullable' in label).toBe(false);
+  it('throws when a column uses the removed key nullable (N6)', () => {
+    expect(
+      () =>
+        new QueryModel(stubDb, pgp, {
+          dbSchema: 'public',
+          table: 'norm_nullable',
+          hasAuditFields: false,
+          softDelete: false,
+          columns: [
+            {
+              name: 'id',
+              type: 'uuid',
+              default: 'gen_random_uuid()',
+              nullable: false,
+            } as unknown as ColumnDefinition,
+          ],
+          constraints: { primaryKey: ['id'] },
+        })
+    ).toThrow(
+      'Column "id" in "norm_nullable" uses the removed key "nullable"; use "notNull" instead'
+    );
   });
 
   it('never mutates the schema object passed by the caller', () => {

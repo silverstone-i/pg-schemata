@@ -4,6 +4,7 @@
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import TableModel from '../../src/TableModel.js';
+import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import type { IMain } from 'pg-promise';
 import type { TableSchema } from '../../src/schemaTypes.js';
 
@@ -49,6 +50,26 @@ describe('TableModel soft delete unit tests', () => {
     await model.removeWhere({ email: 'a@example.com' });
     const sql = mockDb.result.mock.calls[0][0];
     expect(sql.match(/deactivated_at IS NULL/g)).toHaveLength(1);
+  });
+
+  test('removeWhere rejects with SchemaDefinitionError (no status property) when soft delete is off', async () => {
+    const noSoftDelete = new TableModel(mockDb, fakePgp, {
+      ...schemaWithSoftDelete,
+      softDelete: false,
+    });
+
+    let caught: unknown;
+    try {
+      await noSoftDelete.removeWhere({ email: 'a@example.com' });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(SchemaDefinitionError);
+    expect((caught as Error).message).toBe(
+      'Soft delete is not enabled for this table'
+    );
+    // The non-standard status: 403 REST-ism was removed in 2.0.0.
+    expect('status' in (caught as object)).toBe(false);
   });
 
   test('deleteWhere emits the soft-delete predicate exactly once (N9)', async () => {
