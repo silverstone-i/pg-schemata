@@ -10,6 +10,8 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+## [v1.8.0] - 2026-08-02
+
 ### ⚠️ Deprecations
 
 - **Runtime one-time warnings added for four previously silent deprecated forms**, all scheduled for removal in 2.0.0:
