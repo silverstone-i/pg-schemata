@@ -10,6 +10,8 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+## [v2.0.0] - 2026-08-02
+
 ### 💥 Breaking
 
 - **Migration tracking is now per `(schema_name, module_name, migration_id)`** — the `schema_migrations` table gains `module_name` and `migration_id` (text) columns and drops `version`/`label`; tracking is an applied-set, not a high-water mark. A 1.x-shape table is detected and the run aborts with upgrade guidance (nothing is modified) — see the migrations guide's "Upgrading from 1.x"
