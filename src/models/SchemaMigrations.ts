@@ -19,9 +19,10 @@ import type { IMain } from 'pg-promise';
 /** A row of the `schema_migrations` table. */
 export interface SchemaMigrationRow {
   schema_name: string;
-  version: number;
+  module_name: string;
+  migration_id: string;
   hash: string;
-  label: string | null;
+  description: string | null;
   applied_at: Date;
 }
 
@@ -41,7 +42,7 @@ export const migrationSchema = {
   softDelete: false,
   // Optional tag describing this schema version. You can bump the version
   // whenever the schema definition itself changes (not the migration data).
-  version: '1.0.0',
+  version: '2.0.0',
   columns: [
     {
       name: 'schema_name',
@@ -49,8 +50,13 @@ export const migrationSchema = {
       notNull: true,
     },
     {
-      name: 'version',
-      type: 'integer',
+      name: 'module_name',
+      type: 'text',
+      notNull: true,
+    },
+    {
+      name: 'migration_id',
+      type: 'text',
       notNull: true,
     },
     {
@@ -59,7 +65,7 @@ export const migrationSchema = {
       notNull: true,
     },
     {
-      name: 'label',
+      name: 'description',
       type: 'text',
     },
     {
@@ -70,15 +76,13 @@ export const migrationSchema = {
     },
   ],
   constraints: {
-    // Composite primary key on (schema_name, version) ensures that
-    // each migration is uniquely identified per schema.
-    primaryKey: ['schema_name', 'version'],
-    // Index for quick lookups by schema and version. The type property is
-    // required by pg‑schemata to distinguish between different index types.
+    // Composite primary key: each migration is uniquely identified per
+    // schema and module.
+    primaryKey: ['schema_name', 'module_name', 'migration_id'],
     indexes: [
       {
         type: 'Index',
-        columns: ['schema_name', 'version'],
+        columns: ['schema_name', 'module_name', 'migration_id'],
       },
     ],
   },

@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { warnOnce } from './deprecation.js';
+import SchemaDefinitionError from '../SchemaDefinitionError.js';
 import type { TableSchema, TableValidators } from '../schemaTypes.js';
 /**
  * @private
@@ -19,7 +19,7 @@ import type { TableSchema, TableValidators } from '../schemaTypes.js';
  *
  * Note: This function is used internally by TableModel to auto-generate validation schemas.
  */
-function mapSqlTypeToZod(type: string): z.ZodTypeAny {
+function mapSqlTypeToZod(type: string, columnName: string): z.ZodTypeAny {
   const varcharMatch = /^varchar\((\d+)\)$/i.exec(type);
   if (varcharMatch?.[1]) {
     const max = parseInt(varcharMatch[1], 10);
@@ -52,14 +52,11 @@ function mapSqlTypeToZod(type: string): z.ZodTypeAny {
   } else if (/^jsonb?$/i.test(type)) {
     return z.any();
   } else {
-    // Unrecognized types keep z.any() for compatibility, but say so once
-    // per type instead of silently accepting anything (suggestion 3).
-    // 2.0.0 will throw here.
-    warnOnce(
-      `zod-unknown-type:${type}`,
-      `No validator mapping for column type "${type}"; falling back to z.any(). This will become an error in 2.0.0.`
+    // A type with no validator mapping is a schema-definition error: it
+    // would silently accept anything (the pre-2.0.0 z.any() fallback).
+    throw new SchemaDefinitionError(
+      `No validator mapping for column type "${type}" (column "${columnName}"). Use a supported type or provide colProps.validator.`
     );
-    return z.any();
   }
 }
 
@@ -85,7 +82,7 @@ function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
   for (const column of tableSchema.columns) {
     const { name, type, notNull, default: defaultValue } = column;
     let zodType: z.ZodTypeAny =
-      column.colProps?.validator || mapSqlTypeToZod(type);
+      column.colProps?.validator || mapSqlTypeToZod(type, name);
 
     // Enhance email fields. instanceof is stable across zod versions;
     // _def.typeName is a zod 3 internal removed in zod 4 (suggestion 3).

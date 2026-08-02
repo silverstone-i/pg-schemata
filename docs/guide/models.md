@@ -114,6 +114,6 @@ const tenantModel = model.forSchema('tenant_abc');
 const rows = await tenantModel.findAll(); // queries tenant_abc.users
 ```
 
-`setSchemaName()` still works but is deprecated: it mutates the shared model instance and races under concurrent requests.
+`setSchemaName()` was removed in 2.0.0 — `forSchema()` is the only schema-binding API.
 
 See [Multi-Schema](/guide/multi-schema) for the full multi-tenancy pattern.

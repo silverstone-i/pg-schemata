@@ -9,7 +9,6 @@ import {
   addSoftDeleteField,
 } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
-import { warnOnce } from './utils/deprecation.js';
 import DatabaseError from './DatabaseError.js';
 import type { PgErrorLike } from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
@@ -48,8 +47,6 @@ const { cloneDeep } = _;
 type ConditionNode = FieldConditions & {
   $and?: WhereCondition[];
   $or?: WhereCondition[];
-  and?: WhereCondition[];
-  or?: WhereCondition[];
 };
 
 // Cache of schema-bound clones produced by forSchema(), same bounds as the
@@ -115,7 +112,7 @@ class QueryModel<TRow = any> {
     // Both helpers guard internally, so they run unconditionally — gating on
     // hasAuditFields here would skip the soft-delete column too (issue N1).
     const working = cloneDeep(schema);
-    this._normalizeNullableColumns(working);
+    this._rejectRemovedNullableKey(working);
     addAuditFields(working);
     addSoftDeleteField(working);
     this._schema = working;
@@ -343,35 +340,14 @@ class QueryModel<TRow = any> {
       }
 
       if (Object.keys(filters).length) {
-        if (filters.and || filters.or) {
-          warnOnce(
-            'lowercase-and-or',
-            'WHERE keys "and"/"or" are deprecated; use "$and"/"$or". The lowercase aliases will be removed in 2.0.0.'
-          );
-          const top = filters.and
-            ? this.buildCondition(
-                filters.and,
-                'AND',
-                values,
-                includeDeactivated === true
-              )
-            : this.buildCondition(
-                filters.or ?? [],
-                'OR',
-                values,
-                includeDeactivated === true
-              );
-          whereClauses.push(top);
-        } else {
-          whereClauses.push(
-            this.buildCondition(
-              [filters] as WhereCondition[],
-              'AND',
-              values,
-              includeDeactivated === true
-            )
-          );
-        }
+        whereClauses.push(
+          this.buildCondition(
+            [filters] as WhereCondition[],
+            'AND',
+            values,
+            includeDeactivated === true
+          )
+        );
       }
       if (this._schema.softDelete && !includeDeactivated) {
         whereClauses.push('deactivated_at IS NULL');
@@ -709,33 +685,6 @@ class QueryModel<TRow = any> {
     return clone;
   }
 
-  /**
-   * Sets a new schema name and regenerates the column set.
-   *
-   * @deprecated Mutates this instance in place: two interleaved requests on a
-   * shared repository race on the schema and can write to the wrong tenant.
-   * Use {@link QueryModel#forSchema} instead.
-   * @param name - The new schema name.
-   * @returns The updated model instance.
-   * @throws {Error} If name is invalid.
-   */
-  setSchemaName(name: string): this {
-    warnOnce(
-      'setSchemaName',
-      'setSchemaName() is deprecated: it mutates the shared model instance and races under concurrent requests. Use forSchema() instead.'
-    );
-    if (typeof name !== 'string' || !name.trim()) {
-      throw new Error('Schema name must be a non-empty string');
-    }
-
-    const clonedSchema = cloneDeep(this._schema);
-    clonedSchema.dbSchema = name;
-    this.cs = createColumnSet(clonedSchema, this.pgp);
-    this._schema = clonedSchema;
-
-    return this;
-  }
-
   get tableName(): string {
     return this.escapeName(this._schema.table);
   }
@@ -745,30 +694,23 @@ class QueryModel<TRow = any> {
   // ---------------------------------------------------------------------------
 
   /**
-   * Maps the deprecated column key `nullable` onto `notNull`.
+   * Rejects the removed column key `nullable` (dropped in 2.0.0).
    *
-   * Nothing in DDL generation or validator generation ever read `nullable`,
-   * so schemas using it silently produced fully nullable tables (issue N6).
-   * `nullable: false` now means `notNull: true`; `nullable: true` matches the
-   * default and is dropped. Emits a one-time deprecation warning.
+   * Silently ignoring it would flip NOT NULL semantics for JavaScript
+   * callers still passing `nullable: false` (the original issue N6), so a
+   * schema using it fails loudly at construction time.
    *
-   * @param schema - Cloned schema to normalize in place.
+   * @param schema - Cloned schema to validate.
+   * @throws {SchemaDefinitionError} If any column uses `nullable`.
    */
-  _normalizeNullableColumns(schema: TableSchema): void {
+  _rejectRemovedNullableKey(schema: TableSchema): void {
     if (!Array.isArray(schema.columns)) return;
     for (const col of schema.columns) {
-      if (!Object.prototype.hasOwnProperty.call(col, 'nullable')) continue;
-      warnOnce(
-        'nullable-alias',
-        `Column "${col.name}" in "${schema.table}" uses the deprecated key "nullable"; use "notNull" instead. "nullable: false" is treated as "notNull: true". This alias will be removed in 2.0.0.`
-      );
-      if (
-        col.nullable === false &&
-        !Object.prototype.hasOwnProperty.call(col, 'notNull')
-      ) {
-        col.notNull = true;
+      if (Object.prototype.hasOwnProperty.call(col, 'nullable')) {
+        throw new SchemaDefinitionError(
+          `Column "${col.name}" in "${schema.table}" uses the removed key "nullable"; use "notNull" instead ("nullable: false" becomes "notNull: true").`
+        );
       }
-      delete col.nullable;
     }
   }
 
@@ -908,7 +850,7 @@ class QueryModel<TRow = any> {
    * Builds a SQL fragment from a group of conditions, supporting nested logic and advanced operators.
    *
    * 🔍 Supports field-level modifiers like `$like`, `$from`, `$in`, etc.
-   * 🔁 Also supports nested boolean logic via `$and`, `$or`, `and`, `or`.
+   * 🔁 Also supports nested boolean logic via `$and` and `$or`.
    *
    * 📘 See full documentation:
    * [WHERE Clause Modifiers Reference](where-modifiers.md)
@@ -939,129 +881,109 @@ class QueryModel<TRow = any> {
         );
         continue;
       }
-      if (item.and && Array.isArray(item.and) && item.and.length > 0) {
-        warnOnce(
-          'lowercase-and-or',
-          'WHERE keys "and"/"or" are deprecated; use "$and"/"$or". The lowercase aliases will be removed in 2.0.0.'
-        );
-        parts.push(
-          `(${this.buildCondition(item.and, 'AND', values, includeDeactivated)})`
-        );
-      } else if (item.or && Array.isArray(item.or) && item.or.length > 0) {
-        warnOnce(
-          'lowercase-and-or',
-          'WHERE keys "and"/"or" are deprecated; use "$and"/"$or". The lowercase aliases will be removed in 2.0.0.'
-        );
-        parts.push(
-          `(${this.buildCondition(item.or, 'OR', values, includeDeactivated)})`
-        );
-      } else {
-        for (const [key, val] of Object.entries(item as FieldConditions)) {
-          const col = this.escapeName(key);
-          if (val && typeof val === 'object') {
-            const keys = Object.keys(val);
-            const unsupported = keys.filter(
-              k => !(CONDITION_OPERATORS as readonly string[]).includes(k)
+      for (const [key, val] of Object.entries(item as FieldConditions)) {
+        const col = this.escapeName(key);
+        if (val && typeof val === 'object') {
+          const keys = Object.keys(val);
+          const unsupported = keys.filter(
+            k => !(CONDITION_OPERATORS as readonly string[]).includes(k)
+          );
+          if (unsupported.length > 0) {
+            throw new SchemaDefinitionError(
+              `Unsupported operator: ${unsupported[0]}`
             );
-            if (unsupported.length > 0) {
+          }
+
+          if ('$like' in val) {
+            values.push(val.$like);
+            parts.push(`${col} LIKE $${values.length}`);
+          }
+          if ('$ilike' in val) {
+            values.push(val.$ilike);
+            parts.push(`${col} ILIKE $${values.length}`);
+          }
+          if ('$from' in val) {
+            values.push(val.$from);
+            parts.push(`${col} >= $${values.length}`);
+          }
+          if ('$to' in val) {
+            values.push(val.$to);
+            parts.push(`${col} <= $${values.length}`);
+          }
+          if ('$in' in val) {
+            if (!Array.isArray(val.$in) || val.$in.length === 0) {
               throw new SchemaDefinitionError(
-                `Unsupported operator: ${unsupported[0]}`
+                `$IN clause must be a non-empty array`
               );
             }
-
-            if ('$like' in val) {
-              values.push(val.$like);
-              parts.push(`${col} LIKE $${values.length}`);
+            const placeholders = val.$in
+              .map(v => {
+                values.push(v);
+                return `$${values.length}`;
+              })
+              .join(', ');
+            parts.push(`${col} IN (${placeholders})`);
+          }
+          if ('$eq' in val) {
+            values.push(val.$eq);
+            parts.push(`${col} = $${values.length}`);
+          }
+          if ('$ne' in val) {
+            if (val.$ne === null) {
+              parts.push(`${col} IS NOT NULL`);
+            } else {
+              values.push(val.$ne);
+              parts.push(`${col} != $${values.length}`);
             }
-            if ('$ilike' in val) {
-              values.push(val.$ilike);
-              parts.push(`${col} ILIKE $${values.length}`);
+          }
+          // Handle $not
+          if ('$not' in val) {
+            if (val.$not === null) {
+              parts.push(`${col} IS NOT NULL`);
+            } else {
+              throw new SchemaDefinitionError(
+                `$not only supports null for now`
+              );
             }
-            if ('$from' in val) {
-              values.push(val.$from);
-              parts.push(`${col} >= $${values.length}`);
-            }
-            if ('$to' in val) {
-              values.push(val.$to);
-              parts.push(`${col} <= $${values.length}`);
-            }
-            if ('$in' in val) {
-              if (!Array.isArray(val.$in) || val.$in.length === 0) {
-                throw new SchemaDefinitionError(
-                  `$IN clause must be a non-empty array`
-                );
-              }
-              const placeholders = val.$in
-                .map(v => {
-                  values.push(v);
-                  return `$${values.length}`;
-                })
-                .join(', ');
-              parts.push(`${col} IN (${placeholders})`);
-            }
-            if ('$eq' in val) {
-              values.push(val.$eq);
-              parts.push(`${col} = $${values.length}`);
-            }
-            if ('$ne' in val) {
-              if (val.$ne === null) {
-                parts.push(`${col} IS NOT NULL`);
-              } else {
-                values.push(val.$ne);
-                parts.push(`${col} != $${values.length}`);
-              }
-            }
-            // Handle $not
-            if ('$not' in val) {
-              if (val.$not === null) {
-                parts.push(`${col} IS NOT NULL`);
-              } else {
-                throw new SchemaDefinitionError(
-                  `$not only supports null for now`
-                );
-              }
-            }
-            // Handle $is
-            if ('$is' in val) {
-              if (val.$is === null) {
-                parts.push(`${col} IS NULL`);
-              } else {
-                throw new SchemaDefinitionError(
-                  `$is only supports null for now`
-                );
-              }
-            }
-            if ('$max' in val || '$min' in val || '$sum' in val) {
-              // The subquery must apply the same soft-delete filter as the
-              // outer query, or the aggregate can land on a deleted row and
-              // the query returns nothing (issue 11).
-              const softFilter =
-                this._schema.softDelete && !includeDeactivated
-                  ? ' WHERE deactivated_at IS NULL'
-                  : '';
-              if ('$max' in val) {
-                parts.push(
-                  `${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`
-                );
-              }
-              if ('$min' in val) {
-                parts.push(
-                  `${col} = (SELECT MIN(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`
-                );
-              }
-              if ('$sum' in val) {
-                parts.push(
-                  `${col} = (SELECT SUM(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`
-                );
-              }
-            }
-          } else {
-            if (val === null) {
+          }
+          // Handle $is
+          if ('$is' in val) {
+            if (val.$is === null) {
               parts.push(`${col} IS NULL`);
             } else {
-              values.push(val);
-              parts.push(`${col} = $${values.length}`);
+              throw new SchemaDefinitionError(`$is only supports null for now`);
             }
+          }
+          if ('$max' in val || '$min' in val || '$sum' in val) {
+            // The subquery must apply the same soft-delete filter as the
+            // outer query, or the aggregate can land on a deleted row and
+            // the query returns nothing (issue 11).
+            const softFilter =
+              this._schema.softDelete && !includeDeactivated
+                ? ' WHERE deactivated_at IS NULL'
+                : '';
+            if ('$max' in val) {
+              parts.push(
+                `${col} = (SELECT MAX(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`
+              );
+            }
+            if ('$min' in val) {
+              parts.push(
+                `${col} = (SELECT MIN(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`
+              );
+            }
+            if ('$sum' in val) {
+              parts.push(
+                `${col} = (SELECT SUM(${col}) FROM ${this.schemaName}.${this.tableName}${softFilter})`
+              );
+            }
+          }
+        } else {
+          if (val === null) {
+            parts.push(`${col} IS NULL`);
+          } else {
+            values.push(val);
+            parts.push(`${col} = $${values.length}`);
           }
         }
       }

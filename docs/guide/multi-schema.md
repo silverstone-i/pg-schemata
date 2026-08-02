@@ -34,10 +34,8 @@ const rows = await db().users.forSchema('tenant_abc').findAll();
 
 Clones are cached per schema, so calling `forSchema()` on every request costs one cache lookup after the first call.
 
-### setSchemaName (deprecated)
-
-::: warning Deprecated
-`setSchemaName()` mutates the model instance in place. Two interleaved requests sharing one repository race on the schema: whichever calls `setSchemaName()` last wins, and the other request reads or writes the wrong tenant's tables. Use `forSchema()` instead — it exists precisely to remove this race.
+::: info Removed in 2.0.0
+`setSchemaName()` was removed. It mutated the model instance in place, so two interleaved requests sharing one repository raced on the schema. `forSchema()` is the replacement.
 :::
 
 ## callDb — schema-aware accessor

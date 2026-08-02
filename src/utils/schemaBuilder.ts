@@ -14,7 +14,6 @@ import SchemaDefinitionError from '../SchemaDefinitionError.js';
 import crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
 import { logMessage } from './pg-util.js';
-import { warnOnce } from './deprecation.js';
 import type { IMain } from 'pg-promise';
 import type {
   ColPropsContext,
@@ -84,36 +83,19 @@ function resolveIndexes(schema: TableSchema): IndexDefinition[] | undefined {
   if (Array.isArray(constraintIndexes) && constraintIndexes.length > 0) {
     return constraintIndexes;
   }
-
-  const topLevelIndexes = schema?.indexes;
-  if (Array.isArray(topLevelIndexes) && topLevelIndexes.length > 0) {
-    warnOnce(
-      `schema-top-level-indexes:${schema.table}`,
-      `Schema for table "${schema.table}" defines top-level "indexes"; move them to "constraints.indexes". The fallback will be removed in 2.0.0.`
-    );
-    return topLevelIndexes;
-  }
-
   return undefined;
 }
 
 /**
  * @private
  *
- * Resolves the target Postgres schema, falling back to the deprecated
- * `schemaName` alias (with a one-time warning) and finally 'public'.
+ * Resolves the target Postgres schema, defaulting to 'public'.
  *
  * @param schema - Structured schema definition.
  * @returns The resolved schema name.
  */
 function resolveDbSchema(schema: TableSchema): string {
-  if (!schema.dbSchema && schema.schemaName) {
-    warnOnce(
-      `schema-schemaName:${schema.table}`,
-      `Schema for table "${schema.table}" uses the deprecated key "schemaName"; rename it to "dbSchema". The fallback will be removed in 2.0.0.`
-    );
-  }
-  return schema.dbSchema || schema.schemaName || 'public';
+  return schema.dbSchema || 'public';
 }
 
 /**

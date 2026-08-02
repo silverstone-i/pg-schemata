@@ -90,15 +90,16 @@ interface Constraints {
 }
 ```
 
-::: warning Deprecated aliases
-Three legacy schema-shape aliases emit a one-time runtime warning since 1.8.0
-and will be removed in 2.0.0:
+::: info Removed in 2.0.0
+Three legacy schema-shape aliases (deprecated with runtime warnings in 1.8.0)
+were removed in 2.0.0:
 
 - `schema.schemaName` → use `dbSchema`
 - top-level `schema.indexes` → move under `constraints.indexes`
-- column key `nullable` → use `notNull` (`nullable: false` becomes `notNull: true`)
+- column key `nullable` → use `notNull`; a schema still passing `nullable` now
+  throws `SchemaDefinitionError` at model construction
 
-(`AuditFieldsConfig.userFields.nullable` below is a different, non-deprecated key.)
+(`AuditFieldsConfig.userFields.nullable` below is a different, still-supported key.)
 :::
 
 ## ConstraintDefinition

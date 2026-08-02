@@ -411,13 +411,13 @@ Escapes an identifier (column name, table name) via `pgp.as.name(name)`. Used in
 
 ---
 
-#### `setSchemaName(name)`
+#### `forSchema(name)`
 
 ```
-setSchemaName(name: string) → QueryModel
+forSchema(name: string) → QueryModel
 ```
 
-Validates `name` is a non-empty string. Deep-clones `_schema`, sets `dbSchema = name`, regenerates ColumnSet via `createColumnSet()`. Returns `this`.
+Validates `name` is a non-empty string. Returns a cached, prototype-preserving clone bound to the target schema; the receiver is never mutated. (`setSchemaName()`, the mutating predecessor, was removed in 2.0.0.)
 
 ---
 
@@ -662,7 +662,7 @@ bulkInsert(records: Object[], returning?: string[] = null) → Promise<number | 
 4. If `softDelete`: throws `SchemaDefinitionError` if any record contains `deactivated_at`
 5. Builds dynamic `ColumnSet` from first record's keys
 6. Builds query: `pgp.helpers.insert(safeRecords, cs)` + optional `RETURNING` clause
-7. Executes within `db.tx()` (or `this.tx` if available)
+7. Executes within `db.tx()` (or the `options.tx` context if supplied)
 8. Returns `rowCount` or array of rows
 
 ---
@@ -713,7 +713,7 @@ importFromSpreadsheet(
 removeWhere(where: Object | Object[]) → Promise<number>
 ```
 
-Rejects if `softDelete` not enabled (with `status: 403`). Sets `deactivated_at = NOW()`. If `hasAuditFields` and actor resolves: also sets `updated_by` and `updated_at = NOW()`. Only affects active records (`AND deactivated_at IS NULL`). Returns `rowCount`.
+Rejects with `SchemaDefinitionError` if `softDelete` not enabled (the non-standard `status: 403` property was removed in 2.0.0). Sets `deactivated_at = NOW()`. If `hasAuditFields` and actor resolves: also sets `updated_by` and `updated_at = NOW()`. Only affects active records (`AND deactivated_at IS NULL`). Returns `rowCount`.
 
 ---
 
@@ -777,7 +777,7 @@ Calls `createTableSQL(this._schema, this.logger)` (from schemaBuilder) to genera
 callDb(modelOrName: string | Object, schemaName: string) → Object
 ```
 
-If `modelOrName` is a string, resolves from `DB.db[modelOrName]`. Validates the model has a `setSchemaName` method. Calls `model.setSchemaName(schemaName)` and returns the model.
+If `modelOrName` is a string, resolves from `DB.db[modelOrName]`. Validates the model has a `forSchema` method. Calls `model.forSchema(schemaName)` and returns the schema-bound clone.
 
 #### `bootstrap({ models, schema?, extensions?, db? })`
 
@@ -794,8 +794,9 @@ bootstrap({
 
 1. Validates `models` is an object
 2. Enables each PostgreSQL extension: `CREATE EXTENSION IF NOT EXISTS $1:name`
-3. For each model class: instantiates `new ModelClass(t, DB.pgp)`, calls `setSchemaName(schema)`, calls `createTable()`
-4. Runs within provided `db` transaction or creates new one via `DB.db.tx()`
+3. Instantiates each model class with `new ModelClass(t, DB.pgp)` and binds it via `forSchema(schema)`
+4. Creates tables parent-first using the FK topological sort (`orderModels`)
+5. Runs within provided `db` transaction or creates new one via `DB.db.tx()`
 
 #### `setAuditActorResolver(fn)`
 
@@ -1265,7 +1266,7 @@ Three validators are auto-generated per schema from `generateZodFromTableSchema(
 **Invariants:**
 
 - `dbSchema` property on schema objects determines the PostgreSQL schema
-- `setSchemaName()` switches schema at runtime
+- `forSchema()` returns a cached clone bound to another schema at runtime
 - Single pg-promise connection pool shared across all schemas/tenants
 - ColumnSets are cached per `${table}::${dbSchema}` key
 

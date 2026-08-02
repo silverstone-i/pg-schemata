@@ -185,16 +185,6 @@ Returns a model bound to the given schema without mutating this instance. Clones
 
 **Returns:** This instance if already bound to `name`, otherwise a cached clone
 
-### setSchemaName(name)
-
-::: warning Deprecated
-Mutates the instance in place and races under concurrent requests. Use `forSchema()`.
-:::
-
-Changes the PostgreSQL schema and regenerates the ColumnSet.
-
-**Returns:** The model instance (for chaining)
-
 ### reload(id, options?)
 
 Reloads a record by ID. Pass `{ includeDeactivated: true }` to include soft-deleted records; `findById` does not take options.

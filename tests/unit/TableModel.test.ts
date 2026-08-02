@@ -39,7 +39,11 @@ const mockPgp: any = {
 const mockSchema: any = {
   dbSchema: 'public',
   table: 'users',
-  columns: [{ name: 'id' }, { name: 'email' }, { name: 'password' }],
+  columns: [
+    { name: 'id', type: 'int' },
+    { name: 'email', type: 'text' },
+    { name: 'password', type: 'text' },
+  ],
   constraints: { primaryKey: 'id' },
 };
 
@@ -124,8 +128,8 @@ describe('TableModel (Unit)', () => {
           hasAuditFields: true,
           columns: [
             ...mockSchema.columns,
-            { name: 'created_by' },
-            { name: 'updated_by' },
+            { name: 'created_by', type: 'text' },
+            { name: 'updated_by', type: 'text' },
           ],
         };
         const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
@@ -145,8 +149,8 @@ describe('TableModel (Unit)', () => {
           hasAuditFields: true,
           columns: [
             ...mockSchema.columns,
-            { name: 'created_by' },
-            { name: 'updated_by' },
+            { name: 'created_by', type: 'text' },
+            { name: 'updated_by', type: 'text' },
           ],
         };
         const auditModel = new TableModel(mockDb, mockPgp, auditSchema);
@@ -246,8 +250,8 @@ describe('TableModel (Unit)', () => {
           hasAuditFields: true,
           columns: [
             ...mockSchema.columns,
-            { name: 'created_by' },
-            { name: 'updated_by' },
+            { name: 'created_by', type: 'text' },
+            { name: 'updated_by', type: 'text' },
           ],
         };
         const auditModel = new TableModel(mockDb, mockPgp, auditSchema);

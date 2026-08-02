@@ -155,7 +155,7 @@ Bulk insert-or-update in a transaction.
 Soft deletes records by setting `deactivated_at = NOW()`.
 
 **Returns:** `Promise<number>` — number of rows updated
-**Throws:** `Error` if soft delete is not enabled
+**Throws:** `SchemaDefinitionError` if soft delete is not enabled (the non-standard `status: 403` property was removed in 2.0.0 — catch `SchemaDefinitionError` and map to your own HTTP status)
 
 ### restoreWhere(where)
 

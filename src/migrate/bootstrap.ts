@@ -15,6 +15,7 @@
 // have the required tables. Use it from within a migration or during initial setup.
 
 import { DB } from '../DB.js';
+import { isTableModel, orderModels } from './modelPlanner.js';
 import type { DbConnection, RepositoryCtor } from '../schemaTypes.js';
 
 /** Options accepted by {@link bootstrap}. */
@@ -63,14 +64,29 @@ export async function bootstrap({
       }
     }
 
-    for (const [, ModelClass] of Object.entries(models)) {
+    // Instantiate and schema-bind every model, then create tables in
+    // FK-dependency order (parents before children) rather than insertion
+    // order.
+    const instances: Record<string, BootstrapModel> = {};
+    for (const [name, ModelClass] of Object.entries(models)) {
       // Skip values that are not classes
       if (typeof ModelClass !== 'function') continue;
       let instance = new ModelClass(t, DB.pgp) as BootstrapModel;
       if (schema && typeof instance.forSchema === 'function') {
         instance = instance.forSchema(schema);
       }
-      if (typeof instance.createTable === 'function') {
+      instances[name] = instance;
+    }
+    for (const model of orderModels(instances)) {
+      await model.createTable?.();
+    }
+    // Preserve the historical duck-typing: values lacking the table-model
+    // shape but still exposing createTable are created after the sorted set.
+    for (const instance of Object.values(instances)) {
+      if (
+        !isTableModel(instance) &&
+        typeof instance.createTable === 'function'
+      ) {
         await instance.createTable();
       }
     }

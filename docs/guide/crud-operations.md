@@ -179,6 +179,6 @@ await db().tx(async t => {
 });
 ```
 
-::: warning Deprecated
-Assigning `model.tx = t` also works and is now honored by every mutating method (previously only the bulk methods read it, so a mixed flow was only half-transactional). It mutates shared state, though — on a repository shared across requests the assignment leaks between them. Prefer `options.tx` or `t.<repo>`. Removal is planned for 2.0.0.
+::: info Removed in 2.0.0
+The instance-level `model.tx = t` assignment was removed. It mutated shared state — on a repository shared across requests the assignment leaked between them. Use `options.tx` or `t.<repo>`.
 :::

@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { generateZodFromTableSchema } from '../../src/utils/generateZodValidator.js';
+import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import type { TableSchema } from '../../src/schemaTypes.js';
 
 describe('generateZodFromTableSchema', () => {
@@ -184,5 +185,45 @@ describe('generateZodFromTableSchema', () => {
         a_double: 'zero',
       }).success
     ).toBe(false);
+  });
+});
+
+describe('unknown column types (2.0.0 behavior)', () => {
+  it('throws SchemaDefinitionError naming the type and column', () => {
+    const schema = {
+      table: 'geo_things',
+      dbSchema: 'public',
+      columns: [
+        { name: 'id', type: 'uuid', notNull: true },
+        { name: 'footprint', type: 'geometry', notNull: false },
+      ],
+      constraints: { primaryKey: ['id'] },
+    } as unknown as TableSchema;
+
+    expect(() => generateZodFromTableSchema(schema)).toThrow(
+      SchemaDefinitionError
+    );
+    expect(() => generateZodFromTableSchema(schema)).toThrow(
+      'No validator mapping for column type "geometry" (column "footprint")'
+    );
+  });
+
+  it('accepts an unknown type when colProps.validator is provided', () => {
+    const schema = {
+      table: 'geo_things',
+      dbSchema: 'public',
+      columns: [
+        { name: 'id', type: 'uuid', notNull: true },
+        {
+          name: 'footprint',
+          type: 'geometry',
+          notNull: false,
+          colProps: { validator: z.string() },
+        },
+      ],
+      constraints: { primaryKey: ['id'] },
+    } as unknown as TableSchema;
+
+    expect(() => generateZodFromTableSchema(schema)).not.toThrow();
   });
 });

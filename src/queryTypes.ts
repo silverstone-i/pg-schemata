@@ -64,33 +64,22 @@ export type FieldConditions = Record<
 >;
 
 /**
- * A single WHERE condition node: nested boolean logic via `$and` / `$or`
- * (or the deprecated lowercase aliases), or column-keyed conditions.
+ * A single WHERE condition node: nested boolean logic via `$and` / `$or`,
+ * or column-keyed conditions.
  */
 export type WhereCondition =
-  | { $and: WhereCondition[] }
-  | { $or: WhereCondition[] }
-  /** @deprecated Use `$and`. */
-  | { and: WhereCondition[] }
-  /** @deprecated Use `$or`. */
-  | { or: WhereCondition[] }
-  | FieldConditions;
+  { $and: WhereCondition[] } | { $or: WhereCondition[] } | FieldConditions;
 
 /** Conditions in either shape accepted by the public query methods. */
 export type WhereInput = WhereCondition | WhereCondition[];
 
 /**
  * The `filters` option: column-keyed conditions plus optional top-level
- * boolean groups (`$and`/`$or`, or the legacy lowercase `and`/`or` special
- * cased by findAfterCursor).
+ * boolean groups (`$and`/`$or`).
  */
 export interface FiltersInput {
   $and?: WhereCondition[];
   $or?: WhereCondition[];
-  /** @deprecated Use `$and`. */
-  and?: WhereCondition[];
-  /** @deprecated Use `$or`. */
-  or?: WhereCondition[];
   [column: string]: Scalar | OperatorCondition | WhereCondition[] | undefined;
 }
 
