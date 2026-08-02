@@ -10,6 +10,15 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+### ⚠️ Deprecations
+
+- **Runtime one-time warnings added for four previously silent deprecated forms**, all scheduled for removal in 2.0.0:
+  - instance-level `model.tx` — pass the transaction per call via `options.tx` instead
+  - `schema.schemaName` — rename to `dbSchema`
+  - top-level `schema.indexes` — move under `constraints.indexes`
+  - lowercase `and` / `or` WHERE keys — use `$and` / `$or`
+- Internal: the existing one-time warnings (`setSchemaName()`, column `nullable` alias, unknown Zod column type) now go through a shared `warnOnce` helper; message text is unchanged
+
 ## [v1.7.0] - 2026-07-31
 
 ### ✨ Features

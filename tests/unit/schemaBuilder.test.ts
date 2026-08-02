@@ -18,6 +18,7 @@ import type {
   ForeignKeyReference,
 } from '../../src/schemaTypes.js';
 import type { TableColumnSets } from '../../src/internalTypes.js';
+import { _resetDeprecationWarnings } from '../../src/utils/deprecation.js';
 
 // Mock pg-promise and its helpers
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -40,7 +41,7 @@ describe('Schema Utilities', () => {
   describe('createTableSQL', () => {
     it('should generate correct CREATE TABLE SQL with columns and constraints', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'users',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -52,7 +53,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       expect(sql).toContain('CREATE SCHEMA IF NOT EXISTS "public"');
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
@@ -66,7 +67,7 @@ describe('Schema Utilities', () => {
 
     it('should generate correct CREATE TABLE SQL with foreign keys', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'posts',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -101,7 +102,7 @@ describe('Schema Utilities', () => {
 
     it('should resolve cross-schema FK target via dotted references.table', () => {
       const schema = {
-        schemaName: 'tenant_a',
+        dbSchema: 'tenant_a',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -123,7 +124,7 @@ describe('Schema Utilities', () => {
 
     it('should resolve cross-schema FK target via explicit references.schema', () => {
       const schema = {
-        schemaName: 'tenant_a',
+        dbSchema: 'tenant_a',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -148,6 +149,10 @@ describe('Schema Utilities', () => {
     });
 
     it('should fall back to own schemaName for bare same-schema FK references', () => {
+      _resetDeprecationWarnings();
+      const warnSpy = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
       const schema = {
         schemaName: 'public',
         table: 'orders',
@@ -167,11 +172,15 @@ describe('Schema Utilities', () => {
 
       const sql = createTableSQL(schema as unknown as TableSchema);
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "public"\."users"/);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('deprecated key "schemaName"')
+      );
+      warnSpy.mockRestore();
     });
 
     it('should let dotted references.table win when both dotted form and schema are supplied', () => {
       const schema = {
-        schemaName: 'tenant_a',
+        dbSchema: 'tenant_a',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -198,7 +207,7 @@ describe('Schema Utilities', () => {
     it('should produce identical constraint names for dotted FKs regardless of references.schema', () => {
       const baseSchema = (refs: ForeignKeyReference) =>
         ({
-          schemaName: 'tenant_a',
+          dbSchema: 'tenant_a',
           table: 'orders',
           columns: [
             { name: 'id', type: 'serial', notNull: true },
@@ -227,7 +236,7 @@ describe('Schema Utilities', () => {
 
     it('should throw on a multi-dot references.table value', () => {
       const schema = {
-        schemaName: 'tenant_a',
+        dbSchema: 'tenant_a',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -250,7 +259,7 @@ describe('Schema Utilities', () => {
 
     it('should produce distinct constraint names for FKs differing only by references.schema', () => {
       const schema = {
-        schemaName: 'tenant_a',
+        dbSchema: 'tenant_a',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -288,6 +297,10 @@ describe('Schema Utilities', () => {
     });
 
     it('should resolve bare references.table against non-public owning schemaName', () => {
+      _resetDeprecationWarnings();
+      const warnSpy = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
       const schema = {
         schemaName: 'tenant_a',
         table: 'orders',
@@ -307,11 +320,15 @@ describe('Schema Utilities', () => {
 
       const sql = createTableSQL(schema as unknown as TableSchema);
       expect(normalizeSQL(sql)).toMatch(/REFERENCES "tenant_a"\."users"/);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('deprecated key "schemaName"')
+      );
+      warnSpy.mockRestore();
     });
 
     it('should throw an error for invalid foreign key reference', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'posts',
         columns: [{ name: 'id', type: 'serial' }],
         constraints: {
@@ -329,7 +346,7 @@ describe('Schema Utilities', () => {
 
     it('should generate correct CREATE TABLE SQL with checks', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'products',
         columns: [
           { name: 'id', type: 'serial', notNull: true },
@@ -340,7 +357,7 @@ describe('Schema Utilities', () => {
         },
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."products"');
       expect(sql).toContain('"id" serial NOT NULL');
@@ -350,7 +367,7 @@ describe('Schema Utilities', () => {
 
     it('should handle NOT NULL and DEFAULT in createTableSQL', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'products',
         columns: [
           {
@@ -363,7 +380,7 @@ describe('Schema Utilities', () => {
         constraints: {},
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       expect(sql).toContain(
         '"id" serial NOT NULL DEFAULT nextval(\'products_id_seq\')'
@@ -372,33 +389,33 @@ describe('Schema Utilities', () => {
 
     it('escapes quotes inside string defaults (issue 7)', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'people',
         columns: [{ name: 'surname', type: 'text', default: "O'Brien" }],
         constraints: {},
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       expect(sql).toContain(`"surname" text DEFAULT 'O''Brien'`);
     });
 
     it('should handle schema with no constraints', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'simple_table',
         columns: [{ name: 'id', type: 'serial' }],
         // ❌ No constraints field at all
       };
 
-      const sql = createTableSQL(schema as unknown as TableSchema);
+      const sql = createTableSQL(schema);
 
       expect(sql).toContain('"id" serial'); // Basic check
     });
 
     it('should generate FOREIGN KEY with ON DELETE and ON UPDATE actions', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'orders',
         columns: [
           { name: 'id', type: 'serial' },
@@ -428,7 +445,7 @@ describe('Schema Utilities', () => {
 
     it('should generate correct CREATE TABLE SQL with generated columns', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'tenants',
         columns: [
           { name: 'tenant_code', type: 'varchar(6)', notNull: true },
@@ -800,7 +817,7 @@ describe('Schema Utilities', () => {
   describe('createIndexesSQL', () => {
     it('should generate correct CREATE INDEX SQL', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'users',
         constraints: {
           indexes: [{ columns: ['email'] }, { columns: ['username'] }],
@@ -813,9 +830,31 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
     });
 
+    it('should honor deprecated top-level indexes with a one-time warning', () => {
+      _resetDeprecationWarnings();
+      const warnSpy = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        indexes: [{ columns: ['email'] }],
+        constraints: {},
+      };
+
+      const sql = createIndexesSQL(schema as unknown as TableSchema);
+
+      expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('top-level "indexes"')
+      );
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      warnSpy.mockRestore();
+    });
+
     it('should handle schema without indexes gracefully', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'users',
         constraints: {
           // ❌ no indexes field
@@ -830,7 +869,7 @@ describe('Schema Utilities', () => {
 
     it('should generate correct unique CREATE INDEX SQL', () => {
       const schema = {
-        schemaName: 'public',
+        dbSchema: 'public',
         table: 'users',
         constraints: {
           indexes: [{ columns: ['email'] }, { columns: ['username'] }],

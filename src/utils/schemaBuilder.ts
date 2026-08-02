@@ -14,6 +14,7 @@ import SchemaDefinitionError from '../SchemaDefinitionError.js';
 import crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
 import { logMessage } from './pg-util.js';
+import { warnOnce } from './deprecation.js';
 import type { IMain } from 'pg-promise';
 import type {
   ColPropsContext,
@@ -86,10 +87,33 @@ function resolveIndexes(schema: TableSchema): IndexDefinition[] | undefined {
 
   const topLevelIndexes = schema?.indexes;
   if (Array.isArray(topLevelIndexes) && topLevelIndexes.length > 0) {
+    warnOnce(
+      `schema-top-level-indexes:${schema.table}`,
+      `Schema for table "${schema.table}" defines top-level "indexes"; move them to "constraints.indexes". The fallback will be removed in 2.0.0.`
+    );
     return topLevelIndexes;
   }
 
   return undefined;
+}
+
+/**
+ * @private
+ *
+ * Resolves the target Postgres schema, falling back to the deprecated
+ * `schemaName` alias (with a one-time warning) and finally 'public'.
+ *
+ * @param schema - Structured schema definition.
+ * @returns The resolved schema name.
+ */
+function resolveDbSchema(schema: TableSchema): string {
+  if (!schema.dbSchema && schema.schemaName) {
+    warnOnce(
+      `schema-schemaName:${schema.table}`,
+      `Schema for table "${schema.table}" uses the deprecated key "schemaName"; rename it to "dbSchema". The fallback will be removed in 2.0.0.`
+    );
+  }
+  return schema.dbSchema || schema.schemaName || 'public';
 }
 
 /**
@@ -107,8 +131,8 @@ function createTableSQL(
   logger: Logger | null = null
 ): string {
   // Extract schema components: schema name, table name, columns, and constraints
-  const { dbSchema, table, columns, constraints = {} } = schema;
-  const schemaName = dbSchema || schema.schemaName || 'public';
+  const { table, columns, constraints = {} } = schema;
+  const schemaName = resolveDbSchema(schema);
 
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
@@ -430,7 +454,7 @@ function createIndexesSQL(
     throw new SchemaDefinitionError('No indexes defined in schema');
   }
 
-  const schemaName = schema.dbSchema || schema.schemaName || 'public';
+  const schemaName = resolveDbSchema(schema);
 
   const indexSQL = indexes.map(index => {
     // Support both old format { columns: [...] } and new format with more options

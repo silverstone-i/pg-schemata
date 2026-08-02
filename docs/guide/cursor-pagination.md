@@ -53,15 +53,20 @@ const page = await db().users.findAfterCursor({}, 25, ['id'], {
 });
 ```
 
-Filters support nested `and` / `or` logic:
+Filters support nested `$and` / `$or` logic:
 
 ```js
 const page = await db().users.findAfterCursor({}, 25, ['id'], {
   filters: {
-    and: [{ is_active: true }, { role: { $in: ['admin', 'moderator'] } }],
+    $and: [{ is_active: true }, { role: { $in: ['admin', 'moderator'] } }],
   },
 });
 ```
+
+::: warning Deprecated
+The lowercase `and` / `or` filter keys still work but emit a one-time runtime
+warning since 1.8.0 and will be removed in 2.0.0. Use `$and` / `$or`.
+:::
 
 ## Soft delete awareness
 

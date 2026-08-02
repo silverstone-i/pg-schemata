@@ -22,8 +22,10 @@ class Users extends TableModel {
         { name: 'email', type: 'varchar(50)' },
         { name: 'password', type: 'varchar(50)' },
       ],
-      indexes: [{ name: 'users_email_idx', columns: ['email'] }],
-      constraints: { primaryKey: ['id'] },
+      constraints: {
+        primaryKey: ['id'],
+        indexes: [{ name: 'users_email_idx', columns: ['email'] }],
+      },
     });
   }
 }
