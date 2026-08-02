@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { warnOnce } from './deprecation.js';
 import type { TableSchema, TableValidators } from '../schemaTypes.js';
 /**
  * @private
@@ -18,8 +19,6 @@ import type { TableSchema, TableValidators } from '../schemaTypes.js';
  *
  * Note: This function is used internally by TableModel to auto-generate validation schemas.
  */
-const unknownTypeWarned = new Set<string>();
-
 function mapSqlTypeToZod(type: string): z.ZodTypeAny {
   const varcharMatch = /^varchar\((\d+)\)$/i.exec(type);
   if (varcharMatch?.[1]) {
@@ -56,12 +55,10 @@ function mapSqlTypeToZod(type: string): z.ZodTypeAny {
     // Unrecognized types keep z.any() for compatibility, but say so once
     // per type instead of silently accepting anything (suggestion 3).
     // 2.0.0 will throw here.
-    if (!unknownTypeWarned.has(type)) {
-      unknownTypeWarned.add(type);
-      console.warn(
-        `[pg-schemata] No validator mapping for column type "${type}"; falling back to z.any(). This will become an error in 2.0.0.`
-      );
-    }
+    warnOnce(
+      `zod-unknown-type:${type}`,
+      `No validator mapping for column type "${type}"; falling back to z.any(). This will become an error in 2.0.0.`
+    );
     return z.any();
   }
 }

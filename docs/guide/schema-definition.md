@@ -91,7 +91,14 @@ constraints: {
 ::: info
 Check expressions and index predicates are deliberately raw SQL — they are emitted into the DDL as written. Column `default` strings, by contrast, are quoted and escaped when they are not a function call, number, or already-quoted literal.
 :::
-| `indexes` | `ConstraintDefinition[]` | Index definitions for query optimization |
+| `indexes` | `IndexDefinition[]` | Index definitions for query optimization |
+
+::: warning Deprecated
+Declaring `indexes` at the top level of the schema (outside `constraints`) and
+the `schemaName` alias for `dbSchema` still work but emit a one-time runtime
+warning since 1.8.0; both fallbacks will be removed in 2.0.0. The column key
+`nullable` is likewise deprecated — use `notNull`.
+:::
 
 ## Audit fields
 

@@ -9,6 +9,7 @@ import {
   addSoftDeleteField,
 } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
+import { warnOnce } from './utils/deprecation.js';
 import DatabaseError from './DatabaseError.js';
 import type { PgErrorLike } from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
@@ -62,8 +63,6 @@ const modelCloneCache = new LRUCache<string, object>({
   ttl: 1000 * 60 * 60,
 });
 let nextCloneCacheId = 1;
-let setSchemaNameDeprecationWarned = false;
-let nullableAliasWarned = false;
 
 /**
  * QueryModel provides reusable read-only query logic for PostgreSQL tables.
@@ -345,6 +344,10 @@ class QueryModel<TRow = any> {
 
       if (Object.keys(filters).length) {
         if (filters.and || filters.or) {
+          warnOnce(
+            'lowercase-and-or',
+            'WHERE keys "and"/"or" are deprecated; use "$and"/"$or". The lowercase aliases will be removed in 2.0.0.'
+          );
           const top = filters.and
             ? this.buildCondition(
                 filters.and,
@@ -717,12 +720,10 @@ class QueryModel<TRow = any> {
    * @throws {Error} If name is invalid.
    */
   setSchemaName(name: string): this {
-    if (!setSchemaNameDeprecationWarned) {
-      setSchemaNameDeprecationWarned = true;
-      console.warn(
-        '[pg-schemata] setSchemaName() is deprecated: it mutates the shared model instance and races under concurrent requests. Use forSchema() instead.'
-      );
-    }
+    warnOnce(
+      'setSchemaName',
+      'setSchemaName() is deprecated: it mutates the shared model instance and races under concurrent requests. Use forSchema() instead.'
+    );
     if (typeof name !== 'string' || !name.trim()) {
       throw new Error('Schema name must be a non-empty string');
     }
@@ -757,12 +758,10 @@ class QueryModel<TRow = any> {
     if (!Array.isArray(schema.columns)) return;
     for (const col of schema.columns) {
       if (!Object.prototype.hasOwnProperty.call(col, 'nullable')) continue;
-      if (!nullableAliasWarned) {
-        nullableAliasWarned = true;
-        console.warn(
-          `[pg-schemata] Column "${col.name}" in "${schema.table}" uses the deprecated key "nullable"; use "notNull" instead. "nullable: false" is treated as "notNull: true". This alias will be removed in 2.0.0.`
-        );
-      }
+      warnOnce(
+        'nullable-alias',
+        `Column "${col.name}" in "${schema.table}" uses the deprecated key "nullable"; use "notNull" instead. "nullable: false" is treated as "notNull: true". This alias will be removed in 2.0.0.`
+      );
       if (
         col.nullable === false &&
         !Object.prototype.hasOwnProperty.call(col, 'notNull')
@@ -941,10 +940,18 @@ class QueryModel<TRow = any> {
         continue;
       }
       if (item.and && Array.isArray(item.and) && item.and.length > 0) {
+        warnOnce(
+          'lowercase-and-or',
+          'WHERE keys "and"/"or" are deprecated; use "$and"/"$or". The lowercase aliases will be removed in 2.0.0.'
+        );
         parts.push(
           `(${this.buildCondition(item.and, 'AND', values, includeDeactivated)})`
         );
       } else if (item.or && Array.isArray(item.or) && item.or.length > 0) {
+        warnOnce(
+          'lowercase-and-or',
+          'WHERE keys "and"/"or" are deprecated; use "$and"/"$or". The lowercase aliases will be removed in 2.0.0.'
+        );
         parts.push(
           `(${this.buildCondition(item.or, 'OR', values, includeDeactivated)})`
         );

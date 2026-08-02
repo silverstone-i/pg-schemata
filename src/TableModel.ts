@@ -8,6 +8,7 @@ import { createTableSQL } from './utils/schemaBuilder.js';
 import { readFileSync } from 'node:fs';
 import { WorkbookReader } from '@nap-sft/tablsx';
 import { isValidId, isPlainObject } from './utils/validation.js';
+import { warnOnce } from './utils/deprecation.js';
 import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 import { getAuditActor } from './auditActorResolver.js';
@@ -56,8 +57,23 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
   /**
    * @deprecated Never assigned by the library; legacy instance-level
    * task/transaction honored by `_exec()` for backward compatibility.
+   * Will be removed in 2.0.0 — pass the transaction per call via options.tx.
    */
   tx?: DbConnection | null;
+
+  /**
+   * Returns the deprecated instance-level tx, warning once when it is
+   * actually used as the executor fallback.
+   */
+  private _instanceTx(): DbConnection | null {
+    if (this.tx) {
+      warnOnce(
+        'tablemodel-tx',
+        'Assigning model.tx is deprecated and will be removed in 2.0.0. Pass the transaction per call via options.tx instead.'
+      );
+    }
+    return this.tx ?? null;
+  }
 
   constructor(
     db: DbConnection,
@@ -134,7 +150,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
    * @returns Executor exposing one/any/none/result.
    */
   _exec(tx: DbConnection | null = null): DbConnection {
-    return tx ?? this.tx ?? this.db;
+    return tx ?? this._instanceTx() ?? this.db;
   }
 
   /**
@@ -514,7 +530,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     `;
 
     try {
-      const exec = tx ?? this.tx ?? null;
+      const exec = tx ?? this._instanceTx();
       if (exec) {
         if (returning) {
           return await exec.any(query);
@@ -697,7 +713,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     returning: string[] | null = null,
     { tx: txOption = null }: TxOption = {}
   ): Promise<number | Partial<TRow>[]> {
-    const tx = txOption ?? this.tx ?? null;
+    const tx = txOption ?? this._instanceTx();
     if (!Array.isArray(records) || records.length === 0) {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
@@ -810,7 +826,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     returning: string[] | null = null,
     { tx: txOption = null }: TxOption = {}
   ): Promise<(number | Partial<TRow>[])[]> {
-    const tx = txOption ?? this.tx ?? null;
+    const tx = txOption ?? this._instanceTx();
     const pk = this._schema.constraints?.primaryKey;
     if (!pk) {
       throw new SchemaDefinitionError(

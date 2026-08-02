@@ -86,9 +86,20 @@ interface Constraints {
   unique?: (string[] | UniqueConstraintDefinition)[];
   foreignKeys?: ConstraintDefinition[];
   checks?: ConstraintDefinition[];
-  indexes?: ConstraintDefinition[];
+  indexes?: IndexDefinition[];
 }
 ```
+
+::: warning Deprecated aliases
+Three legacy schema-shape aliases emit a one-time runtime warning since 1.8.0
+and will be removed in 2.0.0:
+
+- `schema.schemaName` → use `dbSchema`
+- top-level `schema.indexes` → move under `constraints.indexes`
+- column key `nullable` → use `notNull` (`nullable: false` becomes `notNull: true`)
+
+(`AuditFieldsConfig.userFields.nullable` below is a different, non-deprecated key.)
+:::
 
 ## ConstraintDefinition
 

@@ -15,6 +15,7 @@ vi.mock('../../src/utils/schemaBuilder.js', () => ({
 
 import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import QueryModel from '../../src/QueryModel.js';
+import { _resetDeprecationWarnings } from '../../src/utils/deprecation.js';
 import type { IMain } from 'pg-promise';
 import type {
   ColumnDefinition,
@@ -225,10 +226,74 @@ describe('QueryModel', () => {
         descending: true,
         columnWhitelist: ['id'],
         filters: {
-          and: [{ email: { $like: '%example.com' } }],
+          $and: [{ email: { $like: '%example.com' } }],
         },
       });
       expect(result.rows).toEqual([{ id: 3 }]);
+    });
+
+    // Characterization tests: these pin the SQL produced for $and/$or filters
+    // so the 2.0.0 removal of the lowercase and/or branch can prove the
+    // canonical forms are unaffected.
+    test('$and filters produce a parenthesized AND group after the cursor clause', async () => {
+      mockDb.any.mockResolvedValue([]);
+      await model.findAfterCursor({ id: 2 }, 1, ['id'], {
+        filters: { $and: [{ email: 'a@x.com' }, { password: 'p' }] },
+      });
+      const query = String(mockDb.any.mock.calls[0]?.[0]);
+      expect(query).toContain(
+        'WHERE ("id") > ($1) AND ("email" = $2 AND "password" = $3)'
+      );
+    });
+
+    test('$or filters produce a parenthesized OR group ANDed with the cursor clause', async () => {
+      mockDb.any.mockResolvedValue([]);
+      await model.findAfterCursor({ id: 2 }, 1, ['id'], {
+        filters: { $or: [{ email: 'a@x.com' }, { password: 'p' }] },
+      });
+      const query = String(mockDb.any.mock.calls[0]?.[0]);
+      expect(query).toContain(
+        'WHERE ("id") > ($1) AND ("email" = $2 OR "password" = $3)'
+      );
+    });
+
+    test('deprecated lowercase and still works and warns once', async () => {
+      _resetDeprecationWarnings();
+      const warnSpy = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      mockDb.any.mockResolvedValue([]);
+      await model.findAfterCursor({ id: 2 }, 1, ['id'], {
+        filters: { and: [{ email: 'a@x.com' }, { password: 'p' }] },
+      });
+      const query = String(mockDb.any.mock.calls[0]?.[0]);
+      // Same predicate semantics as $and: cursor AND email AND password.
+      expect(query).toContain(
+        'WHERE ("id") > ($1) AND "email" = $2 AND "password" = $3'
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"and"/"or" are deprecated')
+      );
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      warnSpy.mockRestore();
+    });
+
+    test('deprecated lowercase or in buildCondition still works and warns', () => {
+      _resetDeprecationWarnings();
+      const warnSpy = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      const values: unknown[] = [];
+      const clause = model.buildCondition(
+        [{ or: [{ id: 1 }, { id: 2 }] }],
+        'AND',
+        values
+      );
+      expect(clause).toBe('("id" = $1 OR "id" = $2)');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"and"/"or" are deprecated')
+      );
+      warnSpy.mockRestore();
     });
   });
 

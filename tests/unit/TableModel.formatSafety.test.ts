@@ -2,7 +2,8 @@
  * Copyright © 2026 – present NapSoft LLC. All rights reserved.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { _resetDeprecationWarnings } from '../../src/utils/deprecation.js';
 
 // Real pg-promise, no schemaBuilder mocks: these tests assert that finished
 // statements are never run through the formatter a second time. The failure
@@ -189,6 +190,39 @@ describe('no second format pass over finished statements', () => {
 
     expect(txDb.calls.length).toBe(2);
     expect(db.calls.length).toBe(0);
+  });
+
+  it('warns once when the deprecated this.tx fallback is taken', async () => {
+    _resetDeprecationWarnings();
+    const warnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    const txDb = makeCapturingDb();
+    model.tx = txDb;
+
+    await model.insert({ note: 'a' });
+    await model.delete('aaaaaaaa-1111-2222-3333-444444444444');
+    await model.bulkInsert([{ note: 'b' }]);
+
+    const txWarnings = warnSpy.mock.calls.filter(([msg]) =>
+      String(msg).includes('model.tx is deprecated')
+    );
+    expect(txWarnings.length).toBe(1);
+    warnSpy.mockRestore();
+  });
+
+  it('does not warn when options.tx is passed explicitly', async () => {
+    _resetDeprecationWarnings();
+    const warnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    const txDb = makeCapturingDb();
+
+    await model.insert({ note: 'a' }, { tx: txDb });
+    await model.bulkInsert([{ note: 'b' }], null, { tx: txDb });
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   it('bulkUpdate reuses one ColumnSet across records with the same keys', async () => {
