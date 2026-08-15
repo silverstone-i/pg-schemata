@@ -653,3 +653,53 @@ describe('json columns are required when NOT NULL', () => {
     expect(v.safeParse({ c: { createdAt: new Date() } }).success).toBe(true);
   });
 });
+
+describe('serial columns are implicitly defaulted on insert', () => {
+  /** Builds an insert validator for a single notNull column of `type`. */
+  const insertFor = (type: string, extra: Record<string, unknown> = {}) =>
+    generateZodFromTableSchema({
+      table: 'serial_probe',
+      dbSchema: 'public',
+      columns: [{ name: 'id', type, notNull: true, ...extra }],
+      constraints: { primaryKey: ['id'] },
+    }).insertValidator;
+
+  it.each([
+    'serial',
+    'serial2',
+    'serial4',
+    'serial8',
+    'smallserial',
+    'bigserial',
+  ])('does not require %s on insert', type => {
+    // The database generates the value whether or not `default` is declared,
+    // and for plain serial the ColumnSet discards anything supplied.
+    expect(insertFor(type).safeParse({}).success).toBe(true);
+  });
+
+  it.each(['SERIAL', ' serial '])('normalizes %s before deciding', type => {
+    expect(insertFor(type).safeParse({}).success).toBe(true);
+  });
+
+  it('still requires a notNull integer with no default (control)', () => {
+    // The relaxation must not leak onto ordinary columns.
+    expect(insertFor('integer').safeParse({}).success).toBe(false);
+  });
+
+  it('still type-checks a serial value when one is supplied', () => {
+    expect(insertFor('serial').safeParse({ id: 1 }).success).toBe(true);
+    expect(insertFor('serial').safeParse({ id: 'x' }).success).toBe(false);
+    expect(insertFor('serial').safeParse({ id: 1.5 }).success).toBe(false);
+  });
+
+  it('leaves the base validator requiring the column', () => {
+    const base = generateZodFromTableSchema({
+      table: 'serial_probe',
+      dbSchema: 'public',
+      columns: [{ name: 'id', type: 'serial', notNull: true }],
+      constraints: { primaryKey: ['id'] },
+    }).baseValidator;
+    expect(base.safeParse({}).success).toBe(false);
+    expect(base.safeParse({ id: 1 }).success).toBe(true);
+  });
+});

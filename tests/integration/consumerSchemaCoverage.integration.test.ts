@@ -10,7 +10,9 @@ import {
   typesCoverageSchema,
   constraintCoverageSchema,
 } from '../fixtures/consumerSchemas.js';
+import TableModelClass from '../../src/TableModel.js';
 import type TableModel from '../../src/TableModel.js';
+import type { TableSchema } from '../../src/schemaTypes.js';
 
 // The only place that proves the round trip: that what pg actually returns
 // matches what the generated validators expect. Everything else in this
@@ -112,6 +114,40 @@ describe('consumer schema coverage (integration)', () => {
         expect(result.error.issues).toEqual([]);
       }
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('auto-generated serial keys', () => {
+    it('inserts without supplying the bigserial key', async () => {
+      // The database generates the value, so the insert validator must not
+      // demand one and the ColumnSet must not send one.
+      const schema: TableSchema = {
+        dbSchema,
+        table: 'serial_keyed',
+        hasAuditFields: false,
+        softDelete: false,
+        columns: [
+          { name: 'id', type: 'bigserial', notNull: true },
+          { name: 'note', type: 'text', notNull: true },
+        ],
+        constraints: { primaryKey: ['id'] },
+      };
+
+      await ctx.db.none(createTableSQL(schema));
+
+      class SerialModel extends TableModelClass {
+        constructor(db: never, pgpInstance: never) {
+          super(db, pgpInstance, schema);
+        }
+      }
+      const serialModel = new SerialModel(ctx.db as never, model.pgp as never);
+
+      const first = await serialModel.insert({ note: 'a' });
+      const second = await serialModel.insert({ note: 'b' });
+
+      expect(first.id).toBeDefined();
+      expect(String(Number(second.id))).toBe(String(second.id));
+      expect(Number(second.id)).toBeGreaterThan(Number(first.id));
     });
   });
 

@@ -13,7 +13,8 @@
       "Bash(pg_isready)",
       "Bash(psql -d postgres -c '\\\\l')",
       "Bash(psql -d postgres -tAc \"select version\\(\\)\")",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\({exports:p.exports, main:p.main, types:p.types, files:p.files}, null, 2\\)\\)\")"
     ],
     "additionalDirectories": [
       "/Users/ian/Code/pg-schemata"

@@ -4,6 +4,7 @@
 
 import { z } from 'zod';
 import SchemaDefinitionError from '../SchemaDefinitionError.js';
+import { normalizeSqlType, isSerialType } from './sqlTypes.js';
 import type { TableSchema, TableValidators } from '../schemaTypes.js';
 /**
  * Time-of-day pattern for `time` columns.
@@ -193,8 +194,7 @@ const PARAMETERIZED: readonly (readonly [
  * @throws {SchemaDefinitionError} If the type has no mapping.
  */
 function mapSqlTypeToZod(type: string, columnName: string): z.ZodType {
-  const normalized = type.trim().replace(/\s+/g, ' ').toLowerCase();
-  return mapNormalizedType(normalized, type, columnName, true);
+  return mapNormalizedType(normalizeSqlType(type), type, columnName, true);
 }
 
 /**
@@ -372,8 +372,16 @@ function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
     // baseValidator: required if notNull, else optional + nullable
     base[name] = notNull ? zodType : zodType.nullable().optional();
 
-    // insertValidator: required only if notNull and no default, else optional + nullable
-    if (notNull && typeof defaultValue === 'undefined') {
+    // insertValidator: required only if notNull and nothing supplies a value.
+    // A serial column is auto-generated whether or not the schema declares a
+    // `default`, so requiring one would force the caller to invent a value for
+    // a column the database populates — and for plain `serial` the ColumnSet
+    // discards it anyway.
+    const hasImpliedDefault =
+      typeof defaultValue !== 'undefined' ||
+      isSerialType(normalizeSqlType(type));
+
+    if (notNull && !hasImpliedDefault) {
       insert[name] = zodType;
     } else {
       insert[name] = zodType.nullable().optional();
