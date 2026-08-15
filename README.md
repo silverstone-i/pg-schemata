@@ -44,8 +44,15 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD, fle
 ## 📦 Installation
 
 ```bash
-npm install pg-schemata pg-promise
+npm install pg-schemata zod
 ```
+
+`zod` is a **peer dependency** (`^4.0.0`) — pg-schemata exchanges Zod objects with your
+code in both directions, so both sides must resolve the same copy. Installing against
+zod 3 fails with `ERESOLVE`; upgrade your app to zod 4 first, then pg-schemata.
+
+`pg-promise` is a direct dependency and is installed for you. Add it explicitly only if
+you import from it yourself.
 
 ---
 
@@ -254,6 +261,7 @@ npm run docs:preview  # preview the build
 
 - Node.js >= 18
 - PostgreSQL >= 13
+- `zod` >= 4 — a peer dependency you install alongside pg-schemata
 
 ---
 

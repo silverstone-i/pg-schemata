@@ -127,6 +127,6 @@ DATABASE_URL=postgres://user:password@localhost:5432/mydb
 ## 6. Run
 
 ```bash
-npm install pg-schemata pg-promise dotenv
+npm install pg-schemata zod dotenv
 node --env-file=.env src/index.js
 ```

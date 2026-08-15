@@ -6,13 +6,23 @@
 
 - Node.js 18 or newer
 - PostgreSQL 13 or newer — UUID primary keys default to the core `gen_random_uuid()`, which was added in 13, so no extension is required
-- `pg-promise` as a peer dependency
+- `zod` 4 or newer as a peer dependency
+- `pg-promise` — a direct dependency, installed for you
 
 ## Install
 
 ```bash
-npm install pg-schemata pg-promise
+npm install pg-schemata zod
 ```
+
+::: warning zod 4 is required
+pg-schemata exchanges Zod objects with your code in both directions — `colProps.validator`
+in, `_schema.validators` out, and `err instanceof ZodError` — so both sides must resolve a
+single copy. It is declared as a peer dependency (`^4.0.0`), which means npm either hoists
+one copy or fails loudly with `ERESOLVE` rather than silently nesting a second one.
+
+If your app is still on zod 3, **upgrade it to zod 4 first, then pg-schemata.**
+:::
 
 ## Define a schema
 
