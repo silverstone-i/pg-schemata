@@ -175,7 +175,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     } catch (err) {
       const error = new SchemaDefinitionError('DTO validation failed');
 
-      error.cause = err instanceof ZodError ? err.errors : err;
+      error.cause = err instanceof ZodError ? err.issues : err;
       this.logger?.error?.(error);
       if (this.logger) {
         this.logger.error?.(`DTO validation failed: ${error.message}`, {
@@ -274,7 +274,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     } catch (err) {
       const error = new SchemaDefinitionError('DTO validation failed');
 
-      error.cause = err instanceof ZodError ? err.errors : err;
+      error.cause = err instanceof ZodError ? err.issues : err;
       this.logger?.error?.(error);
       if (this.logger) {
         this.logger.error?.(`DTO validation failed: ${error.message}`, {
@@ -610,7 +610,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     } catch (err) {
       const error = new SchemaDefinitionError('DTO validation failed');
 
-      error.cause = err instanceof ZodError ? err.errors : err;
+      error.cause = err instanceof ZodError ? err.issues : err;
       this.logger?.error?.(error);
       if (this.logger) {
         this.logger.error?.(`DTO validation failed: ${error.message}`, {

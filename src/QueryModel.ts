@@ -602,7 +602,7 @@ class QueryModel<TRow = any> {
       }
     } catch (err) {
       const error = new SchemaDefinitionError(`${type} validation failed`);
-      error.cause = err instanceof ZodError ? err.errors : err;
+      error.cause = err instanceof ZodError ? err.issues : err;
       this.logger?.error?.(error);
       if (this.logger) {
         this.logger.error?.(`${type} validation failed: ${error.message}`, {
