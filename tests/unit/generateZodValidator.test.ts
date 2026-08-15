@@ -261,3 +261,264 @@ describe('uuid columns map to z.guid(), not z.uuid()', () => {
     expect(parse('')).toBe(false);
   });
 });
+
+// ===========================================================================
+// 3.0.0 type-mapping coverage
+// ===========================================================================
+
+/** Builds a one-column schema and returns its base validator. */
+function validatorFor(type: string) {
+  return generateZodFromTableSchema({
+    table: 'mapping_probe',
+    dbSchema: 'public',
+    columns: [{ name: 'c', type, notNull: true }],
+    constraints: { primaryKey: ['c'] },
+  }).baseValidator;
+}
+
+/** True when the mapped validator accepts `value`. */
+const accepts = (type: string, value: unknown): boolean =>
+  validatorFor(type).safeParse({ c: value }).success;
+
+/** Forces generation so a mapping throw surfaces. */
+const build = (type: string) => () => validatorFor(type);
+
+describe('type normalization', () => {
+  it('trims, lowercases, and collapses interior whitespace', () => {
+    expect(accepts('  TEXT  ', 'abc')).toBe(true);
+    expect(accepts('DOUBLE   PRECISION', 1.5)).toBe(true);
+    expect(accepts('Timestamp Without Time Zone', '2020-01-01')).toBe(true);
+    expect(accepts('VARCHAR(10)', 'abc')).toBe(true);
+    expect(accepts('varchar (10)', 'abc')).toBe(true);
+  });
+
+  it('collapses whitespace rather than stripping it', () => {
+    // 'double precision' is multi-word; stripping would make this valid.
+    expect(build('doubleprecision')).toThrow(SchemaDefinitionError);
+  });
+
+  it('preserves the author casing in error messages', () => {
+    expect(build('GEOMETRY')).toThrow(
+      'No validator mapping for column type "GEOMETRY"'
+    );
+  });
+});
+
+describe('one-dimensional array types', () => {
+  it('maps text[] and rejects a bare scalar', () => {
+    expect(accepts('text[]', ['a', 'b'])).toBe(true);
+    expect(accepts('text[]', 'a')).toBe(false);
+    expect(accepts('text[]', [1])).toBe(false);
+  });
+
+  it('maps uuid[] with guid semantics', () => {
+    expect(accepts('uuid[]', ['FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF'])).toBe(
+      true
+    );
+    expect(accepts('uuid[]', ['nope'])).toBe(false);
+  });
+
+  it('keeps the element length limit for varchar(n)[]', () => {
+    expect(accepts('varchar(10)[]', ['short'])).toBe(true);
+    expect(accepts('varchar(10)[]', ['12345678901'])).toBe(false);
+  });
+
+  it('maps integer[]', () => {
+    expect(accepts('integer[]', [1, 2])).toBe(true);
+    expect(accepts('integer[]', [1.5])).toBe(false);
+  });
+
+  it('ignores a declared dimension and tolerates whitespace', () => {
+    expect(accepts('text[3]', ['a'])).toBe(true);
+    expect(accepts('text [ ]', ['a'])).toBe(true);
+    expect(accepts('text[ 3 ]', ['a'])).toBe(true);
+  });
+
+  it('reports the offending element index', () => {
+    const result = validatorFor('integer[]').safeParse({ c: [1, 'x'] });
+    expect(result.success).toBe(false);
+    expect(result.error!.issues[0]!.path).toEqual(['c', 1]);
+  });
+
+  it('throws on a multi-dimensional declaration', () => {
+    // PG does not enforce declared dimensions, so a nested validator would
+    // reject rows the database accepts.
+    expect(build('text[][]')).toThrow(SchemaDefinitionError);
+    expect(build('text[][]')).toThrow('Multi-dimensional array type');
+  });
+
+  it('propagates a by-design element throw', () => {
+    expect(build('bytea[]')).toThrow('by design');
+  });
+});
+
+describe('internal pg_type array names', () => {
+  it('throws naming the intended spelling', () => {
+    expect(build('_text')).toThrow('Declare the array as "text[]"');
+    expect(build('_int4')).toThrow('Declare the array as "int4[]"');
+  });
+
+  it('prefers the underscore message over the multi-dimensional one', () => {
+    expect(build('_text[]')).toThrow('internal array type name');
+  });
+});
+
+describe('time and timetz map to strings, not dates', () => {
+  it.each([
+    '07:00:00',
+    '00:00:00',
+    '23:59:59.999999',
+    '12:00',
+    '24:00',
+    '24:00:00',
+    '24:00:00.000',
+  ])('time accepts %s', value => {
+    expect(accepts('time', value)).toBe(true);
+  });
+
+  it.each([
+    '24:00:01',
+    '25:00:00',
+    '07:60:00',
+    '07:00:0',
+    'abc',
+    '',
+    '07:00:00 +01',
+  ])('time rejects %s', value => {
+    expect(accepts('time', value)).toBe(false);
+  });
+
+  it('rejects an offset on a non-tz column', () => {
+    // PG silently discards it, which is data loss worth surfacing.
+    expect(accepts('time', '07:00:00+01')).toBe(false);
+  });
+
+  it('is not z.coerce.date()', () => {
+    expect(accepts('time', new Date())).toBe(false);
+    expect(accepts('time', 25200000)).toBe(false);
+  });
+
+  it.each([
+    '07:00:00+01',
+    '07:00:00-05:30',
+    '07:00:00+0130',
+    '07:00:00Z',
+    '07:00:00z',
+    '07:00:00',
+  ])('timetz accepts %s', value => {
+    expect(accepts('timetz', value)).toBe(true);
+  });
+
+  it('timetz rejects an out-of-range offset', () => {
+    expect(accepts('timetz', '07:00:00+20:00')).toBe(false);
+  });
+
+  it('resolves the with/without time zone spellings', () => {
+    expect(accepts('time with time zone', '07:00:00+01')).toBe(true);
+    expect(accepts('time without time zone', '07:00:00+01')).toBe(false);
+    expect(accepts('time(3)', '07:00:00')).toBe(true);
+  });
+
+  it('does not route timestamp types into the time branch', () => {
+    for (const type of [
+      'timestamp',
+      'timestamptz',
+      'date',
+      'timestamp(3)',
+      'timestamp with time zone',
+      'timestamptz(6)',
+    ]) {
+      expect(accepts(type, '2020-01-01T00:00:00Z')).toBe(true);
+      expect(accepts(type, 'garbage')).toBe(false);
+    }
+  });
+});
+
+describe('character length limits', () => {
+  it('applies .max(n) to character varying(n) and char(n)', () => {
+    // Both silently lost the limit before 3.0.0 by falling through to the
+    // unsized branch.
+    expect(accepts('character varying(5)', 'abcde')).toBe(true);
+    expect(accepts('character varying(5)', 'abcdef')).toBe(false);
+    expect(accepts('char(5)', 'abcde')).toBe(true);
+    expect(accepts('char(5)', 'abcdef')).toBe(false);
+  });
+
+  it('still applies .max(n) to varchar(n)', () => {
+    expect(accepts('varchar(5)', 'abcdef')).toBe(false);
+  });
+
+  it('leaves unsized character types unbounded', () => {
+    expect(accepts('character varying', 'x'.repeat(500))).toBe(true);
+    expect(accepts('char', 'ab')).toBe(true);
+    expect(accepts('bpchar', 'abc')).toBe(true);
+    expect(accepts('character', 'ab')).toBe(true);
+  });
+});
+
+describe('newly mapped scalar aliases', () => {
+  it('maps boolean and float aliases', () => {
+    expect(accepts('bool', true)).toBe(true);
+    expect(accepts('bool', 'yes')).toBe(false);
+    expect(accepts('float', 1.5)).toBe(true);
+    expect(accepts('float(24)', 1.5)).toBe(true);
+    expect(accepts('float', 'x')).toBe(false);
+  });
+
+  it('maps the serial family', () => {
+    expect(accepts('serial2', 1)).toBe(true);
+    expect(accepts('serial4', 1)).toBe(true);
+    expect(accepts('serial8', '9007199254740993')).toBe(true);
+    expect(accepts('serial4', 1.5)).toBe(false);
+  });
+
+  it('maps citext and the network types', () => {
+    expect(accepts('citext', 'a')).toBe(true);
+    expect(accepts('inet', '1.2.3.4')).toBe(true);
+    expect(accepts('cidr', '1.2.3.0/24')).toBe(true);
+    expect(accepts('macaddr', '08:00:2b:01:02:03')).toBe(true);
+    expect(accepts('inet', 42)).toBe(false);
+  });
+});
+
+describe('numeric accepts the string pg returns', () => {
+  it('accepts both a number and a numeric string', () => {
+    // pg returns OID 1700 as a string to preserve precision, so a row read
+    // back from the database must satisfy its own validator.
+    expect(accepts('numeric', '12.34')).toBe(true);
+    expect(accepts('numeric', 12.34)).toBe(true);
+    expect(accepts('numeric(10,2)', '12.34')).toBe(true);
+    expect(accepts('decimal', '-5')).toBe(true);
+    expect(accepts('numeric', '1.5e3')).toBe(true);
+  });
+
+  it('rejects a non-numeric string', () => {
+    expect(accepts('numeric', 'abc')).toBe(false);
+    expect(accepts('numeric', '')).toBe(false);
+  });
+});
+
+describe('types left unmapped by design', () => {
+  it.each(['interval', 'bytea'])(
+    '%s throws pointing at colProps.validator',
+    type => {
+      expect(build(type)).toThrow(SchemaDefinitionError);
+      expect(build(type)).toThrow('colProps.validator');
+    }
+  );
+
+  it('lets colProps.validator bypass every throw', () => {
+    const schema = {
+      table: 'bypass',
+      dbSchema: 'public',
+      columns: [
+        { name: 'a', type: 'interval', colProps: { validator: z.string() } },
+        { name: 'b', type: 'text[][]', colProps: { validator: z.string() } },
+        { name: 'c', type: '_text', colProps: { validator: z.string() } },
+      ],
+      constraints: { primaryKey: ['a'] },
+    } as unknown as TableSchema;
+
+    expect(() => generateZodFromTableSchema(schema)).not.toThrow();
+  });
+});
