@@ -79,7 +79,16 @@ export interface ColProps {
 export interface ColumnDefinition {
   /** The name of the column. */
   name: string;
-  /** PostgreSQL data type (e.g. 'text', 'uuid', 'integer', 'varchar(255)', 'jsonb'). */
+  /**
+   * PostgreSQL data type (e.g. 'text', 'uuid', 'integer', 'varchar(255)',
+   * 'jsonb', 'text[]').
+   *
+   * The mapped set is closed: a type with no validator mapping throws
+   * `SchemaDefinitionError` when the model is constructed, rather than
+   * silently accepting anything. Arrays are supported one dimension deep.
+   * `interval` and `bytea` are unmapped by design — supply
+   * {@link ColProps.validator} for those.
+   */
   type: string;
   /** Marks the column as a generated column. */
   generated?: 'always' | 'by default';

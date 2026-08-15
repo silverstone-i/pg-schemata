@@ -87,6 +87,9 @@ no validator at all. Use `colProps.validator`.
 
 - Columns with `notNull: true` and no `default` → required
 - Columns with `default` → optional (`.optional()`)
+- `serial`, `serial2/4/8`, `smallserial`, and `bigserial` count as having a default even
+  when none is declared — PostgreSQL generates the value — so they are never required on
+  insert, and they are excluded from the ColumnSet entirely
 - Columns without `notNull` → nullable (`.nullable().optional()`)
 - Immutable columns are excluded from the update validator
 
@@ -182,25 +185,34 @@ const schema = {
   // ...
   columns: [
     {
-      name: 'email',
-      type: 'varchar(255)',
-      notNull: true,
-      colProps: {
-        validator: z.string().email(), // stricter than the default z.string().max(255)
-      },
-    },
-    {
       name: 'age',
       type: 'integer',
       colProps: {
-        validator: z.number().int().min(0).max(150),
+        validator: z.number().int().min(0).max(150), // narrower than z.number().int()
+      },
+    },
+    {
+      name: 'duration',
+      type: 'interval', // unmapped by design — a validator is required
+      colProps: {
+        validator: z.string(),
       },
     },
   ],
 };
 ```
 
-The custom validator replaces the auto-generated one for that column in both the insert and update validators.
+The custom validator replaces the auto-generated one for that column in both the insert
+and update validators. It also bypasses the type mapping entirely, which is the supported
+escape hatch for `interval`, `bytea`, and any type the generator does not cover.
+
+### Automatic email validation
+
+A column literally named `email` whose validator is a string gets `z.email()` added
+automatically, composed onto whatever the type mapping produced — so a
+`varchar(255)` email column validates as `z.string().max(255)` **and** as an address.
+No configuration is needed, and overriding it with `colProps.validator` will usually
+make the column _less_ strict, not more.
 
 ## buildValuesClause
 

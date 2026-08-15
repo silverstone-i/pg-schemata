@@ -1,6 +1,6 @@
 # Schema Types
 
-Type definitions for the schema objects used throughout pg-schemata. These interfaces are defined in `src/schemaTypes.d.ts` and provide IntelliSense in editors.
+Type definitions for the schema objects used throughout pg-schemata. These interfaces are defined in `src/schemaTypes.ts` and provide IntelliSense in editors.
 
 ## TableSchema
 
@@ -44,6 +44,7 @@ interface ColumnDefinition {
   immutable?: boolean;
   colProps?: {
     mod?: string;
+    cast?: string;
     skip?: (col: any) => boolean;
     cnd?: boolean;
     init?: (dto: any) => any;
@@ -67,14 +68,15 @@ interface ColumnDefinition {
 
 ### colProps detail
 
-| Property    | Type               | Description                                 |
-| ----------- | ------------------ | ------------------------------------------- |
-| `mod`       | `string`           | pg-promise format modifier (e.g. `':json'`) |
-| `skip`      | `(col) => boolean` | Skip column conditionally                   |
-| `cnd`       | `boolean`          | Use in conditional update clause            |
-| `init`      | `(dto) => any`     | Compute value dynamically                   |
-| `def`       | `string`           | Override default value in ColumnSet         |
-| `validator` | `ZodSchema`        | Custom Zod validator for this column        |
+| Property    | Type               | Description                                                                        |
+| ----------- | ------------------ | ---------------------------------------------------------------------------------- |
+| `mod`       | `string`           | pg-promise format modifier (e.g. `':json'`)                                        |
+| `cast`      | `string`           | SQL cast appended to the value (e.g. `'uuid[]'`), required for typed array columns |
+| `skip`      | `(col) => boolean` | Skip column conditionally                                                          |
+| `cnd`       | `boolean`          | Use in conditional update clause                                                   |
+| `init`      | `(dto) => any`     | Compute value dynamically                                                          |
+| `def`       | `string`           | Override default value in ColumnSet                                                |
+| `validator` | `ZodSchema`        | Custom Zod validator for this column                                               |
 
 ## Constraints
 
@@ -90,12 +92,15 @@ interface Constraints {
 }
 ```
 
-::: info Removed in 2.0.0
+::: warning Removed in 2.0.0
 Three legacy schema-shape aliases (deprecated with runtime warnings in 1.8.0)
 were removed in 2.0.0:
 
 - `schema.schemaName` → use `dbSchema`
-- top-level `schema.indexes` → move under `constraints.indexes`
+- top-level `schema.indexes` → move under `constraints.indexes`; **as of 3.0.0 this
+  throws `SchemaDefinitionError` at model construction** instead of being silently
+  ignored, since dropping it lost unique and partial-unique indexes with no signal.
+  An empty `indexes: []` throws too
 - column key `nullable` → use `notNull`; a schema still passing `nullable` now
   throws `SchemaDefinitionError` at model construction
 

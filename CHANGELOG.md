@@ -48,6 +48,12 @@ Latest commit: `99c75e3`
 - **`numeric` and `decimal` accept the string `pg` returns.** OID 1700 comes back as a string to preserve precision, exactly like `int8`, so a row read straight back out of the database failed its own validator under the old `z.number()` mapping
 - **A `char_length` check on an array column no longer becomes an item-count minimum.** The old helper duck-typed `.min`, which was safe only while arrays were unmappable — `z.array()` has a `.min` too, and it means array length
 - **Type names are normalized once** — trimmed, lowercased, and interior whitespace collapsed — so `DOUBLE   PRECISION` and `Timestamp Without Time Zone` resolve correctly
+- **The whole `serial` family is recognized as auto-generated.** `createColumnSet` compared against the literal string `'serial'`, so `smallserial`, `bigserial`, and the newly added `serial2`/`serial4`/`serial8` stayed in the ColumnSet despite being database-generated, and the comparison was case- and whitespace-sensitive (`SERIAL` validated but was not skipped). Both call sites now share one normalized definition, and the `uuid` primary-key arm of the same check gains normalization too
+- **A `notNull` serial column is no longer required at insert.** It was required whenever no explicit `default` was declared, forcing the caller to invent a value for a column Postgres populates — which, for plain `serial`, the ColumnSet then discarded. Base and update validators are unchanged: a serial still validates as an integer when a value is supplied
+
+### 🔥 Removed (internal)
+
+- **`validateUUID`** — it enforced RFC 4122 v1–v5 and rejected the all-F GUID the `uuid` mapping now accepts, leaving two contradicting definitions of "valid UUID" in one package. It was unreachable: not exported from the package entry point, not referenced anywhere in `src/`, and the `exports` map is `"."` only, so no deep-path import could reach it either
 
 ### 📝 Notes
 
