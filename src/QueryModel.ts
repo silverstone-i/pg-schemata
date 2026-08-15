@@ -113,6 +113,7 @@ class QueryModel<TRow = any> {
     // hasAuditFields here would skip the soft-delete column too (issue N1).
     const working = cloneDeep(schema);
     this._rejectRemovedNullableKey(working);
+    this._rejectRemovedTopLevelIndexes(working);
     addAuditFields(working);
     addSoftDeleteField(working);
     this._schema = working;
@@ -711,6 +712,34 @@ class QueryModel<TRow = any> {
           `Column "${col.name}" in "${schema.table}" uses the removed key "nullable"; use "notNull" instead ("nullable: false" becomes "notNull: true").`
         );
       }
+    }
+  }
+
+  /**
+   * Rejects the removed top-level `indexes` property (dropped in 2.0.0).
+   *
+   * The fallback that once read it is gone, so the property is now simply
+   * ignored: `createTableSQL` emits a table with no indexes, `bootstrap()`
+   * succeeds, and the loss of any unique or partial-unique index surfaces
+   * only as duplicate rows much later. TypeScript cannot help either, since
+   * the schemas that use this placement are plain JavaScript objects.
+   *
+   * Checked here rather than in `resolveIndexes` because `createTableSQL`
+   * swallows index-generation errors at debug level — a throw from there
+   * would be caught and logged into the void.
+   *
+   * Uses `hasOwnProperty` rather than a truthiness check: an empty
+   * `indexes: []` is just as misplaced as a populated one, and accepting it
+   * would teach the wrong lesson.
+   *
+   * @param schema - Cloned schema to validate.
+   * @throws {SchemaDefinitionError} If the schema has a top-level `indexes`.
+   */
+  _rejectRemovedTopLevelIndexes(schema: TableSchema): void {
+    if (Object.prototype.hasOwnProperty.call(schema, 'indexes')) {
+      throw new SchemaDefinitionError(
+        `Schema "${schema.table}" uses the removed top-level "indexes" property; move it inside "constraints" (constraints.indexes).`
+      );
     }
   }
 

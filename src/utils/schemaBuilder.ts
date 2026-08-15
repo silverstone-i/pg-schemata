@@ -72,8 +72,12 @@ function createHash(input: string): string {
 /**
  * @private
  *
- * Resolves index definitions from either the legacy top-level `indexes`
- * property or the newer `constraints.indexes` location.
+ * Resolves index definitions from `constraints.indexes`.
+ *
+ * The legacy top-level `indexes` fallback was removed in 2.0.0; a schema
+ * still using that placement is rejected by the QueryModel constructor
+ * (`_rejectRemovedTopLevelIndexes`) rather than silently losing its indexes
+ * here.
  *
  * @param schema - Structured schema definition.
  * @returns Array of index definitions if present.

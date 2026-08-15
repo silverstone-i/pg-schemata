@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import pgPromise from 'pg-promise';
 import QueryModel from '../../src/QueryModel.js';
 import { columnSetCache } from '../../src/utils/schemaBuilder.js';
+import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import type {
   ColumnDefinition,
   DbConnection,
@@ -127,6 +128,54 @@ describe('QueryModel constructor schema normalization (real schemaBuilder)', () 
     const before = JSON.stringify(schema);
     new QueryModel(stubDb, pgp, schema);
     expect(JSON.stringify(schema)).toBe(before);
+  });
+});
+
+describe('removed top-level indexes property', () => {
+  beforeEach(() => {
+    columnSetCache.clear();
+  });
+
+  /** Builds a schema with `indexes` at the top level rather than nested. */
+  const withTopLevelIndexes = (table: string, indexes: unknown): TableSchema =>
+    ({
+      ...makeSchema({ hasAuditFields: false, softDelete: false }, table),
+      indexes,
+    }) as unknown as TableSchema;
+
+  it('throws naming the table and the fix', () => {
+    expect(
+      () =>
+        new QueryModel(
+          stubDb,
+          pgp,
+          withTopLevelIndexes('idx_top_level', [
+            { columns: ['message'], unique: true },
+          ])
+        )
+    ).toThrow(
+      'Schema "idx_top_level" uses the removed top-level "indexes" property; move it inside "constraints"'
+    );
+  });
+
+  it('throws on an empty array too', () => {
+    // Truthiness would let this through, and it is just as misplaced.
+    expect(
+      () => new QueryModel(stubDb, pgp, withTopLevelIndexes('idx_empty', []))
+    ).toThrow(SchemaDefinitionError);
+  });
+
+  it('accepts indexes nested under constraints (negative control)', () => {
+    const schema = makeSchema(
+      { hasAuditFields: false, softDelete: false },
+      'idx_nested'
+    );
+    schema.constraints = {
+      ...schema.constraints,
+      indexes: [{ columns: ['message'], unique: true }],
+    };
+
+    expect(() => new QueryModel(stubDb, pgp, schema)).not.toThrow();
   });
 });
 
