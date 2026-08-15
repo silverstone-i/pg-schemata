@@ -35,7 +35,7 @@ import type {
 import type { IMain } from 'pg-promise';
 import type { ColumnSet } from 'pg-promise';
 import { ZodError } from 'zod';
-import type { ZodTypeAny } from 'zod';
+import type { ZodType } from 'zod';
 import _ from 'lodash';
 // eslint-disable-next-line @typescript-eslint/unbound-method -- lodash functions are this-free
 const { cloneDeep } = _;
@@ -593,7 +593,7 @@ class QueryModel<TRow = any> {
    * @param type - Optional label used in error messages.
    * @throws {SchemaDefinitionError} If validation fails. The `.cause` property contains Zod error details.
    */
-  validateDto(data: unknown, validator: ZodTypeAny, type = 'DTO'): void {
+  validateDto(data: unknown, validator: ZodType, type = 'DTO'): void {
     try {
       if (Array.isArray(data)) {
         validator.array().parse(data);

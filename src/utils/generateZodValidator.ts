@@ -19,7 +19,7 @@ import type { TableSchema, TableValidators } from '../schemaTypes.js';
  *
  * Note: This function is used internally by TableModel to auto-generate validation schemas.
  */
-function mapSqlTypeToZod(type: string, columnName: string): z.ZodTypeAny {
+function mapSqlTypeToZod(type: string, columnName: string): z.ZodType {
   const varcharMatch = /^varchar\((\d+)\)$/i.exec(type);
   if (varcharMatch?.[1]) {
     const max = parseInt(varcharMatch[1], 10);
@@ -29,7 +29,11 @@ function mapSqlTypeToZod(type: string, columnName: string): z.ZodTypeAny {
   ) {
     return z.string();
   } else if (/^uuid$/i.test(type)) {
-    return z.string().uuid();
+    // z.guid(), not z.uuid(): zod 4's uuid() enforces the RFC 4122 variant
+    // bits and rejects values Postgres stores happily (any variant nibble
+    // outside 8/9/a/b, including the all-F GUID). z.guid() matches both
+    // Postgres's own validation and zod 3's z.string().uuid() behaviour.
+    return z.guid();
   } else if (
     /^(int|integer|smallint|int2|int4|serial|smallserial)$/i.test(type)
   ) {
@@ -64,7 +68,7 @@ function mapSqlTypeToZod(type: string, columnName: string): z.ZodTypeAny {
  * Applies `.min(n)` when the validator supports it (ZodString does); other
  * validator classes pass through unchanged, matching the old duck-typing.
  */
-function withMin(validator: z.ZodTypeAny, minLen: number): z.ZodTypeAny {
+function withMin(validator: z.ZodType, minLen: number): z.ZodType {
   if (
     'min' in validator &&
     typeof (validator as { min?: unknown }).min === 'function'
@@ -75,19 +79,23 @@ function withMin(validator: z.ZodTypeAny, minLen: number): z.ZodTypeAny {
 }
 
 function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
-  const base: Record<string, z.ZodTypeAny> = {};
-  const insert: Record<string, z.ZodTypeAny> = {};
-  const update: Record<string, z.ZodTypeAny> = {};
+  const base: Record<string, z.ZodType> = {};
+  const insert: Record<string, z.ZodType> = {};
+  const update: Record<string, z.ZodType> = {};
 
   for (const column of tableSchema.columns) {
     const { name, type, notNull, default: defaultValue } = column;
-    let zodType: z.ZodTypeAny =
+    let zodType: z.ZodType =
       column.colProps?.validator || mapSqlTypeToZod(type, name);
 
     // Enhance email fields. instanceof is stable across zod versions;
     // _def.typeName is a zod 3 internal removed in zod 4 (suggestion 3).
+    // .check(z.email()) rather than the deprecated .email(): it composes onto
+    // the existing string, so a varchar(n) column keeps its .max(n). Replacing
+    // the schema with a bare z.email() would drop the length and is not
+    // instanceof ZodString in zod 4.
     if (name === 'email' && zodType instanceof z.ZodString) {
-      zodType = zodType.email();
+      zodType = zodType.check(z.email());
     }
 
     // baseValidator: required if notNull, else optional + nullable
@@ -148,12 +156,9 @@ function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
         );
 
         if (options.length > 0) {
-          // Non-empty is guaranteed by the length check above; z.enum
-          // requires a non-empty tuple type.
-          const enumZod = z.enum([...new Set(options)] as [
-            string,
-            ...string[],
-          ]);
+          // zod 4 accepts a plain string array; the non-empty tuple cast the
+          // zod 3 signature required is no longer needed.
+          const enumZod = z.enum([...new Set(options)]);
           if (base[field]) base[field] = enumZod;
           if (insert[field]) {
             const colDef = tableSchema.columns.find(c => c.name === field);

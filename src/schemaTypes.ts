@@ -60,7 +60,7 @@ export interface ColProps {
   /** Override default value (a JavaScript substitution value, not raw SQL). */
   def?: unknown;
   /** Custom Zod validator for this column. */
-  validator?: z.ZodTypeAny;
+  validator?: z.ZodType;
 }
 
 /**
@@ -230,9 +230,9 @@ export interface TableSchema {
  * The Zod validators auto-generated from a table schema.
  */
 export interface TableValidators {
-  baseValidator: z.ZodTypeAny;
-  insertValidator: z.ZodTypeAny;
-  updateValidator: z.ZodTypeAny;
+  baseValidator: z.ZodType;
+  insertValidator: z.ZodType;
+  updateValidator: z.ZodType;
 }
 
 /**

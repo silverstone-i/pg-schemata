@@ -227,3 +227,37 @@ describe('unknown column types (2.0.0 behavior)', () => {
     expect(() => generateZodFromTableSchema(schema)).not.toThrow();
   });
 });
+
+describe('uuid columns map to z.guid(), not z.uuid()', () => {
+  // zod 4's z.uuid() enforces the RFC 4122 variant bits and rejects values
+  // Postgres stores happily. The obvious mechanical v4 migration is the wrong
+  // one, so these cases pin the choice.
+  const schema = {
+    table: 'guid_things',
+    dbSchema: 'public',
+    columns: [{ name: 'id', type: 'uuid', notNull: true }],
+    constraints: { primaryKey: ['id'] },
+  } as unknown as TableSchema;
+
+  const parse = (id: string) =>
+    generateZodFromTableSchema(schema).baseValidator.safeParse({ id }).success;
+
+  it('accepts the all-F GUID', () => {
+    expect(parse('FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF')).toBe(true);
+  });
+
+  it('accepts a GUID whose variant nibble is outside RFC 4122', () => {
+    // Variant nibble '3' — rejected by z.uuid(), accepted by Postgres.
+    expect(parse('aaaaaaaa-1111-2222-3333-444444444444')).toBe(true);
+  });
+
+  it('accepts the nil UUID and an ordinary v4 UUID', () => {
+    expect(parse('00000000-0000-0000-0000-000000000000')).toBe(true);
+    expect(parse('550e8400-e29b-41d4-a716-446655440000')).toBe(true);
+  });
+
+  it('still rejects a non-GUID string', () => {
+    expect(parse('not-a-uuid')).toBe(false);
+    expect(parse('')).toBe(false);
+  });
+});
