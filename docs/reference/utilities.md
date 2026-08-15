@@ -39,12 +39,12 @@ Creates all tables defined by the provided models in a single transaction.
 import { bootstrap } from 'pg-schemata';
 ```
 
-| Option       | Type                       | Default        | Description                                              |
-| ------------ | -------------------------- | -------------- | -------------------------------------------------------- |
-| `models`     | `Record<string, Function>` | —              | Map of repository names to model constructors (required) |
-| `schema`     | `string`                   | `'public'`     | Target PostgreSQL schema                                 |
-| `extensions` | `string[]`                 | `['pgcrypto']` | PostgreSQL extensions to enable                          |
-| `db`         | `ITask`                    | `null`         | Transaction to use (avoids nested transactions)          |
+| Option       | Type                       | Default    | Description                                              |
+| ------------ | -------------------------- | ---------- | -------------------------------------------------------- |
+| `models`     | `Record<string, Function>` | —          | Map of repository names to model constructors (required) |
+| `schema`     | `string`                   | `'public'` | Target PostgreSQL schema                                 |
+| `extensions` | `string[]`                 | `[]`       | PostgreSQL extensions to enable                          |
+| `db`         | `ITask`                    | `null`     | Transaction to use (avoids nested transactions)          |
 
 **Returns:** `Promise<void>`
 
@@ -56,8 +56,15 @@ import { bootstrap } from 'pg-schemata';
 await bootstrap({
   models: { users: Users, products: Products },
   schema: 'public',
-  extensions: ['pgcrypto'],
 });
+```
+
+No extensions are enabled by default. UUID primary keys use the core
+`gen_random_uuid()` (PostgreSQL 13+), so pass `extensions` only for extensions
+your own schemas actually need:
+
+```js
+await bootstrap({ models, schema: 'public', extensions: ['postgis'] });
 ```
 
 When called from inside a migration, pass the transaction as `db`:

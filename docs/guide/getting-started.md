@@ -5,7 +5,7 @@
 ## Requirements
 
 - Node.js 18 or newer
-- PostgreSQL 12 or newer
+- PostgreSQL 13 or newer — UUID primary keys default to the core `gen_random_uuid()`, which was added in 13, so no extension is required
 - `pg-promise` as a peer dependency
 
 ## Install

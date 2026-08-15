@@ -86,7 +86,6 @@ async function provisionTenant(schemaName) {
   await bootstrap({
     models: repositories,
     schema: schemaName,
-    extensions: ['pgcrypto'],
   });
 }
 ```

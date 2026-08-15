@@ -785,7 +785,7 @@ If `modelOrName` is a string, resolves from `DB.db[modelOrName]`. Validates the 
 bootstrap({
   models: Object<string, Function>,
   schema?: string = 'public',
-  extensions?: string[] = ['pgcrypto'],
+  extensions?: string[] = [],
   db?: object = null
 }) → Promise<void>
 ```

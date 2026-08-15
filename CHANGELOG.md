@@ -10,6 +10,11 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+### 💥 Breaking
+
+- **`bootstrap()` no longer enables `pgcrypto` by default** — the `extensions` option now defaults to `[]`. Nothing in pg-schemata ever called a pgcrypto function; the default was a pre-PostgreSQL-13 artifact from when `gen_random_uuid()` lived in that extension. Pass `extensions: ['pgcrypto']` explicitly if your own schemas still need it
+- **Minimum supported PostgreSQL raised from 12 to 13** — UUID primary keys default to the core `gen_random_uuid()`, which was added in 13
+
 ## [v2.0.0] - 2026-08-02
 
 ### 💥 Breaking

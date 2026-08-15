@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npm approve-scripts *)",
+      "Bash(npm config *)",
+      "Bash(npm help *)",
+      "Bash(col -b)",
+      "Bash(node -p \"JSON.stringify\\(require\\('./package.json'\\).allowScripts ?? null, null, 2\\)\")",
+      "Bash(sed -E 's#\\(://[^:]+:\\)[^@]*@#\\\\1****@#' .env; echo \"=== CI ===\"; ls .github/workflows 2>/dev/null; grep -rn \"postgres\\\\|POSTGRES\\\\|DATABASE_URL\\\\|test:integration\" .github/workflows 2>/dev/null | head -20)",
+      "Bash(psql -lqt)",
+      "Bash(psql -d postgres -tAc \"select rolname from pg_roles where rolname like '%nap%'\")",
+      "Bash(pg_isready)",
+      "Bash(psql -d postgres -c '\\\\l')",
+      "Bash(psql -d postgres -tAc \"select version\\(\\)\")",
+      "Bash(git checkout *)"
+    ],
+    "additionalDirectories": [
+      "/Users/ian/Code/pg-schemata"
+    ]
+  }
+}

@@ -253,7 +253,7 @@ npm run docs:preview  # preview the build
 ## 🧠 Requirements
 
 - Node.js >= 18
-- PostgreSQL >= 12
+- PostgreSQL >= 13
 
 ---
 

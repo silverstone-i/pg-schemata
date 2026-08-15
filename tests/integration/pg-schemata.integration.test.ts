@@ -18,7 +18,7 @@ class Users extends TableModel {
       table: 'test_users',
       version: '1.0.0',
       columns: [
-        { name: 'id', type: 'uuid', default: 'uuid_generate_v4()' },
+        { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
         { name: 'email', type: 'varchar(50)' },
         { name: 'password', type: 'varchar(50)' },
       ],
