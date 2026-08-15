@@ -522,3 +522,134 @@ describe('types left unmapped by design', () => {
     expect(() => generateZodFromTableSchema(schema)).not.toThrow();
   });
 });
+
+// ===========================================================================
+// Check-constraint and json handling (3.0.0 fixes)
+// ===========================================================================
+
+/** Builds validators for a column plus an optional check constraint. */
+function withCheck(
+  column: Record<string, unknown>,
+  check?: string
+): ReturnType<typeof generateZodFromTableSchema> {
+  return generateZodFromTableSchema({
+    table: 'check_probe',
+    dbSchema: 'public',
+    columns: [column],
+    constraints: {
+      primaryKey: [column.name as string],
+      ...(check ? { checks: [{ expression: check }] } : {}),
+    },
+  } as unknown as TableSchema);
+}
+
+describe('char_length checks apply to the inner validator', () => {
+  it('applies the minimum to a notNull string column', () => {
+    const v = withCheck(
+      { name: 'c', type: 'text', notNull: true },
+      'char_length(c) > 3'
+    ).baseValidator;
+    expect(v.safeParse({ c: 'abc' }).success).toBe(false);
+    expect(v.safeParse({ c: 'abcd' }).success).toBe(true);
+  });
+
+  it('applies the minimum to a nullable column and still accepts null', () => {
+    // Previously dropped: the wrapped value is a ZodOptional, which has no
+    // .min, so the duck-typed helper silently did nothing.
+    const v = withCheck(
+      { name: 'c', type: 'text' },
+      'char_length(c) > 3'
+    ).baseValidator;
+    expect(v.safeParse({ c: 'abc' }).success).toBe(false);
+    expect(v.safeParse({ c: 'abcd' }).success).toBe(true);
+    expect(v.safeParse({ c: null }).success).toBe(true);
+  });
+
+  it('leaves an array column untouched', () => {
+    // z.array().min() means item count, so the old duck-typing would have
+    // turned this into "at least 4 items".
+    const v = withCheck(
+      { name: 'c', type: 'text[]', notNull: true },
+      'char_length(c) > 3'
+    ).baseValidator;
+    expect(v.safeParse({ c: ['a'] }).success).toBe(true);
+  });
+
+  it('leaves a non-string column untouched', () => {
+    const v = withCheck(
+      { name: 'c', type: 'integer', notNull: true },
+      'char_length(c) > 3'
+    ).baseValidator;
+    expect(v.safeParse({ c: 1 }).success).toBe(true);
+  });
+});
+
+describe('IN checks become enums without discarding nullability', () => {
+  it('accepts null on a nullable column in all three validators', () => {
+    // NULL IN (...) is unknown, and CHECK admits unknown, so Postgres accepts
+    // a null here. The generated validator used to reject it.
+    const v = withCheck({ name: 'c', type: 'varchar(10)' }, "c IN ('a', 'b')");
+    expect(v.baseValidator.safeParse({ c: null }).success).toBe(true);
+    expect(v.insertValidator.safeParse({ c: null }).success).toBe(true);
+    expect(v.updateValidator.safeParse({ c: null }).success).toBe(true);
+    expect(v.baseValidator.safeParse({ c: 'a' }).success).toBe(true);
+    expect(v.baseValidator.safeParse({ c: 'z' }).success).toBe(false);
+  });
+
+  it('is required on insert for a notNull column with no default', () => {
+    const v = withCheck(
+      { name: 'c', type: 'varchar(10)', notNull: true },
+      "c IN ('a', 'b')"
+    ).insertValidator;
+    expect(v.safeParse({}).success).toBe(false);
+    expect(v.safeParse({ c: 'a' }).success).toBe(true);
+  });
+
+  it('is optional on insert for a column with a default', () => {
+    const v = withCheck(
+      { name: 'c', type: 'varchar(10)', notNull: true, default: "'a'" },
+      "c IN ('a', 'b')"
+    ).insertValidator;
+    expect(v.safeParse({}).success).toBe(true);
+  });
+
+  it('leaves a non-string column untouched', () => {
+    const v = withCheck(
+      { name: 'c', type: 'integer', notNull: true },
+      "c IN ('1', '2')"
+    ).baseValidator;
+    expect(v.safeParse({ c: 7 }).success).toBe(true);
+  });
+
+  it('dedupes repeated options', () => {
+    const v = withCheck(
+      { name: 'c', type: 'text', notNull: true },
+      "c IN ('a', 'a', 'b')"
+    ).baseValidator;
+    expect(v.safeParse({ c: 'a' }).success).toBe(true);
+    expect(v.safeParse({ c: 'b' }).success).toBe(true);
+    expect(v.safeParse({ c: 'c' }).success).toBe(false);
+  });
+});
+
+describe('json columns are required when NOT NULL', () => {
+  it('rejects a missing key on a NOT NULL jsonb column', () => {
+    // z.any() propagates undefined-acceptance into object optionality, so the
+    // key could be omitted entirely.
+    const v = withCheck({
+      name: 'c',
+      type: 'jsonb',
+      notNull: true,
+    }).insertValidator;
+    expect(v.safeParse({}).success).toBe(false);
+    expect(v.safeParse({ c: { a: 1 } }).success).toBe(true);
+  });
+
+  it('accepts null and nested Date values on a nullable column', () => {
+    // Not z.json(): that rejects a nested Date, which pg-promise's :json mod
+    // handles perfectly well.
+    const v = withCheck({ name: 'c', type: 'jsonb' }).baseValidator;
+    expect(v.safeParse({ c: null }).success).toBe(true);
+    expect(v.safeParse({ c: { createdAt: new Date() } }).success).toBe(true);
+  });
+});

@@ -258,18 +258,63 @@ function mapNormalizedType(
   );
 }
 
+/** Constraints inferred from a CHECK expression, keyed by column name. */
+interface CheckHints {
+  minLen?: number;
+  enumOptions?: string[];
+}
+
 /**
- * Applies `.min(n)` when the validator supports it (ZodString does); other
- * validator classes pass through unchanged, matching the old duck-typing.
+ * Extracts the check constraints this generator understands.
+ *
+ * Collected in a separate pass so the results can be applied to the *inner*
+ * validator, before the nullable/optional wrapping. Applying them afterwards
+ * is what made them silently vanish for nullable columns: the wrapped value is
+ * a ZodOptional, which has no `.min`.
+ *
+ * Only `char_length(col) > N` and `col IN (...)` are recognized; anything else
+ * (compound expressions, casts, quoted identifiers) is left alone.
  */
-function withMin(validator: z.ZodType, minLen: number): z.ZodType {
-  if (
-    'min' in validator &&
-    typeof (validator as { min?: unknown }).min === 'function'
-  ) {
-    return (validator as z.ZodString).min(minLen);
+function collectCheckHints(tableSchema: TableSchema): Map<string, CheckHints> {
+  const hints = new Map<string, CheckHints>();
+  const checks = tableSchema.constraints?.checks;
+  if (!Array.isArray(checks)) return hints;
+
+  const hintFor = (field: string): CheckHints => {
+    let hint = hints.get(field);
+    if (!hint) {
+      hint = {};
+      hints.set(field, hint);
+    }
+    return hint;
+  };
+
+  for (const check of checks) {
+    const expr = typeof check === 'string' ? check : check.expression;
+    if (!expr) continue;
+
+    const lengthMatch = /char_length\((\w+)\)\s*>\s*(\d+)/i.exec(expr);
+    if (lengthMatch?.[1] && lengthMatch[2]) {
+      hintFor(lengthMatch[1]).minLen = parseInt(lengthMatch[2], 10) + 1;
+      continue;
+    }
+
+    const inMatch = /^(\w+)\s+IN\s*\(\s*([^)]+)\s*\)$/i.exec(expr);
+    if (inMatch?.[1] && inMatch[2]) {
+      const options = inMatch[2].split(',').map(s =>
+        s
+          .trim()
+          .replace(/^'(.*)'$/, '$1')
+          .replace(/^"(.*)"$/, '$1')
+      );
+      if (options.length > 0) {
+        hintFor(inMatch[1]).enumOptions = [...new Set(options)];
+      }
+      continue;
+    }
   }
-  return validator;
+
+  return hints;
 }
 
 /**
@@ -291,10 +336,28 @@ function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
   const insert: Record<string, z.ZodType> = {};
   const update: Record<string, z.ZodType> = {};
 
+  const hints = collectCheckHints(tableSchema);
+
   for (const column of tableSchema.columns) {
     const { name, type, notNull, default: defaultValue } = column;
     let zodType: z.ZodType =
       column.colProps?.validator || mapSqlTypeToZod(type, name);
+
+    const hint = hints.get(name);
+
+    // Every refinement below is guarded on ZodString. The old code duck-typed
+    // `.min`, which was safe only while arrays were unmappable: z.array() has
+    // a `.min` too, and it means array *length*, so a char_length check on a
+    // text[] column would have silently become an item-count minimum.
+    if (hint?.enumOptions && zodType instanceof z.ZodString) {
+      // zod 4 accepts a plain string array; the non-empty tuple cast the
+      // zod 3 signature required is no longer needed.
+      zodType = z.enum(hint.enumOptions);
+    }
+
+    if (hint?.minLen !== undefined && zodType instanceof z.ZodString) {
+      zodType = zodType.min(hint.minLen);
+    }
 
     // Enhance email fields. instanceof is stable across zod versions;
     // _def.typeName is a zod 3 internal removed in zod 4 (suggestion 3).
@@ -318,69 +381,6 @@ function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
 
     // updateValidator: always optional + nullable
     update[name] = zodType.nullable().optional();
-  }
-
-  // Enhance with check constraints if present
-  if (
-    tableSchema.constraints &&
-    Array.isArray(tableSchema.constraints.checks)
-  ) {
-    // Helper: parse char_length(field) > N and field IN ('A','B','C')
-    for (const check of tableSchema.constraints.checks) {
-      const expr = typeof check === 'string' ? check : check.expression;
-      if (!expr) continue;
-
-      // char_length(field) > N
-      let match = /char_length\((\w+)\)\s*>\s*(\d+)/i.exec(expr);
-      if (match?.[1] && match[2]) {
-        const field = match[1];
-        const minLen = parseInt(match[2], 10) + 1;
-        // Only apply if field exists
-        const baseField = base[field];
-        if (baseField) {
-          base[field] = withMin(baseField, minLen);
-        }
-        const insertField = insert[field];
-        if (insertField) {
-          insert[field] = withMin(insertField, minLen);
-        }
-        const updateField = update[field];
-        if (updateField) {
-          update[field] = withMin(updateField, minLen);
-        }
-        continue;
-      }
-
-      // field IN ('A', 'B', 'C')
-      match = /^(\w+)\s+IN\s*\(\s*([^)]+)\s*\)$/i.exec(expr);
-      if (match?.[1] && match[2]) {
-        const field = match[1];
-        // Parse enum values: split by comma, remove quotes and trim
-        const options = match[2].split(',').map(s =>
-          s
-            .trim()
-            .replace(/^'(.*)'$/, '$1')
-            .replace(/^"(.*)"$/, '$1')
-        );
-
-        if (options.length > 0) {
-          // zod 4 accepts a plain string array; the non-empty tuple cast the
-          // zod 3 signature required is no longer needed.
-          const enumZod = z.enum([...new Set(options)]);
-          if (base[field]) base[field] = enumZod;
-          if (insert[field]) {
-            const colDef = tableSchema.columns.find(c => c.name === field);
-            if (colDef?.default !== undefined) {
-              insert[field] = enumZod.optional();
-            } else {
-              insert[field] = enumZod;
-            }
-          }
-          if (update[field]) update[field] = enumZod.nullable().optional();
-        }
-        continue;
-      }
-    }
   }
 
   return {
