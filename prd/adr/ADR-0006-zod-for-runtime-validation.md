@@ -20,8 +20,14 @@ Auto-generate Zod validators from the table schema via `generateZodFromTableSche
 
 ## Consequences
 
-- **Accepted trade-off:** Zod is a runtime dependency (~50KB).
-- **Accepted trade-off:** Complex check constraints can't be auto-mapped and fall back to `z.any()`.
+- **Accepted trade-off:** Zod is a dependency. As of 3.0.0 it is a _peer_ dependency (`zod ^4`), not a bundled one — see ADR-0014.
+- **Accepted trade-off:** Complex check constraints can't be auto-mapped. Only `char_length(col) > n` and `col IN (...)` are read; anything else is left to the database.
 - **Benefit:** Validation stays synchronized with schema automatically — impossible to forget to update.
+
+> **Superseded in part by [ADR-0014](ADR-0014-zod-4-peer-dependency.md) (3.0.0).**
+> This ADR originally recorded that unmappable column types "fall back to `z.any()`".
+> That stopped being true in 2.0.0, when the fallback became a `SchemaDefinitionError`.
+> ADR-0014 records the throw-don't-guess decision, the zod 4 peer dependency, and the
+> `z.guid()`-over-`z.uuid()` choice.
 
 See PRD §6.5 for the complete behavioral contract including type mapping and invariants.

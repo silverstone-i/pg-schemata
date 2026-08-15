@@ -13,19 +13,75 @@ These are stored at `model._schema.validators`.
 
 ### Type mapping
 
-The generator maps PostgreSQL types to Zod types:
+Type names are normalized before matching — trimmed, lowercased, and interior
+whitespace collapsed — so `DOUBLE   PRECISION` and `double precision` are the
+same type.
 
-| PostgreSQL Type                                               | Zod Type                            |
-| ------------------------------------------------------------- | ----------------------------------- |
-| `integer`, `int`, `smallint`, `bigint`, `serial`, `bigserial` | `z.number()` or `z.coerce.number()` |
-| `numeric`, `decimal`, `real`, `double precision`, `float`     | `z.number()`                        |
-| `boolean`                                                     | `z.boolean()`                       |
-| `uuid`                                                        | `z.string().uuid()`                 |
-| `json`, `jsonb`                                               | `z.any()`                           |
-| `date`, `timestamp`, `timestamptz`                            | `z.coerce.date()`                   |
-| `varchar(n)`, `char(n)`                                       | `z.string().max(n)`                 |
-| `text`, `varchar` (no length)                                 | `z.string()`                        |
-| Other                                                         | `z.any()`                           |
+| PostgreSQL Type                                                                    | Zod Type                           |
+| ---------------------------------------------------------------------------------- | ---------------------------------- |
+| `text`, `varchar`, `character varying`, `char`, `bpchar`, `character`, `citext`    | `z.string()`                       |
+| `varchar(n)`, `character varying(n)`, `char(n)`, `bpchar(n)`, `character(n)`       | `z.string().max(n)`                |
+| `uuid`                                                                             | `z.guid()`                         |
+| `smallint`, `int2`, `int`, `integer`, `int4`, `smallserial`, `serial`, `serial2/4` | `z.number().int()`                 |
+| `bigint`, `int8`, `bigserial`, `serial8`                                           | number \| bigint \| digit string   |
+| `numeric`, `decimal` (sized or not)                                                | number \| numeric string           |
+| `real`, `float4`, `float8`, `double precision`, `float`, `float(n)`                | `z.number()`                       |
+| `boolean`, `bool`                                                                  | `z.boolean()`                      |
+| `date`, `timestamp`, `timestamptz` (sized, `with`/`without time zone`)             | `z.coerce.date()`                  |
+| `time`, `timetz` (sized, `with`/`without time zone`)                               | `z.string()` with a time regex     |
+| `json`, `jsonb`                                                                    | `z.unknown().nonoptional()`        |
+| `inet`, `cidr`, `macaddr`, `macaddr8`                                              | `z.string()`                       |
+| any of the above with `[]`                                                         | `z.array(<element>)`               |
+| `interval`, `bytea`                                                                | **throws** — see below             |
+| anything else                                                                      | **throws** `SchemaDefinitionError` |
+
+An unmapped type is a schema-definition error rather than a silent `z.any()`:
+a validator that accepts anything looks like protection while providing none.
+Supply `colProps.validator` for types the generator does not cover.
+
+### Why `time` is a string
+
+`pg` leaves `time` and `timetz` unparsed, so a `time` column round-trips as the
+string `'07:00:00'`. `new Date('07:00:00')` is `Invalid Date`, so
+`z.coerce.date()` would reject every `time` column in existence. This is a
+deliberate asymmetry with `timestamp` and `date`, which stay `z.coerce.date()`
+because `pg` _does_ parse those into `Date` objects.
+
+The pattern is hand-rolled rather than `z.iso.time()`, which rejects
+`24:00:00` — a legal end-of-day value PostgreSQL accepts and stores. Seconds
+are optional and fractional seconds are unbounded. A plain `time` column
+rejects a trailing offset, because PostgreSQL silently discards it.
+
+Exotic input literals PostgreSQL accepts (`'04:05 PM'`, `'allballs'`) are not
+matched; use `colProps.validator` for those.
+
+### Arrays are one-dimensional only
+
+`text[]`, `uuid[]`, and `varchar(10)[]` map to `z.array(...)` with the element
+validator intact, so `varchar(10)[]` still enforces the per-element length.
+
+`text[][]` throws. PostgreSQL does not enforce declared array dimensions —
+`text[][]` and `text[]` are the same type, and a `text[][]` column happily
+stores a flat array — so a nested `z.array(z.array(...))` would reject rows the
+database accepts.
+
+`_text` throws too, naming `text[]` as the intended spelling. It is the
+`pg_type` internal name for `text[]`, but it is also a legal user-defined type
+identifier, so guessing would eventually be wrong.
+
+Inserting into a typed array column needs a cast, because `pg-promise` renders
+a JavaScript array as a `text[]` literal:
+
+```js
+{ name: 'related_ids', type: 'uuid[]', colProps: { cast: 'uuid[]' } }
+```
+
+### `interval` and `bytea` are unmapped by design
+
+Both round-trip asymmetrically: `pg` returns an object (`interval`) or a
+`Buffer` (`bytea`), while inserts accept a string. Any built-in validator would
+have to be a union broad enough to accept nearly anything, which is worse than
+no validator at all. Use `colProps.validator`.
 
 ### Nullability and defaults
 
@@ -33,6 +89,18 @@ The generator maps PostgreSQL types to Zod types:
 - Columns with `default` → optional (`.optional()`)
 - Columns without `notNull` → nullable (`.nullable().optional()`)
 - Immutable columns are excluded from the update validator
+
+### Check constraints
+
+Two CHECK shapes are read and folded into the validator, and both apply to the
+column's own type before nullability wrapping — so a nullable column keeps
+accepting `null`:
+
+- `char_length(col) > n` → `.min(n + 1)` on a string column
+- `col IN ('a', 'b')` → `z.enum(['a', 'b'])`
+
+Both are ignored for non-string columns. Anything more complex is left to the
+database.
 
 ## Manual validation
 
@@ -57,6 +125,25 @@ model.validateDto(
 ```
 
 Throws `SchemaDefinitionError` with `.cause` containing the Zod error details.
+
+### The `.cause` shape
+
+`.cause` is the array of Zod **issues** — `ZodError.issues`, not the `ZodError`
+itself. Each issue carries at least `path` and `code`:
+
+```js
+try {
+  model.validateDto({ email: 123 }, model._schema.validators.insertValidator);
+} catch (err) {
+  err.cause; // [{ code: 'invalid_type', path: ['email'], ... }]
+}
+```
+
+For an array payload the path is prefixed with the record index, e.g.
+`[1, 'email']`.
+
+Before 3.0.0 this was populated from `ZodError.errors`, which zod 4 removed.
+If a non-Zod error caused the failure, `.cause` is that error unchanged.
 
 ## Sanitizing DTOs
 
