@@ -20,11 +20,11 @@ missing from the mapped set.
 
 That consumer uses 15 distinct type strings. Exactly three are unmapped:
 
-| Type | Occurrences | Status |
-|---|---|---|
-| `time` | 4 | unmapped → throws |
-| `text[]` | 4 | unmapped → throws |
-| `uuid[]` | 2 | unmapped → throws |
+| Type     | Occurrences | Status            |
+| -------- | ----------- | ----------------- |
+| `time`   | 4           | unmapped → throws |
+| `text[]` | 4           | unmapped → throws |
+| `uuid[]` | 2           | unmapped → throws |
 
 `time` and one-dimensional arrays are ordinary Postgres. A library that rejects them is wrong, not
 merely strict. Five of 26 models fail to construct — and because validators are generated eagerly in
@@ -121,7 +121,7 @@ rejects valid rows.
 
 Document two things in `docs/guide/validation.md`:
 
-- The deliberate asymmetry with `timestamp`/`date`, which stay `z.coerce.date()` because pg *does*
+- The deliberate asymmetry with `timestamp`/`date`, which stay `z.coerce.date()` because pg _does_
   parse those into `Date` objects.
 - That exotic input literals Postgres accepts (`'04:05 PM'`, `'allballs'`) need `colProps.validator`.
 
@@ -164,13 +164,13 @@ Only four `src/` files touch zod:
 - `src/TableModel.ts:15` — `import { ZodError } from 'zod'`
 - `src/utils/generateZodValidator.ts:5` — `import { z } from 'zod'`
 
-| Change | Sites | Severity |
-|---|---|---|
-| `err.errors` → `err.issues` | `QueryModel.ts:605`, `TableModel.ts:178`, `:277`, `:613` | **Hard break** — `.errors` is `undefined` in zod 4 |
-| `z.string().uuid()` → **`z.guid()`** | `generateZodValidator.ts:31-32` | **Semantic** — see below |
-| `zodType.email()` → `.check(z.email())` | `generateZodValidator.ts:89-91` | Cosmetic; `.email()` is deprecated in v4 |
-| `z.ZodTypeAny` → `z.ZodType` | `generateZodValidator.ts`, `schemaTypes.ts:63`, `:233-235`, `QueryModel.ts:38`, `:596` | Cosmetic; public API surface |
-| Drop the `as [string, ...string[]]` cast on `z.enum` | `generateZodValidator.ts:153-156` | Simplification |
+| Change                                               | Sites                                                                                  | Severity                                           |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `err.errors` → `err.issues`                          | `QueryModel.ts:605`, `TableModel.ts:178`, `:277`, `:613`                               | **Hard break** — `.errors` is `undefined` in zod 4 |
+| `z.string().uuid()` → **`z.guid()`**                 | `generateZodValidator.ts:31-32`                                                        | **Semantic** — see below                           |
+| `zodType.email()` → `.check(z.email())`              | `generateZodValidator.ts:89-91`                                                        | Cosmetic; `.email()` is deprecated in v4           |
+| `z.ZodTypeAny` → `z.ZodType`                         | `generateZodValidator.ts`, `schemaTypes.ts:63`, `:233-235`, `QueryModel.ts:38`, `:596` | Cosmetic; public API surface                       |
+| Drop the `as [string, ...string[]]` cast on `z.enum` | `generateZodValidator.ts:153-156`                                                      | Simplification                                     |
 
 All four `err.errors` sites are the identical line:
 

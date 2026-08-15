@@ -67,10 +67,10 @@ describe('consumer schema coverage (integration)', () => {
         sequence_no: '9007199254740993',
       })) as Record<string, unknown>;
 
-      row = (await ctx.db.one(
+      row = await ctx.db.one(
         `SELECT * FROM "${dbSchema}"."types_coverage" WHERE id = $1`,
         [inserted.id]
-      ));
+      );
     });
 
     it('returns time as a string, not a Date', () => {
@@ -117,11 +117,11 @@ describe('consumer schema coverage (integration)', () => {
 
   describe('constraints and indexes', () => {
     it('creates every constraints.indexes entry', async () => {
-      const indexes = (await ctx.db.any(
+      const indexes = await ctx.db.any(
         `SELECT indexname, indexdef FROM pg_indexes
           WHERE schemaname = $1 AND tablename = 'constraint_coverage'`,
         [dbSchema]
-      ));
+      );
 
       const defs = indexes.map(i => i.indexdef).join('\n');
 
@@ -136,12 +136,12 @@ describe('consumer schema coverage (integration)', () => {
     });
 
     it('creates the composite primary key and both unique forms', async () => {
-      const constraints = (await ctx.db.any(
+      const constraints = await ctx.db.any(
         `SELECT conname, contype, pg_get_constraintdef(oid) AS def
            FROM pg_constraint
           WHERE conrelid = format('%I.%I', $1::text, 'constraint_coverage')::regclass`,
         [dbSchema]
-      ));
+      );
 
       const pk = constraints.find(c => c.contype === 'p');
       expect(pk).toBeDefined();
@@ -153,13 +153,13 @@ describe('consumer schema coverage (integration)', () => {
     });
 
     it('creates the three foreign keys with their delete actions', async () => {
-      const fks = (await ctx.db.any(
+      const fks = await ctx.db.any(
         `SELECT pg_get_constraintdef(oid) AS def
            FROM pg_constraint
           WHERE contype = 'f'
             AND conrelid = format('%I.%I', $1::text, 'constraint_coverage')::regclass`,
         [dbSchema]
-      ));
+      );
 
       const defs = fks.map(f => f.def).join('\n');
       expect(fks.length).toBe(3);
@@ -169,13 +169,13 @@ describe('consumer schema coverage (integration)', () => {
     });
 
     it('creates the check constraint containing a cast', async () => {
-      const checks = (await ctx.db.any(
+      const checks = await ctx.db.any(
         `SELECT pg_get_constraintdef(oid) AS def
            FROM pg_constraint
           WHERE contype = 'c'
             AND conrelid = format('%I.%I', $1::text, 'constraint_coverage')::regclass`,
         [dbSchema]
-      ));
+      );
 
       // PG rewrites `::text[]` into per-element casts inside the ARRAY
       // constructor, so assert on the stored form rather than the source.
