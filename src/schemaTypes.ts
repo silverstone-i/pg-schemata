@@ -51,6 +51,16 @@ export interface ColPropsContext {
 export interface ColProps {
   /** pg-promise format modifier (e.g. ':json'). */
   mod?: string;
+  /**
+   * SQL type appended as a cast (e.g. 'uuid[]'), passed through to
+   * pg-promise's Column.
+   *
+   * Needed for typed array columns: pg-promise renders a JavaScript array as
+   * a `text[]` literal, and PostgreSQL will not implicitly cast that to
+   * `uuid[]`, so an insert fails with "column is of type uuid[] but
+   * expression is of type text[]" without it.
+   */
+  cast?: string;
   /** Conditionally skip this column in insert/update. */
   skip?: (col: ColPropsContext) => boolean;
   /** Use in conditional update clause. */
