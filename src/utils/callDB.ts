@@ -13,6 +13,22 @@ export interface SchemaAwareModel {
 }
 
 /**
+ * @private
+ *
+ * A registered repository name, when {@link Repositories} has been augmented.
+ *
+ * `callDb` previously carried an unconditional `(name: string)` overload, which
+ * accepted any string and returned a bare {@link SchemaAwareModel} — so a typo
+ * in a repository name compiled and failed at runtime, and the augmented
+ * registry bought nothing at this call site. Narrowing it to `keyof
+ * Repositories` once the registry is declared restores that, while leaving
+ * un-augmented consumers with today's permissive `string`.
+ */
+type RepositoryName = keyof Repositories extends never
+  ? string
+  : keyof Repositories;
+
+/**
  * Returns a schema-aware version of a registered model or repository.
  *
  * @param modelOrName - The model instance or its registered name.
@@ -28,7 +44,10 @@ function callDb<M extends SchemaAwareModel>(
   modelOrName: M,
   schemaName: string
 ): M;
-function callDb(modelOrName: string, schemaName: string): SchemaAwareModel;
+function callDb(
+  modelOrName: RepositoryName,
+  schemaName: string
+): SchemaAwareModel;
 function callDb(
   modelOrName: string | SchemaAwareModel,
   schemaName: string
