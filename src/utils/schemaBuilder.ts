@@ -649,6 +649,47 @@ function identityOf(value: object, store: WeakMap<object, number>): number {
 /**
  * @private
  *
+ * Serializes `colProps.def` for the fingerprint without assuming it is JSON.
+ *
+ * `def` is typed `unknown` and handed to pg-promise as a substitution value, so
+ * it may legitimately be a `bigint` — and `JSON.stringify(1n)` throws a
+ * `TypeError`, which would surface as a failure to construct the model rather
+ * than anything about the schema. Circular objects throw the same way. Every
+ * branch is tagged with its type so `1` and `'1'` cannot fingerprint alike.
+ *
+ * @param value - The declared `def` value.
+ * @returns A stable string for an unchanged value.
+ */
+function serializeDef(value: unknown): string {
+  if (value === null) return 'null';
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint' ||
+    typeof value === 'undefined'
+  ) {
+    return `${typeof value}:${String(value)}`;
+  }
+  if (typeof value === 'function') {
+    return `function:${identityOf(value, referenceIds)}`;
+  }
+  // Not a usable substitution value in the first place, so the description is
+  // enough: two identically-described symbols fingerprinting alike cannot arise
+  // from a schema that would have worked.
+  if (typeof value === 'symbol') {
+    return `symbol:${value.description ?? ''}`;
+  }
+  try {
+    return `json:${JSON.stringify(value)}`;
+  } catch {
+    return `ref:${identityOf(value, referenceIds)}`;
+  }
+}
+
+/**
+ * @private
+ *
  * Fingerprints everything a ColumnSet is derived from.
  *
  * The cache key was `${table}::${dbSchema}` alone, which carries no information
@@ -676,10 +717,11 @@ function schemaFingerprint(schema: TableSchema): string {
       p?.mod ?? '',
       p?.cast ?? '',
       p?.cnd ? '1' : '0',
-      // `def` is a plain substitution value, so JSON captures it. The three
-      // below cannot be serialized and fall back to reference identity.
+      // `def` is a plain substitution value of unknown type — see
+      // serializeDef. The three below cannot be serialized at all and fall
+      // back to reference identity.
       p && Object.prototype.hasOwnProperty.call(p, 'def')
-        ? JSON.stringify(p.def)
+        ? serializeDef(p.def)
         : '',
       p?.skip ? `s${identityOf(p.skip, referenceIds)}` : '',
       p?.init ? `i${identityOf(p.init, referenceIds)}` : '',

@@ -128,6 +128,38 @@ describe('TableModel.update with a partial DTO', () => {
     expect(db.calls[0]).not.toContain('1969');
   });
 
+  it('rejects a DTO that is empty only after sanitization', async () => {
+    // The emptiness check runs on the raw DTO, and the update validator strips
+    // unknown keys rather than rejecting them — so a DTO carrying only unknown
+    // or immutable columns reached the ColumnSet with no columns at all and
+    // failed inside pg-promise, two frames from anything naming the schema.
+    const db = makeCapturingDb();
+    const model = new TableModel(db, pgp, {
+      ...schema,
+      table: 'immutable_periods',
+      columns: [
+        { name: 'id', type: 'uuid', notNull: true, immutable: true },
+        { name: 'name', type: 'text' },
+      ],
+    });
+
+    await expect(model.update(ID, { id: ID } as any)).rejects.toThrow(
+      /no writable columns/
+    );
+    expect(db.calls).toHaveLength(0);
+  });
+
+  it('still accepts an empty DTO when audit fields carry the update', async () => {
+    // The library-owned updated_at is a valid update on its own; the guard must
+    // not take that path away — it is the one touch() uses with no actor.
+    const db = makeCapturingDb();
+    const model = new TableModel(db, pgp, auditedSchema);
+
+    await model.update(ID, {} as any);
+
+    expect(db.calls[0]).toContain('"updated_at"=CURRENT_TIMESTAMP');
+  });
+
   it('updates a single column through touch()', async () => {
     // touch() routes through update() with only updated_by, which under the old
     // ColumnSet nulled the entire row.

@@ -21,8 +21,10 @@ const page2 = await db().users.findAfterCursor(
 );
 ```
 
-`nextCursor` is `null` on the last page — whenever fewer than `limit` rows come
-back. You can loop on it directly without a trailing empty query.
+`nextCursor` is `null` on the last page, including a last page that happens to
+hold exactly `limit` rows. The query asks the database for one row past the page
+to tell those two cases apart and discards it, so you always get at most `limit`
+rows and can loop on the cursor directly without a trailing empty query.
 
 ## Multi-column cursors
 

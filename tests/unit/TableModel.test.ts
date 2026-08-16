@@ -672,6 +672,15 @@ describe('TableModel (Unit)', () => {
     test('delete should throw if ID is invalid', async () => {
       await expect(model.delete('')).rejects.toThrow('Invalid ID format');
     });
+
+    test('an invalid ID rejects with SchemaDefinitionError', async () => {
+      // _primaryKeyCondition documents SchemaDefinitionError for every
+      // malformed key, but the scalar branch threw a plain Error — so callers
+      // discriminating on the error class saw one key shape behave differently.
+      await expect(model.delete('')).rejects.toBeInstanceOf(
+        SchemaDefinitionError
+      );
+    });
   });
 
   // ================================

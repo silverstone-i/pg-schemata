@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import pgPromise from 'pg-promise';
 import TableModel from '../../src/TableModel.js';
+import QueryModel from '../../src/QueryModel.js';
 import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import { columnSetCache } from '../../src/utils/schemaBuilder.js';
 import type { TableSchema } from '../../src/schemaTypes.js';
@@ -248,6 +249,20 @@ describe('schema validation at construction', () => {
     expect(
       () =>
         new TableModel(makeDb(), pgp, {
+          ...renamedKey,
+          constraints: { primaryKey: 'code' },
+        } as never)
+    ).toThrow(/must be an array of column names/);
+  });
+
+  it('rejects a non-array primaryKey on a bare QueryModel too', () => {
+    // QueryModel is exported and instantiable on its own, and the check used to
+    // live in TableModel's constructor. Identifier validation walks the key with
+    // for…of, which accepts a string happily — so construction succeeded and the
+    // first by-id call died with `columns.filter is not a function`.
+    expect(
+      () =>
+        new QueryModel(makeDb(), pgp, {
           ...renamedKey,
           constraints: { primaryKey: 'code' },
         } as never)

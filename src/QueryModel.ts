@@ -128,6 +128,32 @@ class QueryModel<TRow = any> {
       );
     }
 
+    // Must be an array of column names. A bare string was previously harmless
+    // because nothing iterated it — every by-id method targeted `id` regardless
+    // — but it is now the source of the key columns, and iterating a string
+    // yields its characters. The check lives here rather than in TableModel
+    // because QueryModel is exported and instantiable on its own: identifier
+    // validation walks `primaryKey` with for…of, which accepts a string
+    // happily, so the failure would otherwise surface as `columns.filter is
+    // not a function` on the first by-id call. Rejected rather than
+    // normalized, matching how the other misused schema shapes are handled.
+    if (typeof schema.constraints?.primaryKey !== 'undefined') {
+      const primaryKey = schema.constraints.primaryKey;
+      if (
+        !Array.isArray(primaryKey) ||
+        primaryKey.some(c => typeof c !== 'string')
+      ) {
+        throw new SchemaDefinitionError(
+          `constraints.primaryKey must be an array of column names, e.g. ['id']`
+        );
+      }
+      if (primaryKey.length === 0) {
+        throw new SchemaDefinitionError(
+          'Primary key must name at least one column'
+        );
+      }
+    }
+
     // Fail at construction rather than at the first query. Query paths run
     // identifiers through pgp.as.name(), but DDL generation interpolates them
     // into strings, so an unusable name is a latent bootstrap-time hazard that
@@ -225,7 +251,7 @@ class QueryModel<TRow = any> {
         `${this._schema.table} has a composite primary key [${columns.join(', ')}]; pass an object, not a scalar`
       );
     }
-    if (!isValidId(key)) throw new Error('Invalid ID format');
+    if (!isValidId(key)) throw new SchemaDefinitionError('Invalid ID format');
     return { [columns[0]!]: key };
   }
 
@@ -489,17 +515,22 @@ class QueryModel<TRow = any> {
         queryParts.push('WHERE', whereClauses.join(' AND '));
       }
       queryParts.push(`ORDER BY ${orderByClause}`);
+      // One row past the page. `nextCursor` must be null when nothing follows,
+      // because callers loop `while (nextCursor)` and a `do…while` that trusts
+      // it never terminates otherwise. A short page proves there is nothing
+      // after it, but a full page proves nothing either way — a last page of
+      // exactly `limit` rows is indistinguishable from a full one — so the
+      // extra row is what answers the question. It is discarded before
+      // returning; the caller still sees at most `limit` rows.
       queryParts.push(`LIMIT $${values.length + 1}`);
-      values.push(limit);
+      values.push(limit + 1);
       const query = queryParts.join(' ');
 
       // Execute the query
-      const rows = await this.db.any<TRow>(query, values);
-      // A short page is the last page: there is nothing after it to seek to, and
-      // callers loop `while (nextCursor)`. Returning a cursor here costs every
-      // such caller one extra empty round trip, and a `do…while` that trusts the
-      // cursor never terminates.
-      const lastRow = rows.length === limit ? rows[rows.length - 1] : undefined;
+      const fetched = await this.db.any<TRow>(query, values);
+      const hasMore = fetched.length > limit;
+      const rows = hasMore ? fetched.slice(0, limit) : fetched;
+      const lastRow = hasMore ? rows[rows.length - 1] : undefined;
       const nextCursor =
         lastRow !== undefined
           ? orderBy.reduce<Record<string, unknown>>((acc, col) => {

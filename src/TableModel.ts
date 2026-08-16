@@ -72,25 +72,9 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
         'Primary key must be defined in the schema'
       );
     }
-    // Must be an array of column names. A bare string was previously harmless
-    // because nothing iterated it — every by-id method targeted `id` regardless
-    // — but it is now the source of the key columns, and iterating a string
-    // yields its characters. Rejected rather than normalized, matching how the
-    // other misused schema shapes are handled.
-    if (
-      !Array.isArray(schema.constraints.primaryKey) ||
-      schema.constraints.primaryKey.some(c => typeof c !== 'string')
-    ) {
-      throw new SchemaDefinitionError(
-        `constraints.primaryKey must be an array of column names, e.g. ['id']`
-      );
-    }
-    if (schema.constraints.primaryKey.length === 0) {
-      throw new SchemaDefinitionError(
-        'Primary key must name at least one column'
-      );
-    }
-
+    // The shape of the key — an array of at least one column name — is checked
+    // by QueryModel's constructor, which every TableModel runs through and
+    // which callers instantiating QueryModel directly need too.
     super(db, pgp, schema, logger);
 
     // Determine default value for audit user fields based on schema configuration
@@ -381,6 +365,20 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     // JS Date would be inlined unquoted and produce invalid SQL.
     if (this._auditEnabled()) {
       delete safeDto.updated_at;
+    }
+    // The emptiness check above runs on the raw DTO, but sanitizeDto drops
+    // unknown and immutable columns — and the update validator strips unknown
+    // keys rather than rejecting them. So a non-empty DTO carrying only
+    // immutable or unknown columns arrives here empty, and with audit fields
+    // disabled there is no library-owned column to fall back on: the ColumnSet
+    // would be built with no columns and pg-promise would throw from two frames
+    // down instead of this method naming the problem.
+    if (!this._auditEnabled() && Object.keys(safeDto).length === 0) {
+      return Promise.reject(
+        new SchemaDefinitionError(
+          'DTO contains no writable columns; every key is unknown or immutable'
+        )
+      );
     }
     const setColumns = columnSetColumnsFor(this._schema, Object.keys(safeDto));
     if (this._auditEnabled()) {
@@ -685,14 +683,14 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
    * timestamp still moves — `update()` owns `updated_at` and writes it for an
    * empty DTO.
    *
-   * @param id - Primary key.
+   * @param id - Primary key: a scalar, or an object for composite keys.
    * @param updatedBy - Actor identifier. Falls back to the audit actor resolver.
    * @param options.tx - pg-promise task/transaction to run on.
    * @returns Updated row, or null if no active row has that id.
    * @throws {SchemaDefinitionError} If audit fields are not enabled.
    */
   async touch(
-    id: number | string,
+    id: PrimaryKey,
     updatedBy: string | null = null,
     { tx }: TxOption = {}
   ): Promise<TRow | null> {

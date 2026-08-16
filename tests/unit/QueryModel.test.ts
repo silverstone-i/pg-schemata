@@ -255,7 +255,9 @@ describe('QueryModel', () => {
 
   describe('findAfterCursor', () => {
     test('should return paginated rows and nextCursor', async () => {
-      mockDb.any.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+      // limit + 1 rows come back: the third proves another page exists and is
+      // dropped before returning.
+      mockDb.any.mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
       const result = await model.findAfterCursor({ id: 0 }, 2, ['id']);
       expect(result.rows.length).toBe(2);
       expect(result.nextCursor).toEqual({ id: 2 });

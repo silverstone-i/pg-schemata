@@ -136,11 +136,11 @@ Updates rows matching a WHERE clause.
 Advances `updated_at`, and sets `updated_by` when an actor is known. No data
 column is written.
 
-| Parameter    | Type               | Description                                            |
-| ------------ | ------------------ | ------------------------------------------------------ |
-| `id`         | `string \| number` | Primary key value                                      |
-| `updatedBy`  | `string`           | Actor identifier (optional — uses resolver if omitted) |
-| `options.tx` | `object`           | pg-promise task/transaction to run on                  |
+| Parameter    | Type                         | Description                                             |
+| ------------ | ---------------------------- | ------------------------------------------------------- |
+| `id`         | `string \| number \| object` | Primary key — a scalar, or an object for composite keys |
+| `updatedBy`  | `string`                     | Actor identifier (optional — uses resolver if omitted)  |
+| `options.tx` | `object`                     | pg-promise task/transaction to run on                   |
 
 Requires audit fields. With no actor supplied and no resolver configured the
 timestamp still advances and `updated_by` is left as it was.

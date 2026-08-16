@@ -135,11 +135,32 @@ describe('findAfterCursor terminal page', () => {
     expect(page.nextCursor).toBeNull();
   });
 
-  test('returns a cursor when the page is full', async () => {
+  test('returns a cursor only when a row follows the page', async () => {
+    // The query asks for limit + 1, so the third row is the proof that another
+    // page exists. It is discarded: the caller sees the two it asked for.
+    mockDb.any.mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+    const page = await makeModel().findAfterCursor({}, 2, ['id']);
+
+    expect(page.rows).toEqual([{ id: 'a' }, { id: 'b' }]);
+    expect(page.nextCursor).toEqual({ id: 'b' });
+  });
+
+  test('returns null when the last page is exactly the limit', async () => {
+    // Indistinguishable from a full page without the extra row, so this case
+    // used to hand back a cursor and cost an extra empty round trip.
     mockDb.any.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
     const page = await makeModel().findAfterCursor({}, 2, ['id']);
 
-    expect(page.nextCursor).toEqual({ id: 'b' });
+    expect(page.rows).toHaveLength(2);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  test('asks the database for one row past the page', async () => {
+    mockDb.any.mockResolvedValue([]);
+    await makeModel().findAfterCursor({}, 25, ['id']);
+
+    const values = mockDb.any.mock.calls[0]![1] as unknown[];
+    expect(values[values.length - 1]).toBe(26);
   });
 
   test('returns null for an empty page', async () => {

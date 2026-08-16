@@ -94,8 +94,10 @@ Keyset-based cursor pagination.
 
 **Returns:** `Promise<{ rows: Object[], nextCursor: Object | null }>`
 
-`nextCursor` is `null` on the last page — that is, whenever fewer than `limit`
-rows come back. A caller can loop on it without an extra empty round trip.
+`nextCursor` is `null` on the last page, including one holding exactly `limit`
+rows: the query fetches `limit + 1` rows and uses the extra one only to decide
+whether another page exists, returning at most `limit`. A caller can loop on the
+cursor without an extra empty round trip.
 
 **Throws:** `SchemaDefinitionError` if `columnWhitelist` omits an `orderBy`
 column. The cursor is read off the last returned row, so an ordering column

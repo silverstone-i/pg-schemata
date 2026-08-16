@@ -158,6 +158,40 @@ describe('ColumnSet cache key', () => {
     expect(keyedOnId).not.toBe(keyedOnCode);
   });
 
+  it('fingerprints a colProps.def that JSON cannot serialize', () => {
+    // `def` is typed unknown and handed to pg-promise as a substitution value,
+    // so a bigint is legitimate — and JSON.stringify(1n) throws a TypeError,
+    // which surfaced as a failure to construct the model rather than anything
+    // about the schema.
+    const withBigint = (def: unknown) =>
+      schemaWith([
+        { name: 'id', type: 'uuid', notNull: true },
+        { name: 'seq', type: 'bigint', colProps: { def } },
+      ]);
+
+    expect(() => createColumnSet(withBigint(1n), pgp)).not.toThrow();
+    // And two different defs still key apart rather than collapsing onto one
+    // "unserializable" bucket.
+    expect(createColumnSet(withBigint(1n), pgp)).not.toBe(
+      createColumnSet(withBigint(2n), pgp)
+    );
+  });
+
+  it('fingerprints a circular colProps.def without throwing', () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+
+    expect(() =>
+      createColumnSet(
+        schemaWith([
+          { name: 'id', type: 'uuid', notNull: true },
+          { name: 'blob', type: 'jsonb', colProps: { def: circular } },
+        ]),
+        pgp
+      )
+    ).not.toThrow();
+  });
+
   it('does not share entries across pg-promise instances', () => {
     // ColumnSet instances are bound to the pgp that built them.
     const other = pgPromise({ capSQL: true });
