@@ -943,7 +943,13 @@ class QueryModel<TRow = any> {
       }
       for (const [key, val] of Object.entries(item as FieldConditions)) {
         const col = this.escapeName(key);
-        if (val && typeof val === 'object') {
+        // A Date is an object but not an operator map, and Object.keys() on
+        // one is empty — so it matched no operator, emitted no SQL, and the
+        // condition silently vanished. `Scalar` explicitly includes Date, and
+        // Date is its only non-plain member, so excluding it here is exact.
+        // Narrower than switching to isPlainObject, which would also reroute
+        // arrays and Buffers.
+        if (val && typeof val === 'object' && !(val instanceof Date)) {
           const keys = Object.keys(val);
           const unsupported = keys.filter(
             k => !(CONDITION_OPERATORS as readonly string[]).includes(k)
