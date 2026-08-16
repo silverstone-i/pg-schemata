@@ -440,14 +440,26 @@ function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
       typeof defaultValue !== 'undefined' ||
       isSerialType(normalizeSqlType(type));
 
+    // Nullability tracks the column, optionality tracks whether a value has to
+    // be supplied. They are separate questions, and collapsing them let an
+    // explicit `null` through for a NOT NULL column: a defaulted NOT NULL
+    // column was `.nullable().optional()`, so `{ status: null }` validated and
+    // then failed at Postgres with a constraint violation instead of a Zod
+    // issue naming the column.
     if (notNull && !hasImpliedDefault) {
       insert[name] = zodType;
+    } else if (notNull) {
+      // Omit it and the default applies; supply it and it must be non-null.
+      insert[name] = zodType.optional();
     } else {
       insert[name] = zodType.nullable().optional();
     }
 
-    // updateValidator: always optional + nullable
-    update[name] = zodType.nullable().optional();
+    // updateValidator: every column is optional, since an update writes only
+    // the keys the DTO carries. Nullability still follows the column — an
+    // update setting a NOT NULL column to null is as invalid as an insert
+    // doing it.
+    update[name] = notNull ? zodType.optional() : zodType.nullable().optional();
   }
 
   return {
