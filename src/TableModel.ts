@@ -292,12 +292,38 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     ) {
       safeDto.updated_by = this._resolveAuditActor();
     }
+    // Build the SET list from the DTO's own keys, exactly as upsert(),
+    // bulkUpsert(), updateWhere(), bulkInsert() and bulkUpdate() do.
+    //
+    // The cached `cs.update` covers every column in the table, and
+    // createColumnSet() gives each one a `def`, so pg-promise substituted for
+    // the columns a partial DTO omitted rather than leaving them out:
+    //
+    //   update(id, { name: 'x' })
+    //   -> SET "org_id"=null,"name"='x',"start_date"=null,"status"=DEFAULT,...
+    //
+    // That silently overwrote every unmentioned column. `updated_at` is still
+    // appended explicitly, because a SQL DEFAULT only applies on INSERT.
+    // `updated_at` is owned by the library when audit fields are enabled. Any
+    // caller-supplied value is dropped: the column is emitted with mod '^', so a
+    // JS Date would be inlined unquoted and produce invalid SQL.
+    if (this._auditEnabled()) {
+      delete safeDto.updated_at;
+    }
+    const setColumns = columnSetColumnsFor(this._schema, Object.keys(safeDto));
+    if (this._auditEnabled()) {
+      setColumns.push({ name: 'updated_at', mod: '^', def: 'CURRENT_TIMESTAMP' });
+    }
+    const updateCs = new this.pgp.helpers.ColumnSet(setColumns, {
+      table: { table: this._schema.table, schema: this._schema.dbSchema },
+    });
+
     const softCheck = this._schema.softDelete
       ? ' AND deactivated_at IS NULL'
       : '';
     const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
     const query =
-      this.pgp.helpers.update(safeDto, this.cs.update, {
+      this.pgp.helpers.update(safeDto, updateCs, {
         schema: this.schema.dbSchema,
         table: this.schema.table,
       }) +
