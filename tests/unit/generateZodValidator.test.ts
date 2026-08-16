@@ -783,3 +783,80 @@ describe('CHECK constraints compose rather than overwrite', () => {
     expect(v.safeParse({ s: 'abcdef' }).success).toBe(true);
   });
 });
+
+describe('NOT NULL columns reject null across every mapped type', () => {
+  // The invariant is the deliverable here. z.coerce.date() used to coerce null
+  // to the epoch and z.unknown().nonoptional() let an explicit null through,
+  // so a NOT NULL timestamp or jsonb column silently validated a null.
+  const MAPPED_TYPES = [
+    'text',
+    'varchar(10)',
+    'character varying',
+    'char',
+    'citext',
+    'uuid',
+    'smallint',
+    'integer',
+    'bigint',
+    'numeric',
+    'numeric(10,2)',
+    'real',
+    'double precision',
+    'float',
+    'boolean',
+    'bool',
+    'date',
+    'timestamp',
+    'timestamptz',
+    'timestamp with time zone',
+    'time',
+    'timetz',
+    'json',
+    'jsonb',
+    'inet',
+    'cidr',
+    'macaddr',
+    'text[]',
+    'uuid[]',
+    'integer[]',
+    'serial',
+    'bigserial',
+  ];
+
+  const baseFor = (type: string, notNull: boolean) =>
+    generateZodFromTableSchema({
+      table: 'null_probe',
+      dbSchema: 'public',
+      columns: [{ name: 'c', type, notNull }],
+      constraints: { primaryKey: ['c'] },
+    }).baseValidator;
+
+  it.each(MAPPED_TYPES)('%s rejects null when notNull', type => {
+    expect(baseFor(type, true).safeParse({ c: null }).success).toBe(false);
+  });
+
+  it.each(MAPPED_TYPES)('%s accepts null when nullable', type => {
+    expect(baseFor(type, false).safeParse({ c: null }).success).toBe(true);
+  });
+
+  it('still coerces the date forms pg and callers supply', () => {
+    const v = baseFor('timestamptz', true);
+    expect(v.safeParse({ c: '2020-01-01T00:00:00Z' }).success).toBe(true);
+    expect(v.safeParse({ c: new Date() }).success).toBe(true);
+    expect(v.safeParse({ c: 1577836800000 }).success).toBe(true);
+    expect(v.safeParse({ c: 'garbage' }).success).toBe(false);
+  });
+
+  it('keeps jsonb required-but-permissive about its contents', () => {
+    const insert = generateZodFromTableSchema({
+      table: 'null_probe',
+      dbSchema: 'public',
+      columns: [{ name: 'c', type: 'jsonb', notNull: true }],
+      constraints: { primaryKey: ['c'] },
+    }).insertValidator;
+
+    expect(insert.safeParse({}).success).toBe(false);
+    expect(insert.safeParse({ c: { a: 1 } }).success).toBe(true);
+    expect(insert.safeParse({ c: { at: new Date() } }).success).toBe(true);
+  });
+});

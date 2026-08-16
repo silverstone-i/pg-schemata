@@ -89,6 +89,17 @@ Both round-trip asymmetrically: `pg` returns an object (`interval`) or a
 have to be a union broad enough to accept nearly anything, which is worse than
 no validator at all. Use `colProps.validator`.
 
+### Validators gate, they do not transform
+
+Validation runs against the DTO, but the **original** DTO is what reaches the
+database — pg-schemata never substitutes Zod's parsed output. So a `timestamptz`
+column accepts an ISO string and passes it through as a string for PostgreSQL to
+parse; the `Date` that `z.coerce.date()` produced is discarded.
+
+This matters if you supply a `colProps.validator` that transforms
+(`.transform()`, `.default()`, `.catch()`): the transformation is applied during
+validation and then thrown away. Use validators that check rather than rewrite.
+
 ### Nullability and defaults
 
 - Columns with `notNull: true` and no `default` → required

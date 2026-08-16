@@ -45,6 +45,32 @@ const NUMERIC_VALIDATOR: z.ZodType = z.union([
 ]);
 
 /**
+ * Date/timestamp validator.
+ *
+ * `z.coerce.date()` alone accepts `null` — it coerces it to the epoch — so a
+ * NOT NULL timestamp column silently validated a null. Gating on the types
+ * that may legitimately be coerced rejects null before the coercion runs;
+ * refining afterwards is too late, since by then the null is a Date.
+ *
+ * `.nullable()` still composes on top for nullable columns.
+ */
+const DATE_VALIDATOR: z.ZodType = z
+  .union([z.date(), z.string(), z.number()])
+  .pipe(z.coerce.date());
+
+/**
+ * json/jsonb validator.
+ *
+ * `.nonoptional()` rejects a missing key, which `z.any()`/`z.unknown()` alone
+ * would allow, and the refinement rejects an explicit `null` so a NOT NULL
+ * json column behaves like every other NOT NULL column.
+ */
+const JSON_VALIDATOR: z.ZodType = z
+  .unknown()
+  .nonoptional()
+  .refine(value => value !== null, 'Expected a non-null value');
+
+/**
  * Types deliberately left unmapped, with the reason surfaced to the caller.
  *
  * Both round-trip asymmetrically — pg returns an object (`interval`) or a
@@ -120,9 +146,9 @@ const SCALAR_TYPES: Readonly<Record<string, z.ZodType>> = {
   bool: z.boolean(),
 
   // pg parses these into Date objects, unlike time/timetz below.
-  date: z.coerce.date(),
-  timestamp: z.coerce.date(),
-  timestamptz: z.coerce.date(),
+  date: DATE_VALIDATOR,
+  timestamp: DATE_VALIDATOR,
+  timestamptz: DATE_VALIDATOR,
 
   // Network types have no round-trip surprises; a stricter check is an easy
   // colProps.validator upgrade and risks rejecting valid exotic spellings.
@@ -135,10 +161,8 @@ const SCALAR_TYPES: Readonly<Record<string, z.ZodType>> = {
   time: z.string().regex(TIME_RE, 'Invalid time'),
   timetz: z.string().regex(TIMETZ_RE, 'Invalid time with time zone'),
 
-  // z.any() would make the object key optional, so a NOT NULL json column
-  // would pass with the key absent entirely.
-  json: z.unknown().nonoptional(),
-  jsonb: z.unknown().nonoptional(),
+  json: JSON_VALIDATOR,
+  jsonb: JSON_VALIDATOR,
 };
 
 /**
@@ -167,7 +191,7 @@ const PARAMETERIZED: readonly (readonly [
   [/^float ?\(\d+\)$/, () => z.number()],
   [
     /^(?:timestamptz|timestamp)(?: ?\(\d+\))?(?: with(?:out)? time zone)?$/,
-    () => z.coerce.date(),
+    () => DATE_VALIDATOR,
   ],
   [
     // `time with time zone` is timetz; `time without time zone` is plain time,
