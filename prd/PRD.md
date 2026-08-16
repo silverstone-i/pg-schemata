@@ -90,7 +90,7 @@ The following are implementation details and may change without a major version 
 
 | Requirement     | Value                         |
 | --------------- | ----------------------------- |
-| Runtime         | Node.js >= 18                 |
+| Runtime         | Node.js >= 20                 |
 | Database        | PostgreSQL >= 13              |
 | Module System   | ESM only (`"type": "module"`) |
 | Peer Dependency | zod >= 4 (see ADR-0014)       |

@@ -14,7 +14,7 @@ below to recreate it from scratch or run it directly.
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - PostgreSQL 13+ with a database you can connect to
 - `DATABASE_URL` environment variable that points at that database (e.g.
   `postgres://postgres:postgres@localhost:5432/pg_schemata_demo`)
