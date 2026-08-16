@@ -64,12 +64,15 @@ interface ColumnSetColumn {
 /**
  * Builds ColumnSet descriptors for an explicit list of column names.
  *
- * The write paths that cannot use the cached ColumnSet — upsert, bulkUpsert,
- * bulkInsert, updateWhere, bulkUpdate — build one from the keys of the DTO
- * actually being written, since the column list varies per call. Passing bare
- * name strings there discarded every `colProps` entry: `cast` (so a `uuid[]`
- * column reached Postgres as a `text[]` literal and the insert failed), `mod`
- * (`:json`), `skip`, `cnd`, and `init`. Only `insert()` behaved as documented.
+ * Every write path except insert() — update, upsert, bulkUpsert, bulkInsert,
+ * updateWhere, bulkUpdate — builds its ColumnSet from the keys of the DTO
+ * actually being written, since the column list varies per call. insert() is
+ * the one that can use the cached ColumnSet, because an insert supplies a full
+ * row and the omitted columns genuinely should take their defaults.
+ *
+ * Passing bare name strings here discarded every `colProps` entry: `cast` (so a
+ * `uuid[]` column reached Postgres as a `text[]` literal and the insert
+ * failed), `mod` (`:json`), `skip`, `cnd`, and `init`.
  *
  * A name with no `colProps` stays a plain string — pg-promise treats the two
  * forms identically, and the string keeps the common case readable.
@@ -160,10 +163,24 @@ function createTableSQL(
 
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
-    // Support for generated columns
+    // Support for generated columns. PostgreSQL spells this exactly one way:
+    // GENERATED ALWAYS AS (expr) STORED. `BY DEFAULT` belongs to identity
+    // columns, not generated expressions, and STORED is mandatory through
+    // PostgreSQL 17 — virtual generated columns arrived in 18. Emitting either
+    // variant produced a syntax error at bootstrap, so both are rejected here
+    // with the reason rather than passed through to the server.
     if (col.generated && col.expression) {
-      const def = `"${col.name}" ${col.type} GENERATED ${col.generated.toUpperCase()} AS (${col.expression})${col.stored ? ' STORED' : ''}`;
-      return def;
+      if (col.stored !== true) {
+        throw new SchemaDefinitionError(
+          `Generated column "${col.name}" requires stored: true — PostgreSQL only supports STORED generated columns`
+        );
+      }
+      return `"${col.name}" ${col.type} GENERATED ALWAYS AS (${col.expression}) STORED`;
+    }
+    if (col.generated && !col.expression) {
+      throw new SchemaDefinitionError(
+        `Generated column "${col.name}" requires an expression`
+      );
     }
     let def = `"${col.name}" ${col.type}`;
     if (col.notNull) def += ' NOT NULL';

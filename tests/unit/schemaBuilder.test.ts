@@ -454,6 +454,97 @@ describe('Schema Utilities', () => {
       );
     });
 
+    // PostgreSQL spells generated expressions exactly one way:
+    // GENERATED ALWAYS AS (expr) STORED. The schema type advertised
+    // 'always' | 'by default' and an optional `stored`, and both of the other
+    // shapes were passed straight through as a syntax error at bootstrap —
+    // where createTableSQL's own debug-level logging made it hard to trace.
+    it('rejects a generated column without stored: true', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          {
+            name: 'schema_name',
+            type: 'varchar(63)',
+            generated: 'always',
+            expression: 'lower(tenant_code)',
+          },
+        ],
+        constraints: { primaryKey: ['tenant_code'] },
+      };
+
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
+        /requires stored: true/
+      );
+    });
+
+    it('rejects stored: false explicitly', () => {
+      // Virtual generated columns are PostgreSQL 18+; the floor is 13.
+      const schema = {
+        dbSchema: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          {
+            name: 'schema_name',
+            type: 'varchar(63)',
+            generated: 'always',
+            expression: 'lower(tenant_code)',
+            stored: false,
+          },
+        ],
+        constraints: { primaryKey: ['tenant_code'] },
+      };
+
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
+        /requires stored: true/
+      );
+    });
+
+    it('rejects a generated column with no expression', () => {
+      // Previously this fell through to the ordinary column branch and emitted
+      // a plain column, silently dropping the generation the schema asked for.
+      const schema = {
+        dbSchema: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          { name: 'schema_name', type: 'varchar(63)', generated: 'always' },
+        ],
+        constraints: { primaryKey: ['tenant_code'] },
+      };
+
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
+        /requires an expression/
+      );
+    });
+
+    it('emits ALWAYS regardless of the declared casing', () => {
+      // 'by default' is gone from the type, but schemas are plain JS objects,
+      // so the emitter must not echo whatever string it is handed.
+      const schema = {
+        dbSchema: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          {
+            name: 'schema_name',
+            type: 'varchar(63)',
+            generated: 'by default',
+            expression: 'lower(tenant_code)',
+            stored: true,
+          },
+        ],
+        constraints: { primaryKey: ['tenant_code'] },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+      expect(sql).toContain('GENERATED ALWAYS AS (lower(tenant_code)) STORED');
+      expect(sql).not.toContain('BY DEFAULT');
+    });
+
     it('should automatically include index creation when indexes are defined', () => {
       const schema = {
         dbSchema: 'public',
