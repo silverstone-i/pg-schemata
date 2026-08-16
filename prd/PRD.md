@@ -1054,7 +1054,10 @@ Summary of the contract, as of 3.0.0:
 - `colProps.validator` overrides the auto-generated Zod type for that column, bypassing
   the type mapping and its throws entirely
 - CHECK `char_length(field) > N`: adds `.min(N+1)`
-- CHECK `field IN ('A', 'B')`: replaces the type with `z.enum(['A', 'B'])`
+- CHECK `field IN ('A', 'B')`: refines the mapped type with an allow-list rather than
+  replacing it with `z.enum(['A', 'B'])`, so `.max(N)`, the `email` check, and a
+  `colProps.validator` all survive alongside it
+- Both are recognized only as whole expressions; a compound CHECK is left uninterpreted
 - Both CHECK forms apply to the column's own type **before** nullability wrapping, so a
   nullable column keeps accepting `null`, and both are ignored for non-string columns
 

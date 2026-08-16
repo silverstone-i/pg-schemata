@@ -54,10 +54,47 @@ const RAW_DEFAULT: RawSqlDefault = {
 interface ColumnSetColumn {
   name: string;
   mod?: string;
+  cast?: string;
   skip?: (col: ColPropsContext) => boolean;
   cnd?: boolean;
   init?: (col: ColPropsContext) => unknown;
   def?: unknown;
+}
+
+/**
+ * Builds ColumnSet descriptors for an explicit list of column names.
+ *
+ * The write paths that cannot use the cached ColumnSet — upsert, bulkUpsert,
+ * bulkInsert, updateWhere, bulkUpdate — build one from the keys of the DTO
+ * actually being written, since the column list varies per call. Passing bare
+ * name strings there discarded every `colProps` entry: `cast` (so a `uuid[]`
+ * column reached Postgres as a `text[]` literal and the insert failed), `mod`
+ * (`:json`), `skip`, `cnd`, and `init`. Only `insert()` behaved as documented.
+ *
+ * A name with no `colProps` stays a plain string — pg-promise treats the two
+ * forms identically, and the string keeps the common case readable.
+ *
+ * @param schema - Table schema supplying the column descriptors.
+ * @param names - Column names to build descriptors for, in order.
+ * @returns Names and descriptors ready for `new pgp.helpers.ColumnSet(...)`.
+ */
+function columnSetColumnsFor(
+  schema: TableSchema,
+  names: string[]
+): (string | ColumnSetColumn)[] {
+  const byName = new Map(schema.columns.map(col => [col.name, col]));
+
+  return names.map(name => {
+    const colProps = byName.get(name)?.colProps;
+    if (!colProps) return name;
+
+    // `validator` is pg-schemata's own key; pg-promise would reject it.
+    const pgpProps = { ...colProps };
+    delete pgpProps.validator;
+    if (Object.keys(pgpProps).length === 0) return name;
+
+    return { name, ...pgpProps };
+  });
 }
 
 /**
@@ -721,5 +758,6 @@ export {
   createIndexesSQL,
   normalizeSQL,
   createColumnSet,
+  columnSetColumnsFor,
   columnSetCache,
 };

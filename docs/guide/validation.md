@@ -117,10 +117,16 @@ column's own type before nullability wrapping — so a nullable column keeps
 accepting `null`:
 
 - `char_length(col) > n` → `.min(n + 1)` on a string column
-- `col IN ('a', 'b')` → `z.enum(['a', 'b'])`
+- `col IN ('a', 'b')` → an allow-list refinement layered on the mapped type,
+  rather than a replacement `z.enum(['a', 'b'])`. The column keeps whatever it
+  already had — `varchar(n)`'s `.max(n)`, the automatic `z.email()` check, a
+  `colProps.validator` — instead of losing it to the enum
 
-Both are ignored for non-string columns. Anything more complex is left to the
-database.
+Both are ignored for non-string columns, and both are read only in exactly the
+forms above: a compound expression such as
+`char_length(code) > 3 OR code = 'x'` is left uninterpreted, since the database
+accepts values the isolated fragment would reject. Anything more complex is
+left to the database.
 
 ## Manual validation
 

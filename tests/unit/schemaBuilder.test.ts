@@ -9,9 +9,11 @@ import {
   createIndexesSQL,
   normalizeSQL,
   createColumnSet,
+  columnSetColumnsFor,
   columnSetCache,
 } from '../../src/utils/schemaBuilder.js';
 import { LRUCache } from 'lru-cache';
+import { z } from 'zod';
 import type { IMain, IColumnDescriptor } from 'pg-promise';
 import type {
   TableSchema,
@@ -1240,6 +1242,50 @@ describe('Schema Utilities', () => {
         expect(testCache.get(key)).toBeUndefined();
         done();
       }, 200); // Wait longer than TTL
+    });
+  });
+
+  describe('columnSetColumnsFor', () => {
+    const schema: TableSchema = {
+      dbSchema: 'public',
+      table: 'props',
+      columns: [
+        { name: 'id', type: 'uuid', notNull: true },
+        { name: 'plain', type: 'text' },
+        { name: 'tags', type: 'uuid[]', colProps: { cast: 'uuid[]' } },
+        { name: 'doc', type: 'jsonb', colProps: { mod: ':json' } },
+        {
+          name: 'validated',
+          type: 'text',
+          colProps: { validator: z.string() },
+        },
+      ],
+      constraints: { primaryKey: ['id'] },
+    };
+
+    it('returns a bare name for a column with no colProps', () => {
+      expect(columnSetColumnsFor(schema, ['plain'])).toEqual(['plain']);
+    });
+
+    it('returns a descriptor carrying cast and mod', () => {
+      expect(columnSetColumnsFor(schema, ['tags', 'doc'])).toEqual([
+        { name: 'tags', cast: 'uuid[]' },
+        { name: 'doc', mod: ':json' },
+      ]);
+    });
+
+    it('drops the pg-schemata-only validator key', () => {
+      // pg-promise rejects unknown Column properties, and `validator` is ours.
+      expect(columnSetColumnsFor(schema, ['validated'])).toEqual(['validated']);
+    });
+
+    it('preserves the requested order and passes unknown names through', () => {
+      // Audit columns are added to the DTO by TableModel, not declared in the
+      // caller's schema, so they legitimately have no descriptor.
+      expect(columnSetColumnsFor(schema, ['tags', 'updated_by'])).toEqual([
+        { name: 'tags', cast: 'uuid[]' },
+        'updated_by',
+      ]);
     });
   });
 });

@@ -582,6 +582,21 @@ describe('char_length checks apply to the inner validator', () => {
     ).baseValidator;
     expect(v.safeParse({ c: 1 }).success).toBe(true);
   });
+
+  it.each([
+    "char_length(c) > 3 OR c = 'x'",
+    "c = 'x' OR char_length(c) > 3",
+    'char_length(c) > 3 AND c <> lower(c)',
+  ])('derives no minimum from the compound CHECK %s', expression => {
+    // The database accepts 'x' under every one of these, so reading the
+    // char_length fragment as an unconditional minimum would make the
+    // validator stricter than the constraint it came from.
+    const v = withCheck(
+      { name: 'c', type: 'text', notNull: true },
+      expression
+    ).baseValidator;
+    expect(v.safeParse({ c: 'x' }).success).toBe(true);
+  });
 });
 
 describe('IN checks become enums without discarding nullability', () => {
@@ -786,8 +801,12 @@ describe('CHECK constraints compose rather than overwrite', () => {
 
 describe('NOT NULL columns reject null across every mapped type', () => {
   // The invariant is the deliverable here. z.coerce.date() used to coerce null
-  // to the epoch and z.unknown().nonoptional() let an explicit null through,
-  // so a NOT NULL timestamp or jsonb column silently validated a null.
+  // to the epoch, so a NOT NULL timestamp column silently validated a null.
+  //
+  // json/jsonb are deliberately absent: `NOT NULL` forbids SQL NULL but admits
+  // the JSON scalar `null`, and pg parses both to JavaScript null, so a
+  // validator that rejected null would reject a legal stored value. See the
+  // json/jsonb block below for the invariant those two do hold to.
   const MAPPED_TYPES = [
     'text',
     'varchar(10)',
@@ -811,8 +830,6 @@ describe('NOT NULL columns reject null across every mapped type', () => {
     'timestamp with time zone',
     'time',
     'timetz',
-    'json',
-    'jsonb',
     'inet',
     'cidr',
     'macaddr',
@@ -859,4 +876,22 @@ describe('NOT NULL columns reject null across every mapped type', () => {
     expect(insert.safeParse({ c: { a: 1 } }).success).toBe(true);
     expect(insert.safeParse({ c: { at: new Date() } }).success).toBe(true);
   });
+
+  it.each(['json', 'jsonb'])(
+    'notNull %s requires the key but accepts JSON null',
+    type => {
+      // `NOT NULL` rejects SQL NULL, not the JSON scalar null, and pg parses
+      // both to JavaScript null — so rejecting null here would reject a value
+      // the database stores and hands straight back.
+      const insert = generateZodFromTableSchema({
+        table: 'json_null_probe',
+        dbSchema: 'public',
+        columns: [{ name: 'c', type, notNull: true }],
+        constraints: { primaryKey: ['c'] },
+      }).insertValidator;
+
+      expect(insert.safeParse({}).success).toBe(false);
+      expect(insert.safeParse({ c: null }).success).toBe(true);
+    }
+  );
 });

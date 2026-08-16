@@ -62,13 +62,16 @@ const DATE_VALIDATOR: z.ZodType = z
  * json/jsonb validator.
  *
  * `.nonoptional()` rejects a missing key, which `z.any()`/`z.unknown()` alone
- * would allow, and the refinement rejects an explicit `null` so a NOT NULL
- * json column behaves like every other NOT NULL column.
+ * would allow — that hole is real and this closes it.
+ *
+ * An explicit `null` is *not* rejected. A `json`/`jsonb NOT NULL` column
+ * forbids SQL NULL but accepts the JSON scalar `null`, and pg parses both to
+ * JavaScript `null` — so the driver erases the distinction the validator would
+ * need to tell them apart. Rejecting `null` here would reject a row the
+ * database legally stores and returns, which is the one thing the generated
+ * validator must never do (ADR-0014).
  */
-const JSON_VALIDATOR: z.ZodType = z
-  .unknown()
-  .nonoptional()
-  .refine(value => value !== null, 'Expected a non-null value');
+const JSON_VALIDATOR: z.ZodType = z.unknown().nonoptional();
 
 /**
  * Types deliberately left unmapped, with the reason surfaced to the caller.
@@ -327,7 +330,11 @@ function collectCheckHints(tableSchema: TableSchema): Map<string, CheckHints> {
     const expr = typeof check === 'string' ? check : check.expression;
     if (!expr) continue;
 
-    const lengthMatch = /char_length\((\w+)\)\s*>\s*(\d+)/i.exec(expr);
+    // Anchored, like the IN form below: an unanchored match would read the
+    // `char_length` fragment of a compound CHECK as an unconditional minimum.
+    // `CHECK (char_length(code) > 3 OR code = 'x')` legally accepts 'x', which
+    // a derived .min(4) would reject.
+    const lengthMatch = /^\s*char_length\((\w+)\)\s*>\s*(\d+)\s*$/i.exec(expr);
     if (lengthMatch?.[1] && lengthMatch[2]) {
       // Several CHECKs may constrain one column. Every one of them holds in
       // the database, so keep the strictest rather than letting the last
