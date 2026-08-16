@@ -16,7 +16,7 @@ class UsersReadOnly extends QueryModel {
 }
 ```
 
-Key methods: `findAll`, `findById`, `findWhere`, `findOneBy`, `findAfterCursor`, `count`, `countAll`, `exists`, `exportToSpreadsheet`.
+Key methods: `findAll`, `findById`, `findWhere`, `findOneBy`, `findAfterCursor`, `countWhere`, `countAll`, `exists`, `exportToSpreadsheet`.
 
 ## TableModel — full CRUD
 

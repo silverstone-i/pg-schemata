@@ -116,10 +116,6 @@ Checks if a record is soft-deleted.
 
 ## Aggregation Methods
 
-### count(conditions?, joinType?, options?)
-
-Alias for `countWhere`.
-
 ### countWhere(conditions?, joinType?, options?)
 
 Counts rows matching conditions.
