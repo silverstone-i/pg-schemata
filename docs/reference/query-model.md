@@ -183,7 +183,14 @@ disjunct.
 
 Builds a SQL fragment from a group of condition objects.
 
+An object carrying `$and` or `$or` also emits any ordinary column keys beside
+it, joined by `joiner` — see
+[boolean groups alongside plain columns](/guide/where-modifiers#boolean-groups-alongside-plain-columns).
+
 **Returns:** `string`
+**Throws:** `SchemaDefinitionError` if `joiner` is not exactly `'AND'` or
+`'OR'`. `JoinType` erases at compile time and the value is interpolated between
+predicates as raw SQL, so it is checked at runtime as well.
 
 ### buildValuesClause(data)
 

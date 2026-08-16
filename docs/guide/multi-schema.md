@@ -34,6 +34,35 @@ const rows = await db().users.forSchema('tenant_abc').findAll();
 
 Clones are cached per schema, so calling `forSchema()` on every request costs one cache lookup after the first call.
 
+### Schema names are validated
+
+`forSchema()` rejects anything that is not a usable SQL identifier: it must
+start with a letter or underscore, contain only letters, digits, underscores and
+dollar signs, and fit within PostgreSQL's 63-byte identifier limit. Anything
+else throws `SchemaDefinitionError`.
+
+This matters because schema names in a schema-per-tenant deployment are usually
+derived from a request — a subdomain, a header, a claim. DDL generation
+interpolates the schema name into a SQL string rather than parameterizing it, so
+an unvalidated name could close its own quoting and append a second statement
+during `bootstrap()` or a migration.
+
+```js
+users.forSchema('tenant_abc'); // fine
+users.forSchema('tenant-abc'); // throws — hyphen
+users.forSchema('a'.repeat(64)); // throws — PostgreSQL would truncate it
+```
+
+The same check runs on `dbSchema`, `table`, and every column, constraint and
+index name at model construction, so an unusable name fails when the model is
+built rather than when DDL is first generated.
+
+::: warning New in 3.0.0
+Previously `forSchema()` accepted any non-empty string. If you derive schema
+names from user input, validate or map them to a known set on your side too —
+this check is a backstop, not an authorization boundary.
+:::
+
 ::: info Removed in 2.0.0
 `setSchemaName()` was removed. It mutated the model instance in place, so two interleaved requests sharing one repository raced on the schema. `forSchema()` is the replacement.
 :::

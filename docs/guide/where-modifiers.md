@@ -177,25 +177,30 @@ await db().users.findWhere([
 // WHERE ("role" = 'admin' OR ("role" = 'user' AND "is_active" = true))
 ```
 
-::: danger Keep `$and` / `$or` alone in their object
-An object containing `$and` or `$or` contributes **only** that group. Any
-ordinary column key sitting beside it is silently dropped:
+### Boolean groups alongside plain columns
+
+An object may carry a boolean group and ordinary column keys together. The group
+becomes its own parenthesized fragment and the plain predicates sit beside it,
+joined by the outer join type:
 
 ```js
-// ⚠️ tenant_id is ignored — the query is not scoped to the tenant
-[{ $or: [{ role: 'admin' }, { role: 'owner' }], tenant_id: TENANT }];
+await db().users.findWhere([
+  { $or: [{ role: 'admin' }, { role: 'owner' }], tenant_id: TENANT },
+]);
+// WHERE ("role" = $1 OR "role" = $2) AND "tenant_id" = $3
 ```
 
-Put the boolean group and the plain predicate in sibling objects instead, so
-both are emitted:
+Both `$and` and `$or` can appear on the same object, each contributing its own
+group.
 
-```js
-[{ tenant_id: TENANT }, { $or: [{ role: 'admin' }, { role: 'owner' }] }];
-// WHERE "tenant_id" = $1 AND ("role" = $2 OR "role" = $3)
-```
+::: warning Changed in 3.0.0
+Before 3.0.0 an object carrying `$and` or `$or` contributed **only** that group
+— every ordinary column key beside it was silently discarded, so the query above
+was not scoped to the tenant. The emitted SQL was valid and simply matched more
+rows than asked for, which made it invisible except in results.
 
-This matters most for tenancy and authorization filters, where the dropped
-predicate is the one restricting the result set.
+If you worked around this by splitting the group into a sibling object, that
+form still works and still means the same thing.
 :::
 
 ## Combining operators on a single column

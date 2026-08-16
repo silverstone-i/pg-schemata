@@ -1151,6 +1151,8 @@ Making the CRUD layer key-agnostic is deferred; it changes the signature of ever
 - Function defaults must not include schema prefix: `default: 'gen_random_uuid()'`
 - The property is `dbSchema`, never `schema`
 - Naming convention: snake_case for all table names, column names, and schema names
+- **Identifiers are validated, not escaped.** Every schema, table, column, constraint and index name must match `/^[A-Za-z_][A-Za-z0-9_$]*$/` and fit within PostgreSQL's 63-byte limit, checked at model construction, in `forSchema()`, and in `createTableSQL`/`createIndexesSQL`. Query paths route identifiers through `pgp.as.name()`, but DDL generation builds statements as strings with no pg-promise instance available, so validation at the boundary is what keeps a new interpolation site from silently missing an escape. It also rejects the truncation hazard, where two schema names differing only past byte 63 collapse onto one. Raw-SQL fields — `expression`, `where`, `checks[].expression`, `using`, column `type` and `default` — are deliberately not validated; they are documented as emitted verbatim
+- **`joinType` is validated at runtime**, not only by the `JoinType` union, which erases at compile time. `buildCondition` throws `SchemaDefinitionError` for anything other than `'AND'` or `'OR'`, since the value lands between predicates as raw SQL and every public query method forwards it straight from its caller
 
 ### 6.2 Soft Delete
 
