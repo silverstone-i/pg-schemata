@@ -546,7 +546,7 @@ update(id: number | string, dto: Object) → Promise<Object | null>
 9. Executes via `db.result()` with custom result handler
 10. Returns the updated row if `rowCount > 0`, otherwise `null`
 
-> **Note:** `id` is hardcoded in the WHERE clause. See [Primary key requirements](#primary-key-requirements).
+> **Note:** the WHERE clause targets the columns `constraints.primaryKey` declares, resolved via `_primaryKeyClause()`. See [Primary key requirements](#primary-key-requirements).
 
 ---
 
@@ -1131,15 +1131,23 @@ A table schema is a plain JavaScript object. The canonical structure is defined 
 
 <a id="primary-key-requirements"></a>
 
-**Primary key requirements:** `constraints.primaryKey` drives DDL generation only. TableModel's row-targeting methods — `findById`, `update`, `delete`, `bulkUpdate`, and the soft-delete helpers — all emit `WHERE id = $1` against a column literally named `id`, regardless of what `primaryKey` declares. `bulkUpdate` reads the declared primary key for validation and then targets `id` anyway.
+**Primary key requirements:** `constraints.primaryKey` drives DDL generation **and** row targeting. `findById`, `findByIdIncludingDeactivated`, `reload`, `isSoftDeleted`, `update`, `delete` and `bulkUpdate` all resolve their predicate from the declared columns.
 
-Consequently:
+The accepted key forms:
 
-- Every table backing a TableModel needs a column named `id`.
-- Composite primary keys are not supported by the CRUD layer. Declaring one produces a correct composite constraint in DDL, but every by-id method still matches on `id` alone and will target the wrong rows.
-- A table whose real key is named something else (`user_id`, `code`) cannot use the by-id methods. Use `findWhere` / `updateWhere` / `deleteWhere` instead.
+| `primaryKey`               | Accepted argument                  | Emitted predicate                     |
+| -------------------------- | ---------------------------------- | ------------------------------------- |
+| `['id']`                   | `'abc'` or `{ id: 'abc' }`         | `"id" = 'abc'`                        |
+| `['code']`                 | `'SAVE10'` or `{ code: 'SAVE10' }` | `"code" = 'SAVE10'`                   |
+| `['tenant_id', 'user_id']` | `{ tenant_id, user_id }`           | `"tenant_id" = $1 AND "user_id" = $2` |
 
-Making the CRUD layer key-agnostic is deferred; it changes the signature of every by-id method.
+- A scalar resolves against `primaryKey[0]`, so single-column keys need no call-site change whatever the column is named.
+- A scalar passed to a composite-key model throws `SchemaDefinitionError` naming the columns to supply.
+- An object must carry exactly the declared columns — missing and unexpected keys are both named in the error.
+- `bulkUpdate` reads the key columns off each record, requires all of them, and excludes them from the `SET` list.
+- `constraints.primaryKey` must be an array. A bare string throws at model construction; it was previously ignored, since nothing iterated it.
+
+Two helpers on `QueryModel` back this: `_primaryKeyCondition()` returns a condition object for the parameterized paths, and `_primaryKeyClause()` returns an inlined fragment for `update`/`bulkUpdate`, whose statements are assembled as literal strings by `pgp.helpers.update()` and executed with no parameter array.
 
 **Invariants:**
 
@@ -1422,6 +1430,7 @@ See `prd/adr/` for historical decision context — why alternatives were conside
 - ADR-0012: Cursor-based pagination
 - ADR-0013: SHA-256 migration integrity
 - ADR-0014: Zod 4 as a peer dependency, and validating only what Postgres validates
+- ADR-0015: Primary-key-driven row targeting, replacing the hardcoded `id`
 
 ---
 

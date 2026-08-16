@@ -95,7 +95,7 @@ describe('TableModel.update with a partial DTO', () => {
 
     await model.update(ID, { name: 'After' });
 
-    expect(db.calls[0]).toContain(`WHERE id = '${ID}'`);
+    expect(db.calls[0]).toContain(`WHERE "id" = '${ID}'`);
     expect(db.calls[0]).toContain('RETURNING *');
   });
 

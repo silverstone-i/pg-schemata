@@ -44,7 +44,7 @@ const mockSchema: any = {
     { name: 'email', type: 'text' },
     { name: 'password', type: 'text' },
   ],
-  constraints: { primaryKey: 'id' },
+  constraints: { primaryKey: ['id'] },
 };
 
 // Utility mocks
@@ -311,11 +311,16 @@ describe('TableModel (Unit)', () => {
       test('should throw if any record is missing primary key', async () => {
         const testModel = new TableModel(mockDb, mockPgp, {
           ...mockSchema,
-          constraints: { primaryKey: 'id' },
+          constraints: { primaryKey: ['id'] },
         });
         await expect(
           testModel.bulkUpdate([{ email: 'missing@pk.com' }])
-        ).rejects.toThrow('Invalid ID in record: {"email":"missing@pk.com"}');
+          // The message names the column now, rather than saying "ID". A table
+          // keyed on something other than `id` used to be validated against the
+          // declared key and then targeted by `id` anyway.
+        ).rejects.toThrow(
+          'Record is missing primary key column "id": {"email":"missing@pk.com"}'
+        );
       });
 
       test('should throw if records is not an array', async () => {

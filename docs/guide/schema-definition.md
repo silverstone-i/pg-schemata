@@ -130,15 +130,44 @@ constraints: {
 Check expressions and index predicates are deliberately raw SQL — they are emitted into the DDL as written. Column `default` strings, by contrast, are quoted and escaped when they are not a function call, number, or already-quoted literal.
 :::
 
-::: warning `primaryKey` generates DDL; it does not target rows
-`TableModel`'s by-id methods — `findById`, `update`, `delete`, `bulkUpdate`,
-and the soft-delete helpers — all emit `WHERE id = $1` against a column
-literally named `id`, whatever `primaryKey` declares.
+### Primary keys drive row targeting
 
-So every table backing a `TableModel` needs an `id` column, and **composite
-primary keys are not supported by those methods**: the constraint is created
-correctly, but a by-id call still matches on `id` alone. For tables keyed on
-something else, use `findWhere`, `updateWhere`, and `deleteWhere`.
+`constraints.primaryKey` generates the `PRIMARY KEY` constraint **and** tells
+`findById`, `update`, `delete`, `bulkUpdate`, `reload` and the soft-delete
+helpers which columns identify a row. The column does not have to be called
+`id`:
+
+```js
+// Keyed on `code`
+constraints: {
+  primaryKey: ['code'];
+}
+
+await coupons.findById('SAVE10'); // WHERE "code" = 'SAVE10'
+```
+
+Composite keys are supported. Pass an object carrying every key column:
+
+```js
+constraints: {
+  primaryKey: ['tenant_id', 'user_id'];
+}
+
+await memberships.findById({ tenant_id, user_id });
+// WHERE "tenant_id" = $1 AND "user_id" = $2
+```
+
+A scalar is only accepted for single-column keys; passing one to a
+composite-key model throws `SchemaDefinitionError` naming the columns to supply.
+`bulkUpdate` reads the key columns off each record and keeps them out of the
+`SET` list.
+
+::: warning Changed in 3.0.0
+Before 3.0.0 every by-id method emitted `WHERE id = $1` against a column
+literally named `id`, whatever `primaryKey` declared. A table keyed on anything
+else got a correct constraint and silently wrong targeting, and a composite key
+matched on `id` alone. `constraints.primaryKey` must now be an array of column
+names — a bare string throws, where it was previously ignored.
 :::
 
 ::: warning Removed — these throw at model construction

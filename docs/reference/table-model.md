@@ -18,15 +18,26 @@ Same parameters as QueryModel, but requires `schema.constraints.primaryKey` to b
 
 **Throws:** `SchemaDefinitionError` if no primary key is defined
 
-::: warning Row-targeting methods require a column named `id`
-`constraints.primaryKey` drives DDL generation. It does **not** drive row
-targeting: `findById`, `update`, `delete`, `bulkUpdate`, and the soft-delete
-helpers all emit `WHERE id = $1` regardless of what you declare.
+`constraints.primaryKey` must be an array of column names. It generates the
+`PRIMARY KEY` constraint and determines which columns the by-id methods target —
+`findById`, `update`, `delete`, `bulkUpdate`, `reload`, and the soft-delete
+helpers.
 
-Composite primary keys are therefore not supported by these methods — the
-constraint is created correctly, but a by-id call matches on `id` alone. Tables
-whose real key is composite or named something else should use `findWhere`,
-`updateWhere`, and `deleteWhere`.
+Those methods accept a **scalar** for single-column keys, resolved against the
+declared column whatever it is named, or an **object** carrying every column for
+composite keys:
+
+```js
+await coupons.findById('SAVE10'); // primaryKey: ['code']
+await memberships.findById({ tenant_id, user_id }); // composite
+```
+
+Passing a scalar to a composite-key model throws `SchemaDefinitionError`.
+
+::: warning Changed in 3.0.0
+These methods previously emitted `WHERE id = $1` against a column literally
+named `id`, whatever `primaryKey` declared. See
+[primary keys](/guide/schema-definition#primary-keys-drive-row-targeting).
 :::
 
 ## Inherited Methods

@@ -27,6 +27,7 @@ import type {
   FindOptions,
   JoinType,
   PgErrorCode,
+  PrimaryKey,
   QueryOptions,
   WhereClauseResult,
   WhereCondition,
@@ -177,19 +178,91 @@ class QueryModel<TRow = any> {
   }
 
   /**
+   * Turns a primary key into the condition object that targets its row.
+   *
+   * Every by-id method used to emit `WHERE id = $1` against a column literally
+   * named `id`, whatever `constraints.primaryKey` declared — so a table keyed on
+   * `code`, or on two columns, got correct DDL and silently wrong targeting.
+   * `bulkUpdate` was the clearest case: it read the declared key for validation
+   * and then matched on `id` anyway.
+   *
+   * A scalar resolves against `primaryKey[0]`, so single-key tables keep working
+   * unchanged whatever their key is called. The object form carries every column
+   * for composite keys. A scalar against a composite key is rejected at model
+   * construction, not here, so the failure arrives before any query runs.
+   *
+   * @param key - Scalar or `{ column: value }` primary key.
+   * @returns Condition object suitable for findOneBy / buildWhereClause.
+   * @throws {SchemaDefinitionError} If the key is malformed or does not match
+   *   the declared primary key columns.
+   */
+  protected _primaryKeyCondition(key: PrimaryKey): FieldConditions {
+    const columns = this._schema.constraints?.primaryKey ?? ['id'];
+
+    if (key !== null && typeof key === 'object' && !(key instanceof Date)) {
+      const supplied = Object.keys(key);
+      const missing = columns.filter(c => !supplied.includes(c));
+      const unexpected = supplied.filter(c => !columns.includes(c));
+      if (missing.length > 0 || unexpected.length > 0) {
+        throw new SchemaDefinitionError(
+          `Primary key must supply exactly [${columns.join(', ')}]` +
+            (missing.length ? `; missing: ${missing.join(', ')}` : '') +
+            (unexpected.length ? `; unexpected: ${unexpected.join(', ')}` : '')
+        );
+      }
+      for (const column of columns) {
+        if (!isValidId(key[column])) {
+          throw new SchemaDefinitionError(
+            `Invalid value for primary key column "${column}"`
+          );
+        }
+      }
+      return { ...key };
+    }
+
+    if (columns.length !== 1) {
+      throw new SchemaDefinitionError(
+        `${this._schema.table} has a composite primary key [${columns.join(', ')}]; pass an object, not a scalar`
+      );
+    }
+    if (!isValidId(key)) throw new Error('Invalid ID format');
+    return { [columns[0]!]: key };
+  }
+
+  /**
+   * The same key as a fully-formatted SQL fragment, values inlined.
+   *
+   * `update()` and `bulkUpdate()` assemble their statements as literal strings
+   * via `pgp.helpers.update()` and execute with no parameter array, so their
+   * key predicate has to be inlined too rather than carrying `$n` placeholders.
+   * Identifiers go through `$1:name` and values through pg-promise's escaping,
+   * so this is not string concatenation of untrusted input.
+   *
+   * @param key - Scalar or `{ column: value }` primary key.
+   * @returns A fragment such as `"tenant_id" = '...' AND "code" = '...'`.
+   */
+  protected _primaryKeyClause(key: PrimaryKey): string {
+    const condition = this._primaryKeyCondition(key);
+    return Object.entries(condition)
+      .map(([column, value]) =>
+        this.pgp.as.format('$1:name = $2', [column, value])
+      )
+      .join(' AND ');
+  }
+
+  /**
    * Checks if a specific record is soft-deleted.
-   * @param id - The primary key value.
+   * @param id - The primary key: a scalar, or an object for composite keys.
    * @returns True if the record is soft-deleted, false otherwise.
    */
-  async isSoftDeleted(id: number | string): Promise<boolean> {
+  async isSoftDeleted(id: PrimaryKey): Promise<boolean> {
     if (!this._schema.softDelete) {
       return Promise.reject(
         new Error('Soft delete is not enabled for this table.')
       );
     }
-    if (!isValidId(id)) throw new Error('Invalid ID format');
     return this.exists(
-      { id, deactivated_at: { $ne: null } },
+      { ...this._primaryKeyCondition(id), deactivated_at: { $ne: null } },
       { includeDeactivated: true }
     );
   }
@@ -208,27 +281,30 @@ class QueryModel<TRow = any> {
   }
 
   /**
-   * Finds a single row by its ID.
-   * @param id - The primary key value.
+   * Finds a single row by its primary key.
+   *
+   * Targets the columns `constraints.primaryKey` declares, not a column named
+   * `id`. A scalar is accepted for single-column keys whatever they are called;
+   * composite keys take `{ column: value }`.
+   *
+   * @param id - The primary key: a scalar, or an object for composite keys.
    * @returns Matching row or null if not found.
-   * @throws {Error} If ID is invalid.
+   * @throws {SchemaDefinitionError} If the key does not match the declared one.
    */
-  async findById(id: number | string): Promise<TRow | null> {
-    if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.findOneBy([{ id }]);
+  async findById(id: PrimaryKey): Promise<TRow | null> {
+    return this.findOneBy([this._primaryKeyCondition(id)]);
   }
 
   /**
-   * Finds a single row by its ID, including soft-deleted records.
-   * @param id - The primary key value.
+   * Finds a single row by its primary key, including soft-deleted records.
+   * @param id - The primary key: a scalar, or an object for composite keys.
    * @returns Matching row or null if not found.
-   * @throws {Error} If ID is invalid.
+   * @throws {SchemaDefinitionError} If the key does not match the declared one.
    */
-  async findByIdIncludingDeactivated(
-    id: number | string
-  ): Promise<TRow | null> {
-    if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.findOneBy([{ id }], { includeDeactivated: true });
+  async findByIdIncludingDeactivated(id: PrimaryKey): Promise<TRow | null> {
+    return this.findOneBy([this._primaryKeyCondition(id)], {
+      includeDeactivated: true,
+    });
   }
 
   /**
@@ -453,13 +529,14 @@ class QueryModel<TRow = any> {
    * @throws {Error} If ID is invalid.
    */
   async reload(
-    id: number | string,
+    id: PrimaryKey,
     { includeDeactivated = false }: QueryOptions = {}
   ): Promise<TRow | null> {
     // findById takes only an id, so route through findOneBy to honor options
     // (issue 10).
-    if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.findOneBy([{ id }], { includeDeactivated });
+    return this.findOneBy([this._primaryKeyCondition(id)], {
+      includeDeactivated,
+    });
   }
 
   /**

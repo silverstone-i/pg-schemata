@@ -92,11 +92,12 @@ interface Constraints {
 }
 ```
 
-::: warning `primaryKey` is DDL only
-It generates the `PRIMARY KEY` constraint. It does not determine which column
-`TableModel`'s by-id methods match on — those hardcode `WHERE id = $1`.
-Composite primary keys are therefore unsupported by `findById`, `update`,
-`delete`, `bulkUpdate`, and the soft-delete helpers.
+::: info `primaryKey` drives both DDL and row targeting
+It generates the `PRIMARY KEY` constraint and names the columns `findById`,
+`update`, `delete`, `bulkUpdate`, `reload` and the soft-delete helpers match on.
+It must be an array — a bare string throws at model construction. Composite keys
+are supported; see
+[primary keys](/guide/schema-definition#primary-keys-drive-row-targeting).
 :::
 
 ::: warning Removed in 2.0.0

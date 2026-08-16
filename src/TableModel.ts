@@ -21,7 +21,13 @@ import type {
   TableSchema,
   TableValidators,
 } from './schemaTypes.js';
-import type { QueryOptions, TxOption, WhereInput } from './queryTypes.js';
+import type {
+  PrimaryKey,
+  QueryOptions,
+  TxOption,
+  WhereClauseResult,
+  WhereInput,
+} from './queryTypes.js';
 
 // Validators depend only on the schema definition, so they are built once
 // per schema literal and shared by every rebuilt repository instance (N8).
@@ -62,6 +68,24 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     if (!schema.constraints?.primaryKey) {
       throw new SchemaDefinitionError(
         'Primary key must be defined in the schema'
+      );
+    }
+    // Must be an array of column names. A bare string was previously harmless
+    // because nothing iterated it — every by-id method targeted `id` regardless
+    // — but it is now the source of the key columns, and iterating a string
+    // yields its characters. Rejected rather than normalized, matching how the
+    // other misused schema shapes are handled.
+    if (
+      !Array.isArray(schema.constraints.primaryKey) ||
+      schema.constraints.primaryKey.some(c => typeof c !== 'string')
+    ) {
+      throw new SchemaDefinitionError(
+        `constraints.primaryKey must be an array of column names, e.g. ['id']`
+      );
+    }
+    if (schema.constraints.primaryKey.length === 0) {
+      throw new SchemaDefinitionError(
+        'Primary key must name at least one column'
       );
     }
 
@@ -221,22 +245,38 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
   }
 
   /**
-   * Deletes a record by its ID.
-   * @param id - Primary key of the row to delete.
+   * Deletes a record by its primary key.
+   *
+   * Targets the columns `constraints.primaryKey` declares. A scalar is accepted
+   * for single-column keys whatever they are called; composite keys take
+   * `{ column: value }`.
+   *
+   * @param id - The primary key: a scalar, or an object for composite keys.
    * @param options.tx - pg-promise task/transaction to run on.
    * @returns Number of rows deleted.
-   * @throws {Error} If the ID is invalid or deletion fails.
+   * @throws {SchemaDefinitionError} If the key does not match the declared one.
    */
-  async delete(id: number | string, { tx }: TxOption = {}): Promise<number> {
-    if (!isValidId(id)) {
-      return Promise.reject(new Error('Invalid ID format'));
-    }
-    const softCheck = this._schema.softDelete
-      ? ' AND deactivated_at IS NULL'
-      : '';
-    const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1${softCheck}`;
+  async delete(id: PrimaryKey, { tx }: TxOption = {}): Promise<number> {
+    let condition: WhereClauseResult;
     try {
-      return await this._exec(tx).result(query, [id], r => r.rowCount);
+      // Built through buildWhereClause rather than hand-formatted, so the
+      // soft-delete guard and parameter numbering match every other path.
+      condition = this.buildWhereClause([this._primaryKeyCondition(id)]);
+    } catch (err) {
+      // Surfaced as a rejection, not a throw: every other validation failure on
+      // these methods rejects, and a synchronous throw would break callers that
+      // only attach a .catch().
+      return Promise.reject(
+        err instanceof Error ? err : new Error(String(err))
+      );
+    }
+    const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${condition.clause}`;
+    try {
+      return await this._exec(tx).result(
+        query,
+        condition.values,
+        r => r.rowCount
+      );
     } catch (err) {
       this.handleDbError(err);
     }
@@ -266,12 +306,20 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
    * @throws {SchemaDefinitionError} If ID or DTO is invalid.
    */
   async update(
-    id: number | string,
+    id: PrimaryKey,
     dto: Partial<TRow> & Row,
     { tx }: TxOption = {}
   ): Promise<TRow | null> {
-    if (!isValidId(id)) {
-      return Promise.reject(new SchemaDefinitionError('Invalid ID format'));
+    let keyClause: string;
+    try {
+      keyClause = this._primaryKeyClause(id);
+    } catch (err) {
+      // Surfaced as a rejection, not a throw: every other validation failure on
+      // these methods rejects, and a synchronous throw would break callers that
+      // only attach a .catch().
+      return Promise.reject(
+        err instanceof Error ? err : new Error(String(err))
+      );
     }
     if (dto === null || typeof dto !== 'object' || Array.isArray(dto)) {
       return Promise.reject(
@@ -347,7 +395,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     const softCheck = this._schema.softDelete
       ? ' AND deactivated_at IS NULL'
       : '';
-    const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
+    const condition = `WHERE ${keyClause}${softCheck}`;
     const query =
       this.pgp.helpers.update(safeDto, updateCs, {
         schema: this.schema.dbSchema,
@@ -940,10 +988,29 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     // per row.
     const columnSetsByKeys = new Map<string, unknown>();
     const queries = records.map(dto => {
-      const id = dto.id;
-      if (!isValidId(id)) {
+      // Each record carries its own key, read from the columns the schema
+      // declares. This read `dto.id` while the guard above validated
+      // `constraints.primaryKey` — so a table keyed on anything else was
+      // checked against one column and then targeted by another.
+      const keyValues: Record<string, unknown> = {};
+      for (const column of pk) {
+        if (!Object.prototype.hasOwnProperty.call(dto, column)) {
+          throw new SchemaDefinitionError(
+            `Record is missing primary key column "${column}": ${JSON.stringify(dto)}`
+          );
+        }
+        keyValues[column] = dto[column];
+      }
+      let keyClause: string;
+      try {
+        keyClause = this._primaryKeyClause(
+          pk.length === 1
+            ? (keyValues[pk[0]!] as PrimaryKey)
+            : (keyValues as PrimaryKey)
+        );
+      } catch {
         throw new SchemaDefinitionError(
-          `Invalid ID in record: ${JSON.stringify(dto)}`
+          `Invalid primary key in record: ${JSON.stringify(dto)}`
         );
       }
       const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
@@ -953,11 +1020,12 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       ) {
         safeDto.updated_by = this._resolveAuditActor();
       }
-      delete safeDto.id;
+      // The key columns identify the row; they are not part of the SET list.
+      for (const column of pk) delete safeDto[column];
       const softCheck = this._schema.softDelete
         ? ' AND deactivated_at IS NULL'
         : '';
-      const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
+      const condition = `WHERE ${keyClause}${softCheck}`;
       const keys = Object.keys(safeDto);
       // Sort for the cache key only: key order varies between otherwise
       // identical DTOs, and pg-promise maps values by name, so one ColumnSet
