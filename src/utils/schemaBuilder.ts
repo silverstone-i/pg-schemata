@@ -15,6 +15,7 @@ import crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
 import { logMessage } from './pg-util.js';
 import { normalizeSqlType, isSerialType } from './sqlTypes.js';
+import { assertSchemaIdentifiers } from './identifiers.js';
 import type { IMain } from 'pg-promise';
 import type {
   ColPropsContext,
@@ -157,6 +158,12 @@ function createTableSQL(
   schema: TableSchema,
   logger: Logger | null = null
 ): string {
+  // Every identifier below is interpolated into a SQL string rather than passed
+  // through pgp.as.name(), because DDL generation has no pg-promise instance.
+  // Validating the whole schema up front means a new interpolation site cannot
+  // silently miss the check.
+  assertSchemaIdentifiers(schema);
+
   // Extract schema components: schema name, table name, columns, and constraints
   const { table, columns, constraints = {} } = schema;
   const schemaName = resolveDbSchema(schema);
@@ -312,25 +319,19 @@ function createTableSQL(
 
   let finalSQL = sql;
 
-  // Automatically include index creation if indexes are defined in the schema
+  // Index generation errors propagate. This was previously caught and logged at
+  // debug level so table creation could continue, which meant one malformed
+  // entry dropped *every* index on the table — unique and partial-unique
+  // included — while the CREATE TABLE succeeded and bootstrap() reported
+  // success. The loss surfaced later as duplicate rows, with nothing in the
+  // logs above debug to connect them to the schema.
+  //
+  // QueryModel's constructor rejects malformed entries before reaching here,
+  // but createTableSQL is exported and callable directly, which was the
+  // remaining silent path.
   const indexDefinitions = resolveIndexes(schema);
   if (indexDefinitions) {
-    try {
-      const indexSQL = createIndexesSQL(schema, false, logger);
-      finalSQL += '\n' + indexSQL;
-    } catch (error) {
-      // If createIndexesSQL throws an error, log it but don't fail the table creation
-      logMessage({
-        logger,
-        level: 'debug',
-        schema: schemaName,
-        table,
-        message: 'Error generating index SQL',
-        data: {
-          error: error instanceof Error ? error.message : String(error),
-        },
-      });
-    }
+    finalSQL += '\n' + createIndexesSQL(schema, false, logger);
   }
 
   logMessage({
@@ -489,6 +490,10 @@ function createIndexesSQL(
   unique = false,
   logger: Logger | null = null
 ): string {
+  // Exported and callable directly, so it validates independently of
+  // createTableSQL rather than relying on having been called through it.
+  assertSchemaIdentifiers(schema);
+
   const indexes = resolveIndexes(schema);
   // Ensure that index definitions are present in the schema
   if (!indexes) {

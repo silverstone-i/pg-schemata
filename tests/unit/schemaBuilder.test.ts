@@ -13,6 +13,7 @@ import {
   columnSetCache,
 } from '../../src/utils/schemaBuilder.js';
 import { LRUCache } from 'lru-cache';
+import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import { z } from 'zod';
 import type { IMain, IColumnDescriptor } from 'pg-promise';
 import type {
@@ -565,6 +566,33 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
+    });
+
+    it('propagates index-generation errors instead of dropping every index', () => {
+      // This was caught and logged at debug level so table creation could
+      // continue — so one malformed entry silently discarded the valid unique
+      // index beside it while CREATE TABLE succeeded and bootstrap() reported
+      // success. The loss surfaced much later as duplicate rows.
+      //
+      // QueryModel's constructor rejects malformed entries first, but
+      // createTableSQL is exported and callable directly, which was the
+      // remaining silent path.
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial' },
+          { name: 'email', type: 'varchar(255)', notNull: true },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          indexes: [{ columns: ['email'], unique: true }, { columns: [] }],
+        },
+      };
+
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
+        SchemaDefinitionError
+      );
     });
 
     it('should not include indexes when no indexes are defined', () => {

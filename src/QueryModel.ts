@@ -9,6 +9,11 @@ import {
   addSoftDeleteField,
 } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
+import {
+  assertJoinType,
+  assertSchemaIdentifiers,
+  assertValidIdentifier,
+} from './utils/identifiers.js';
 import DatabaseError from './DatabaseError.js';
 import type { PgErrorLike } from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
@@ -121,6 +126,12 @@ class QueryModel<TRow = any> {
         'Missing required parameters: db, pgp, schema.table, or schema.columns'
       );
     }
+
+    // Fail at construction rather than at the first query. Query paths run
+    // identifiers through pgp.as.name(), but DDL generation interpolates them
+    // into strings, so an unusable name is a latent bootstrap-time hazard that
+    // is far easier to diagnose here.
+    assertSchemaIdentifiers(schema);
 
     this.db = db;
     this.pgp = pgp;
@@ -718,6 +729,10 @@ class QueryModel<TRow = any> {
     if (typeof name !== 'string' || !name.trim()) {
       throw new Error('Schema name must be a non-empty string');
     }
+    // The tenant-facing entry point, and usually the one fed a request-derived
+    // value. A name such as `t"; DROP TABLE customers; --` previously reached
+    // createTableSQL intact and closed the quoting in CREATE SCHEMA "...".
+    assertValidIdentifier(name, 'Schema name');
     if (name === this._schema.dbSchema) return this;
 
     this._cloneCacheId ??= nextCloneCacheId++;
@@ -974,6 +989,7 @@ class QueryModel<TRow = any> {
    * @param values - Parameter values to be populated.
    * @param includeDeactivated - Include soft-deleted rows in $max/$min/$sum subqueries.
    * @returns A SQL-safe WHERE fragment.
+   * @throws {SchemaDefinitionError} If `joiner` is not 'AND' or 'OR'.
    */
   buildCondition(
     group: WhereCondition[],
@@ -981,21 +997,38 @@ class QueryModel<TRow = any> {
     values: unknown[] = [],
     includeDeactivated = false
   ): string {
+    // `JoinType` is erased at runtime, and every public query method forwards
+    // this value straight from its caller. It lands between predicates as raw
+    // SQL, so a JavaScript consumer — or a TypeScript one passing a widened
+    // string — could close the statement and append another.
+    assertJoinType(joiner);
     const parts: string[] = [];
     for (const rawItem of group) {
       const item = rawItem as ConditionNode;
+      // A boolean group contributes its own parenthesized fragment and then
+      // falls through, so ordinary column keys on the same object are still
+      // emitted. Both branches used to `continue`, which silently discarded
+      // every sibling predicate: `{ $and: [...], tenant_id }` filtered on the
+      // group alone and dropped the tenancy scope. FiltersInput permits that
+      // shape, so nothing flagged it at compile time either.
+      //
+      // Sibling predicates join with the outer `joiner`, matching how two plain
+      // keys on one object have always behaved.
       if (item.$and && Array.isArray(item.$and) && item.$and.length > 0) {
         parts.push(
           `(${this.buildCondition(item.$and, 'AND', values, includeDeactivated)})`
         );
-        continue;
-      } else if (item.$or && Array.isArray(item.$or) && item.$or.length > 0) {
+      }
+      if (item.$or && Array.isArray(item.$or) && item.$or.length > 0) {
         parts.push(
           `(${this.buildCondition(item.$or, 'OR', values, includeDeactivated)})`
         );
-        continue;
       }
       for (const [key, val] of Object.entries(item as FieldConditions)) {
+        // Handled above. Skipped unconditionally rather than only when the
+        // group is non-empty: an `$or: []` would otherwise reach escapeName()
+        // and emit a predicate against a column named "$or".
+        if (key === '$and' || key === '$or') continue;
         const col = this.escapeName(key);
         // A Date is an object but not an operator map, and Object.keys() on
         // one is empty — so it matched no operator, emitted no SQL, and the
