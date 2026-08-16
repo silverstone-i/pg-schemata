@@ -7,7 +7,9 @@ import SchemaDefinitionError from './SchemaDefinitionError.js';
 import { createTableSQL, columnSetColumnsFor } from './utils/schemaBuilder.js';
 import { readFileSync } from 'node:fs';
 import { WorkbookReader } from '@nap-sft/tablsx';
-import { isValidId, isPlainObject } from './utils/validation.js';
+// isValidId is no longer imported here: every by-id path now resolves its key
+// through QueryModel._primaryKeyCondition(), which validates each value itself.
+import { isPlainObject } from './utils/validation.js';
 import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 import { getAuditActor } from './auditActorResolver.js';
@@ -1262,12 +1264,19 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
   }
 
   /**
-   * Permanently deletes a soft-deleted row by ID.
-   * @param id - Primary key value.
+   * Permanently deletes a soft-deleted row by its primary key.
+   *
+   * Targets the columns `constraints.primaryKey` declares. A scalar is accepted
+   * for single-column keys whatever they are called; composite keys take
+   * `{ column: value }`.
+   *
+   * @param id - The primary key: a scalar, or an object for composite keys.
+   * @param options.tx - pg-promise task/transaction to run on.
    * @returns pg-promise result.
+   * @throws {SchemaDefinitionError} If the key does not match the declared one.
    */
   async purgeSoftDeleteById(
-    id: number | string,
+    id: PrimaryKey,
     { tx }: TxOption = {}
   ): Promise<IResultExt> {
     if (!this._schema.softDelete) {
@@ -1275,8 +1284,20 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
         new Error('Soft delete is not enabled for this table.')
       );
     }
-    if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.purgeSoftDeleteWhere([{ id }], { tx });
+    // The eighth by-id method, and the one missed when the other seven moved
+    // off the hardcoded `id`. It built `[{ id }]` directly, so a table keyed on
+    // anything else purged by the wrong column — or failed outright when no
+    // `id` column existed. _primaryKeyCondition validates each value, so the
+    // separate isValidId guard is redundant.
+    let condition;
+    try {
+      condition = this._primaryKeyCondition(id);
+    } catch (err) {
+      return Promise.reject(
+        err instanceof Error ? err : new Error(String(err))
+      );
+    }
+    return this.purgeSoftDeleteWhere([condition], { tx });
   }
 
   // ---------------------------------------------------------------------------

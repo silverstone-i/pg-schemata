@@ -19,11 +19,13 @@ const TENANT_B = '22222222-3333-4444-8555-666666666666';
 const USER = '99999999-8888-4777-8666-555555555555';
 
 // No `id` column at all, so any residual reference to one fails loudly.
+// Soft delete is on so the removeWhere/restoreWhere/purge paths are reachable —
+// purgeSoftDeleteById is a by-id method and needs the same coverage.
 const membershipSchema: TableSchema = {
   dbSchema: 'test_schema',
   table: 'memberships',
   hasAuditFields: false,
-  softDelete: false,
+  softDelete: true,
   columns: [
     { name: 'tenant_id', type: 'uuid', notNull: true },
     { name: 'user_id', type: 'uuid', notNull: true },
@@ -128,5 +130,37 @@ describe('composite primary key (integration)', () => {
 
   it('rejects a scalar key at call time', async () => {
     await expect(model.findById(USER)).rejects.toThrow(/composite primary key/);
+  });
+
+  it('purgeSoftDeleteById removes only the keyed row', async () => {
+    // The eighth by-id method. It built `[{ id }]` directly, so on this table —
+    // which has no id column — it could not work at all.
+    const TENANT_C = '33333333-4444-4555-8666-777777777777';
+    await model.insert({
+      tenant_id: TENANT_C,
+      user_id: USER,
+      role: 'member',
+      note: 'purge-me',
+    } as never);
+    await model.removeWhere({ tenant_id: TENANT_C, user_id: USER });
+
+    const purged = await model.purgeSoftDeleteById({
+      tenant_id: TENANT_C,
+      user_id: USER,
+    });
+    expect(purged.rowCount).toBe(1);
+
+    // Gone entirely, not just deactivated.
+    const rows = await ctx.db.any(
+      `SELECT 1 FROM "${model.schema.dbSchema}"."${model.schema.table}"
+        WHERE tenant_id = $1 AND user_id = $2`,
+      [TENANT_C, USER]
+    );
+    expect(rows).toHaveLength(0);
+
+    // The other tenants' rows survive.
+    expect(
+      await model.findById({ tenant_id: TENANT_B, user_id: USER })
+    ).not.toBeNull();
   });
 });

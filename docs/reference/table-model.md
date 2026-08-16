@@ -42,7 +42,7 @@ named `id`, whatever `primaryKey` declared. See
 
 ## Inherited Methods
 
-TableModel inherits all methods from [QueryModel](/reference/query-model): `findAll`, `findById`, `findWhere`, `findOneBy`, `findAfterCursor`, `count`, `countAll`, `exists`, `findSoftDeleted`, `isSoftDeleted`, `exportToSpreadsheet`, and all utility methods.
+TableModel inherits all methods from [QueryModel](/reference/query-model): `findAll`, `findById`, `findWhere`, `findOneBy`, `findAfterCursor`, `countWhere`, `countAll`, `exists`, `findSoftDeleted`, `isSoftDeleted`, `exportToSpreadsheet`, and all utility methods.
 
 ## Write Methods
 
@@ -206,11 +206,19 @@ Permanently deletes soft-deleted rows matching conditions.
 
 **Returns:** `Promise<Object>` — pg-promise result
 
-### purgeSoftDeleteById(id)
+### purgeSoftDeleteById(id, options?)
 
-Permanently deletes a specific soft-deleted row.
+Permanently deletes a specific soft-deleted row. Only removes rows that are
+already deactivated.
 
-**Returns:** `Promise<Object>`
+| Parameter    | Type         | Description                             |
+| ------------ | ------------ | --------------------------------------- |
+| `id`         | `PrimaryKey` | Scalar, or an object for composite keys |
+| `options.tx` | `object`     | pg-promise task/transaction to run on   |
+
+**Returns:** `Promise<Object>` — pg-promise result
+**Throws:** `Error` if soft delete is not enabled; `SchemaDefinitionError` if the
+key does not match the declared one
 
 ## Import/Export
 

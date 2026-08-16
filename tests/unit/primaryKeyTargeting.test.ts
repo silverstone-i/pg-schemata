@@ -74,6 +74,17 @@ const compositeKey: TableSchema = {
   constraints: { primaryKey: ['tenant_id', 'user_id'] },
 };
 
+/** Composite key plus soft delete, for the purge path. */
+const compositeSoftDelete: TableSchema = {
+  ...compositeKey,
+  table: 'soft_memberships',
+  softDelete: true,
+  columns: [
+    ...compositeKey.columns,
+    { name: 'deactivated_at', type: 'timestamptz' },
+  ],
+};
+
 const T = '11111111-2222-4333-8444-555555555555';
 const U = '99999999-8888-4777-8666-555555555555';
 
@@ -175,6 +186,58 @@ describe('composite key', () => {
     await expect(
       model.bulkUpdate([{ tenant_id: T, role: 'admin' }] as never)
     ).rejects.toThrow(/missing primary key column "user_id"/);
+  });
+});
+
+describe('purgeSoftDeleteById', () => {
+  // The eighth by-id method, and the one missed when the other seven moved off
+  // the hardcoded `id`. It built `[{ id }]` directly.
+  it('targets a single-column key that is not named id', async () => {
+    const db = makeDb();
+    const model = new TableModel(db, pgp, {
+      ...renamedKey,
+      table: 'soft_coupons',
+      softDelete: true,
+      columns: [
+        ...renamedKey.columns,
+        { name: 'deactivated_at', type: 'timestamptz' },
+      ],
+    });
+
+    await model.purgeSoftDeleteById('SAVE10');
+
+    const sql = db.calls[0]!;
+    expect(sql).toMatch(/^DELETE FROM/);
+    expect(sql).toContain('"code"');
+    expect(sql).not.toContain('"id"');
+    // The purge path only ever removes already-deactivated rows.
+    expect(sql).toContain('"deactivated_at" IS NOT NULL');
+  });
+
+  it('ANDs every column of a composite key', async () => {
+    const db = makeDb();
+    const model = new TableModel(db, pgp, compositeSoftDelete);
+
+    await model.purgeSoftDeleteById({ tenant_id: T, user_id: U });
+
+    const sql = db.calls[0]!;
+    expect(sql).toContain('"tenant_id"');
+    expect(sql).toContain('"user_id"');
+  });
+
+  it('rejects a scalar against a composite key', async () => {
+    const model = new TableModel(makeDb(), pgp, compositeSoftDelete);
+    await expect(model.purgeSoftDeleteById(T)).rejects.toThrow(
+      /composite primary key/
+    );
+  });
+
+  it('still rejects when soft delete is disabled', async () => {
+    // Checked before the key is resolved, so the message stays the specific one.
+    const model = new TableModel(makeDb(), pgp, compositeKey);
+    await expect(
+      model.purgeSoftDeleteById({ tenant_id: T, user_id: U })
+    ).rejects.toThrow(/Soft delete is not enabled/);
   });
 });
 
