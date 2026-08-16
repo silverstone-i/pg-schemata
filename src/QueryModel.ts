@@ -299,15 +299,23 @@ class QueryModel<TRow = any> {
 
   /**
    * Finds the first row matching the given conditions.
+   *
+   * Always queries with `LIMIT 1`. Any `limit` in `options` is ignored, since
+   * only the first row is returned — without it the query fetched and
+   * transferred every matching row to discard all but one.
+   *
    * @param conditions - Condition list.
-   * @param options - Query options (same as findWhere).
+   * @param options - Query options (same as findWhere); `limit` is ignored.
    * @returns First matching row or null.
    */
   async findOneBy(
     conditions: WhereInput,
     options: FindOptions = {}
   ): Promise<TRow | null> {
-    const results = await this.findWhere(conditions, 'AND', options);
+    const results = await this.findWhere(conditions, 'AND', {
+      ...options,
+      limit: 1,
+    });
     return results[0] || null;
   }
 
@@ -337,11 +345,30 @@ class QueryModel<TRow = any> {
       } = options;
       const direction = descending ? 'DESC' : 'ASC';
       const table = `${this.schemaName}.${this.tableName}`;
+      // The next cursor is read off the last row, so every ordering column has
+      // to survive the projection. A whitelist that omits one yields a cursor
+      // with an undefined value, which cannot be passed back in — fail here
+      // rather than hand back an unusable page token.
+      if (columnWhitelist?.length) {
+        const missing = orderBy.filter(col => !columnWhitelist.includes(col));
+        if (missing.length > 0) {
+          throw new SchemaDefinitionError(
+            `columnWhitelist must include every orderBy column; missing: ${missing.join(', ')}`
+          );
+        }
+      }
       const selectCols = columnWhitelist?.length
         ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
         : '*';
+      // Bare list for the row constructor in the cursor comparison, which is a
+      // value tuple and takes no direction; ORDER BY needs the direction
+      // repeated per column, since a single trailing DESC binds to the last
+      // column only.
       const escapedOrderCols = orderBy
         .map(col => this.escapeName(col))
+        .join(', ');
+      const orderByClause = orderBy
+        .map(col => `${this.escapeName(col)} ${direction}`)
         .join(', ');
       const queryParts = [`SELECT ${selectCols} FROM ${table}`];
       const whereClauses: string[] = [];
@@ -374,14 +401,18 @@ class QueryModel<TRow = any> {
       if (whereClauses.length) {
         queryParts.push('WHERE', whereClauses.join(' AND '));
       }
-      queryParts.push(`ORDER BY ${escapedOrderCols} ${direction}`);
+      queryParts.push(`ORDER BY ${orderByClause}`);
       queryParts.push(`LIMIT $${values.length + 1}`);
       values.push(limit);
       const query = queryParts.join(' ');
 
       // Execute the query
       const rows = await this.db.any<TRow>(query, values);
-      const lastRow = rows[rows.length - 1];
+      // A short page is the last page: there is nothing after it to seek to, and
+      // callers loop `while (nextCursor)`. Returning a cursor here costs every
+      // such caller one extra empty round trip, and a `do…while` that trusts the
+      // cursor never terminates.
+      const lastRow = rows.length === limit ? rows[rows.length - 1] : undefined;
       const nextCursor =
         lastRow !== undefined
           ? orderBy.reduce<Record<string, unknown>>((acc, col) => {
@@ -855,9 +886,15 @@ class QueryModel<TRow = any> {
     );
     // Documented public API: the returned clause honors includeDeactivated,
     // matching pre-1.4 behavior for external callers.
+    //
+    // The existing clause is parenthesized before the guard is appended. AND
+    // binds tighter than OR, so `a OR b` + ` AND guard` parses as
+    // `a OR (b AND guard)` — the guard covers only the last disjunct and rows
+    // matching `a` come back deactivated. Internal callers append the guard to
+    // _buildWhereClause() themselves and are unaffected.
     const guard = this.softDeleteGuard(includeDeactivated);
     if (guard) {
-      result.clause += result.clause ? ` AND ${guard}` : guard;
+      result.clause = result.clause ? `(${result.clause}) AND ${guard}` : guard;
     }
     return result;
   }
