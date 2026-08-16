@@ -10,6 +10,8 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+## [v3.0.0] - 2026-08-16
+
 ### 💥 Breaking
 
 - **Minimum supported Node.js raised from 18 to 20.** Node 18 is end-of-life, CI only ever tested 20 and 22, and the `lru-cache` dependency already required `20 || >=22` — so the advertised floor was untested and unusable
