@@ -114,6 +114,7 @@ class QueryModel<TRow = any> {
     const working = cloneDeep(schema);
     this._rejectRemovedNullableKey(working);
     this._rejectRemovedTopLevelIndexes(working);
+    this._rejectMalformedIndexes(working);
     addAuditFields(working);
     addSoftDeleteField(working);
     this._schema = working;
@@ -741,6 +742,36 @@ class QueryModel<TRow = any> {
         `Schema "${schema.table}" uses the removed top-level "indexes" property; move it inside "constraints" (constraints.indexes).`
       );
     }
+  }
+
+  /**
+   * Rejects `constraints.indexes` entries that cannot produce valid SQL.
+   *
+   * `createTableSQL` wraps index generation in a try/catch that logs at debug
+   * level, so a single malformed entry silently drops *every* index on the
+   * table — valid unique and partial-unique ones included — while the CREATE
+   * TABLE still succeeds. That is the same silent data-integrity loss the
+   * top-level-`indexes` rejection exists to prevent, reached by a different
+   * route.
+   *
+   * Validated here, before any SQL is generated, for the same reason: a throw
+   * from inside `createTableSQL` would be caught and logged into the void.
+   *
+   * @param schema - Cloned schema to validate.
+   * @throws {SchemaDefinitionError} If an index definition has no usable columns.
+   */
+  _rejectMalformedIndexes(schema: TableSchema): void {
+    const indexes = schema.constraints?.indexes;
+    if (!Array.isArray(indexes)) return;
+
+    indexes.forEach((index, position) => {
+      const columns = (index as { columns?: unknown })?.columns;
+      if (!Array.isArray(columns) || columns.length === 0) {
+        throw new SchemaDefinitionError(
+          `Index at constraints.indexes[${position}] in "${schema.table}" must have a non-empty "columns" array; a malformed entry would silently drop every index on the table.`
+        );
+      }
+    });
   }
 
   /**

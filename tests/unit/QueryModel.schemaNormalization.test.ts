@@ -243,3 +243,63 @@ describe('buildValuesClause (issue 13)', () => {
     expect(model.buildValuesClause([])).toBe('');
   });
 });
+
+describe('malformed constraints.indexes', () => {
+  beforeEach(() => {
+    columnSetCache.clear();
+  });
+
+  /** Builds a schema with the given index definitions nested correctly. */
+  const withIndexes = (table: string, indexes: unknown[]): TableSchema => {
+    const schema = makeSchema(
+      { hasAuditFields: false, softDelete: false },
+      table
+    );
+    return {
+      ...schema,
+      constraints: { ...schema.constraints, indexes },
+    } as unknown as TableSchema;
+  };
+
+  it.each([
+    ['empty columns array', [{ columns: [] }]],
+    ['columns not an array', [{ columns: 'message' }]],
+    ['columns missing', [{ unique: true }]],
+  ])('throws on %s', (_label, indexes) => {
+    // createTableSQL swallows index errors at debug level, so one malformed
+    // entry silently drops every index on the table.
+    expect(
+      () => new QueryModel(stubDb, pgp, withIndexes('idx_bad', indexes))
+    ).toThrow(SchemaDefinitionError);
+  });
+
+  it('names the offending position and the table', () => {
+    expect(
+      () =>
+        new QueryModel(
+          stubDb,
+          pgp,
+          withIndexes('idx_pos', [{ columns: ['message'] }, { columns: [] }])
+        )
+    ).toThrow('constraints.indexes[1] in "idx_pos"');
+  });
+
+  it('accepts plain, unique, and partial-unique definitions', () => {
+    expect(
+      () =>
+        new QueryModel(
+          stubDb,
+          pgp,
+          withIndexes('idx_good', [
+            { columns: ['message'] },
+            { columns: ['message'], unique: true },
+            {
+              columns: ['message'],
+              unique: true,
+              where: 'message IS NOT NULL',
+            },
+          ])
+        )
+    ).not.toThrow();
+  });
+});
