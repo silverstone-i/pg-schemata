@@ -26,12 +26,31 @@ export type ExtendedDb = IDatabase<Repositories> & Repositories;
 
 /**
  * Map of repository names to their constructors, as passed to `DB.init`.
+ *
  * When {@link Repositories} is augmented, the keys and instance types are
- * checked against the declared registry.
+ * checked against the declared registry: a missing repository, an extra one, or
+ * a constructor producing the wrong instance type is a compile error.
+ *
+ * This was previously a union with `Record<string, RepositoryCtor>`, which
+ * accepted any string-keyed map — so the mapped type never constrained
+ * anything and the checking the doc promised did not happen. It is now a
+ * conditional: the permissive form applies only while `Repositories` is
+ * un-augmented, which is how the package ships, so consumers who have not
+ * declared their registry compile exactly as before.
  */
-export type RepositoryMap =
-  | { [K in keyof Repositories]: RepositoryCtor<Repositories[K]> }
-  | Record<string, RepositoryCtor>;
+export type RepositoryMap = RepositoryMapFor<Repositories>;
+
+/**
+ * @private
+ *
+ * The conditional behind {@link RepositoryMap}, parameterized over the registry
+ * so it can be exercised against a fake one. Augmenting {@link Repositories} in
+ * a test file would apply globally to the whole compilation unit and break
+ * every other suite's `DB.init` call.
+ */
+export type RepositoryMapFor<R> = keyof R extends never
+  ? Record<string, RepositoryCtor>
+  : { [K in keyof R]: RepositoryCtor<R[K]> };
 
 /** Optional configuration accepted by `DB.init`. */
 export interface DbInitOptions {
@@ -96,9 +115,7 @@ class DB {
         capSQL: true, // capitalize all generated SQL
         extend(obj: ExtendedDb) {
           // Attach each repository to the database instance
-          for (const [name, RepoClass] of Object.entries(
-            repositories as Record<string, RepositoryCtor>
-          )) {
+          for (const [name, RepoClass] of Object.entries(repositories)) {
             if (typeof RepoClass !== 'function') {
               throw new TypeError(
                 `Repository "${name}" is not a valid constructor`

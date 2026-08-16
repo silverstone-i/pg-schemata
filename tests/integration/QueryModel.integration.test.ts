@@ -180,19 +180,35 @@ describe('QueryModel Integration', () => {
       tenant_id: TENANT_ID,
     });
 
+    // The whitelist has to carry the ordering columns: the next cursor is read
+    // off the last returned row, so projecting only `email` would yield
+    // { created_at: undefined, id: undefined } — a cursor that cannot be passed
+    // back in. This previously "passed" while returning exactly that.
     const rows = await model.findAfterCursor(
       { created_at: b.created_at, id: b.id },
       10,
       ['created_at', 'id'],
       {
         descending: true,
-        columnWhitelist: ['email'],
+        columnWhitelist: ['email', 'created_at', 'id'],
       }
     );
 
     expect(Array.isArray(rows.rows)).toBe(true);
     expect(rows.rows.length).toBeGreaterThan(0);
-    expect(Object.keys(rows.rows[0])).toEqual(['email']);
+    expect(Object.keys(rows.rows[0]).sort()).toEqual([
+      'created_at',
+      'email',
+      'id',
+    ]);
+  });
+
+  it('rejects a columnWhitelist that omits an ordering column', async () => {
+    await expect(
+      model.findAfterCursor({}, 10, ['created_at', 'id'], {
+        columnWhitelist: ['email'],
+      })
+    ).rejects.toThrow(/columnWhitelist must include every orderBy column/);
   });
 
   it('should throw error for invalid findAfterCursor input', async () => {

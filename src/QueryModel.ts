@@ -9,6 +9,11 @@ import {
   addSoftDeleteField,
 } from './utils/schemaBuilder.js';
 import { isValidId, isPlainObject } from './utils/validation.js';
+import {
+  assertJoinType,
+  assertSchemaIdentifiers,
+  assertValidIdentifier,
+} from './utils/identifiers.js';
 import DatabaseError from './DatabaseError.js';
 import type { PgErrorLike } from './DatabaseError.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
@@ -22,6 +27,7 @@ import type {
   FindOptions,
   JoinType,
   PgErrorCode,
+  PrimaryKey,
   QueryOptions,
   WhereClauseResult,
   WhereCondition,
@@ -122,6 +128,38 @@ class QueryModel<TRow = any> {
       );
     }
 
+    // Must be an array of column names. A bare string was previously harmless
+    // because nothing iterated it — every by-id method targeted `id` regardless
+    // — but it is now the source of the key columns, and iterating a string
+    // yields its characters. The check lives here rather than in TableModel
+    // because QueryModel is exported and instantiable on its own: identifier
+    // validation walks `primaryKey` with for…of, which accepts a string
+    // happily, so the failure would otherwise surface as `columns.filter is
+    // not a function` on the first by-id call. Rejected rather than
+    // normalized, matching how the other misused schema shapes are handled.
+    if (typeof schema.constraints?.primaryKey !== 'undefined') {
+      const primaryKey = schema.constraints.primaryKey;
+      if (
+        !Array.isArray(primaryKey) ||
+        primaryKey.some(c => typeof c !== 'string')
+      ) {
+        throw new SchemaDefinitionError(
+          `constraints.primaryKey must be an array of column names, e.g. ['id']`
+        );
+      }
+      if (primaryKey.length === 0) {
+        throw new SchemaDefinitionError(
+          'Primary key must name at least one column'
+        );
+      }
+    }
+
+    // Fail at construction rather than at the first query. Query paths run
+    // identifiers through pgp.as.name(), but DDL generation interpolates them
+    // into strings, so an unusable name is a latent bootstrap-time hazard that
+    // is far easier to diagnose here.
+    assertSchemaIdentifiers(schema);
+
     this.db = db;
     this.pgp = pgp;
     this.logger = logger;
@@ -166,19 +204,91 @@ class QueryModel<TRow = any> {
   }
 
   /**
+   * Turns a primary key into the condition object that targets its row.
+   *
+   * Every by-id method used to emit `WHERE id = $1` against a column literally
+   * named `id`, whatever `constraints.primaryKey` declared — so a table keyed on
+   * `code`, or on two columns, got correct DDL and silently wrong targeting.
+   * `bulkUpdate` was the clearest case: it read the declared key for validation
+   * and then matched on `id` anyway.
+   *
+   * A scalar resolves against `primaryKey[0]`, so single-key tables keep working
+   * unchanged whatever their key is called. The object form carries every column
+   * for composite keys. A scalar against a composite key is rejected at model
+   * construction, not here, so the failure arrives before any query runs.
+   *
+   * @param key - Scalar or `{ column: value }` primary key.
+   * @returns Condition object suitable for findOneBy / buildWhereClause.
+   * @throws {SchemaDefinitionError} If the key is malformed or does not match
+   *   the declared primary key columns.
+   */
+  protected _primaryKeyCondition(key: PrimaryKey): FieldConditions {
+    const columns = this._schema.constraints?.primaryKey ?? ['id'];
+
+    if (key !== null && typeof key === 'object' && !(key instanceof Date)) {
+      const supplied = Object.keys(key);
+      const missing = columns.filter(c => !supplied.includes(c));
+      const unexpected = supplied.filter(c => !columns.includes(c));
+      if (missing.length > 0 || unexpected.length > 0) {
+        throw new SchemaDefinitionError(
+          `Primary key must supply exactly [${columns.join(', ')}]` +
+            (missing.length ? `; missing: ${missing.join(', ')}` : '') +
+            (unexpected.length ? `; unexpected: ${unexpected.join(', ')}` : '')
+        );
+      }
+      for (const column of columns) {
+        if (!isValidId(key[column])) {
+          throw new SchemaDefinitionError(
+            `Invalid value for primary key column "${column}"`
+          );
+        }
+      }
+      return { ...key };
+    }
+
+    if (columns.length !== 1) {
+      throw new SchemaDefinitionError(
+        `${this._schema.table} has a composite primary key [${columns.join(', ')}]; pass an object, not a scalar`
+      );
+    }
+    if (!isValidId(key)) throw new SchemaDefinitionError('Invalid ID format');
+    return { [columns[0]!]: key };
+  }
+
+  /**
+   * The same key as a fully-formatted SQL fragment, values inlined.
+   *
+   * `update()` and `bulkUpdate()` assemble their statements as literal strings
+   * via `pgp.helpers.update()` and execute with no parameter array, so their
+   * key predicate has to be inlined too rather than carrying `$n` placeholders.
+   * Identifiers go through `$1:name` and values through pg-promise's escaping,
+   * so this is not string concatenation of untrusted input.
+   *
+   * @param key - Scalar or `{ column: value }` primary key.
+   * @returns A fragment such as `"tenant_id" = '...' AND "code" = '...'`.
+   */
+  protected _primaryKeyClause(key: PrimaryKey): string {
+    const condition = this._primaryKeyCondition(key);
+    return Object.entries(condition)
+      .map(([column, value]) =>
+        this.pgp.as.format('$1:name = $2', [column, value])
+      )
+      .join(' AND ');
+  }
+
+  /**
    * Checks if a specific record is soft-deleted.
-   * @param id - The primary key value.
+   * @param id - The primary key: a scalar, or an object for composite keys.
    * @returns True if the record is soft-deleted, false otherwise.
    */
-  async isSoftDeleted(id: number | string): Promise<boolean> {
+  async isSoftDeleted(id: PrimaryKey): Promise<boolean> {
     if (!this._schema.softDelete) {
       return Promise.reject(
         new Error('Soft delete is not enabled for this table.')
       );
     }
-    if (!isValidId(id)) throw new Error('Invalid ID format');
     return this.exists(
-      { id, deactivated_at: { $ne: null } },
+      { ...this._primaryKeyCondition(id), deactivated_at: { $ne: null } },
       { includeDeactivated: true }
     );
   }
@@ -197,27 +307,30 @@ class QueryModel<TRow = any> {
   }
 
   /**
-   * Finds a single row by its ID.
-   * @param id - The primary key value.
+   * Finds a single row by its primary key.
+   *
+   * Targets the columns `constraints.primaryKey` declares, not a column named
+   * `id`. A scalar is accepted for single-column keys whatever they are called;
+   * composite keys take `{ column: value }`.
+   *
+   * @param id - The primary key: a scalar, or an object for composite keys.
    * @returns Matching row or null if not found.
-   * @throws {Error} If ID is invalid.
+   * @throws {SchemaDefinitionError} If the key does not match the declared one.
    */
-  async findById(id: number | string): Promise<TRow | null> {
-    if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.findOneBy([{ id }]);
+  async findById(id: PrimaryKey): Promise<TRow | null> {
+    return this.findOneBy([this._primaryKeyCondition(id)]);
   }
 
   /**
-   * Finds a single row by its ID, including soft-deleted records.
-   * @param id - The primary key value.
+   * Finds a single row by its primary key, including soft-deleted records.
+   * @param id - The primary key: a scalar, or an object for composite keys.
    * @returns Matching row or null if not found.
-   * @throws {Error} If ID is invalid.
+   * @throws {SchemaDefinitionError} If the key does not match the declared one.
    */
-  async findByIdIncludingDeactivated(
-    id: number | string
-  ): Promise<TRow | null> {
-    if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.findOneBy([{ id }], { includeDeactivated: true });
+  async findByIdIncludingDeactivated(id: PrimaryKey): Promise<TRow | null> {
+    return this.findOneBy([this._primaryKeyCondition(id)], {
+      includeDeactivated: true,
+    });
   }
 
   /**
@@ -299,15 +412,23 @@ class QueryModel<TRow = any> {
 
   /**
    * Finds the first row matching the given conditions.
+   *
+   * Always queries with `LIMIT 1`. Any `limit` in `options` is ignored, since
+   * only the first row is returned — without it the query fetched and
+   * transferred every matching row to discard all but one.
+   *
    * @param conditions - Condition list.
-   * @param options - Query options (same as findWhere).
+   * @param options - Query options (same as findWhere); `limit` is ignored.
    * @returns First matching row or null.
    */
   async findOneBy(
     conditions: WhereInput,
     options: FindOptions = {}
   ): Promise<TRow | null> {
-    const results = await this.findWhere(conditions, 'AND', options);
+    const results = await this.findWhere(conditions, 'AND', {
+      ...options,
+      limit: 1,
+    });
     return results[0] || null;
   }
 
@@ -337,11 +458,30 @@ class QueryModel<TRow = any> {
       } = options;
       const direction = descending ? 'DESC' : 'ASC';
       const table = `${this.schemaName}.${this.tableName}`;
+      // The next cursor is read off the last row, so every ordering column has
+      // to survive the projection. A whitelist that omits one yields a cursor
+      // with an undefined value, which cannot be passed back in — fail here
+      // rather than hand back an unusable page token.
+      if (columnWhitelist?.length) {
+        const missing = orderBy.filter(col => !columnWhitelist.includes(col));
+        if (missing.length > 0) {
+          throw new SchemaDefinitionError(
+            `columnWhitelist must include every orderBy column; missing: ${missing.join(', ')}`
+          );
+        }
+      }
       const selectCols = columnWhitelist?.length
         ? columnWhitelist.map(col => this.escapeName(col)).join(', ')
         : '*';
+      // Bare list for the row constructor in the cursor comparison, which is a
+      // value tuple and takes no direction; ORDER BY needs the direction
+      // repeated per column, since a single trailing DESC binds to the last
+      // column only.
       const escapedOrderCols = orderBy
         .map(col => this.escapeName(col))
+        .join(', ');
+      const orderByClause = orderBy
+        .map(col => `${this.escapeName(col)} ${direction}`)
         .join(', ');
       const queryParts = [`SELECT ${selectCols} FROM ${table}`];
       const whereClauses: string[] = [];
@@ -374,14 +514,23 @@ class QueryModel<TRow = any> {
       if (whereClauses.length) {
         queryParts.push('WHERE', whereClauses.join(' AND '));
       }
-      queryParts.push(`ORDER BY ${escapedOrderCols} ${direction}`);
+      queryParts.push(`ORDER BY ${orderByClause}`);
+      // One row past the page. `nextCursor` must be null when nothing follows,
+      // because callers loop `while (nextCursor)` and a `do…while` that trusts
+      // it never terminates otherwise. A short page proves there is nothing
+      // after it, but a full page proves nothing either way — a last page of
+      // exactly `limit` rows is indistinguishable from a full one — so the
+      // extra row is what answers the question. It is discarded before
+      // returning; the caller still sees at most `limit` rows.
       queryParts.push(`LIMIT $${values.length + 1}`);
-      values.push(limit);
+      values.push(limit + 1);
       const query = queryParts.join(' ');
 
       // Execute the query
-      const rows = await this.db.any<TRow>(query, values);
-      const lastRow = rows[rows.length - 1];
+      const fetched = await this.db.any<TRow>(query, values);
+      const hasMore = fetched.length > limit;
+      const rows = hasMore ? fetched.slice(0, limit) : fetched;
+      const lastRow = hasMore ? rows[rows.length - 1] : undefined;
       const nextCursor =
         lastRow !== undefined
           ? orderBy.reduce<Record<string, unknown>>((acc, col) => {
@@ -411,13 +560,14 @@ class QueryModel<TRow = any> {
    * @throws {Error} If ID is invalid.
    */
   async reload(
-    id: number | string,
+    id: PrimaryKey,
     { includeDeactivated = false }: QueryOptions = {}
   ): Promise<TRow | null> {
     // findById takes only an id, so route through findOneBy to honor options
     // (issue 10).
-    if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.findOneBy([{ id }], { includeDeactivated });
+    return this.findOneBy([this._primaryKeyCondition(id)], {
+      includeDeactivated,
+    });
   }
 
   /**
@@ -687,6 +837,10 @@ class QueryModel<TRow = any> {
     if (typeof name !== 'string' || !name.trim()) {
       throw new Error('Schema name must be a non-empty string');
     }
+    // The tenant-facing entry point, and usually the one fed a request-derived
+    // value. A name such as `t"; DROP TABLE customers; --` previously reached
+    // createTableSQL intact and closed the quoting in CREATE SCHEMA "...".
+    assertValidIdentifier(name, 'Schema name');
     if (name === this._schema.dbSchema) return this;
 
     this._cloneCacheId ??= nextCloneCacheId++;
@@ -855,9 +1009,15 @@ class QueryModel<TRow = any> {
     );
     // Documented public API: the returned clause honors includeDeactivated,
     // matching pre-1.4 behavior for external callers.
+    //
+    // The existing clause is parenthesized before the guard is appended. AND
+    // binds tighter than OR, so `a OR b` + ` AND guard` parses as
+    // `a OR (b AND guard)` — the guard covers only the last disjunct and rows
+    // matching `a` come back deactivated. Internal callers append the guard to
+    // _buildWhereClause() themselves and are unaffected.
     const guard = this.softDeleteGuard(includeDeactivated);
     if (guard) {
-      result.clause += result.clause ? ` AND ${guard}` : guard;
+      result.clause = result.clause ? `(${result.clause}) AND ${guard}` : guard;
     }
     return result;
   }
@@ -937,6 +1097,7 @@ class QueryModel<TRow = any> {
    * @param values - Parameter values to be populated.
    * @param includeDeactivated - Include soft-deleted rows in $max/$min/$sum subqueries.
    * @returns A SQL-safe WHERE fragment.
+   * @throws {SchemaDefinitionError} If `joiner` is not 'AND' or 'OR'.
    */
   buildCondition(
     group: WhereCondition[],
@@ -944,21 +1105,38 @@ class QueryModel<TRow = any> {
     values: unknown[] = [],
     includeDeactivated = false
   ): string {
+    // `JoinType` is erased at runtime, and every public query method forwards
+    // this value straight from its caller. It lands between predicates as raw
+    // SQL, so a JavaScript consumer — or a TypeScript one passing a widened
+    // string — could close the statement and append another.
+    assertJoinType(joiner);
     const parts: string[] = [];
     for (const rawItem of group) {
       const item = rawItem as ConditionNode;
+      // A boolean group contributes its own parenthesized fragment and then
+      // falls through, so ordinary column keys on the same object are still
+      // emitted. Both branches used to `continue`, which silently discarded
+      // every sibling predicate: `{ $and: [...], tenant_id }` filtered on the
+      // group alone and dropped the tenancy scope. FiltersInput permits that
+      // shape, so nothing flagged it at compile time either.
+      //
+      // Sibling predicates join with the outer `joiner`, matching how two plain
+      // keys on one object have always behaved.
       if (item.$and && Array.isArray(item.$and) && item.$and.length > 0) {
         parts.push(
           `(${this.buildCondition(item.$and, 'AND', values, includeDeactivated)})`
         );
-        continue;
-      } else if (item.$or && Array.isArray(item.$or) && item.$or.length > 0) {
+      }
+      if (item.$or && Array.isArray(item.$or) && item.$or.length > 0) {
         parts.push(
           `(${this.buildCondition(item.$or, 'OR', values, includeDeactivated)})`
         );
-        continue;
       }
       for (const [key, val] of Object.entries(item as FieldConditions)) {
+        // Handled above. Skipped unconditionally rather than only when the
+        // group is non-empty: an `$or: []` would otherwise reach escapeName()
+        // and emit a predicate against a column named "$or".
+        if (key === '$and' || key === '$or') continue;
         const col = this.escapeName(key);
         // A Date is an object but not an operator map, and Object.keys() on
         // one is empty — so it matched no operator, emitted no SQL, and the

@@ -16,8 +16,11 @@ export const ordersSchema = {
     unique: [['order_number']],
     foreignKeys: [
       {
+        // No `schema` key: the reference resolves to this table's own schema.
+        // Pinning it to 'public' would break forSchema() multi-tenancy, since
+        // every tenant's orders would point at public.customers.
         columns: ['customer_id'],
-        references: { dbSchema: 'public', table: 'customers', columns: ['id'] },
+        references: { table: 'customers', columns: ['id'] },
         onDelete: 'CASCADE',
       },
     ],

@@ -7,7 +7,9 @@ import SchemaDefinitionError from './SchemaDefinitionError.js';
 import { createTableSQL, columnSetColumnsFor } from './utils/schemaBuilder.js';
 import { readFileSync } from 'node:fs';
 import { WorkbookReader } from '@nap-sft/tablsx';
-import { isValidId, isPlainObject } from './utils/validation.js';
+// isValidId is no longer imported here: every by-id path now resolves its key
+// through QueryModel._primaryKeyCondition(), which validates each value itself.
+import { isPlainObject } from './utils/validation.js';
 import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 import { getAuditActor } from './auditActorResolver.js';
@@ -21,7 +23,13 @@ import type {
   TableSchema,
   TableValidators,
 } from './schemaTypes.js';
-import type { QueryOptions, TxOption, WhereInput } from './queryTypes.js';
+import type {
+  PrimaryKey,
+  QueryOptions,
+  TxOption,
+  WhereClauseResult,
+  WhereInput,
+} from './queryTypes.js';
 
 // Validators depend only on the schema definition, so they are built once
 // per schema literal and shared by every rebuilt repository instance (N8).
@@ -64,7 +72,9 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
         'Primary key must be defined in the schema'
       );
     }
-
+    // The shape of the key — an array of at least one column name — is checked
+    // by QueryModel's constructor, which every TableModel runs through and
+    // which callers instantiating QueryModel directly need too.
     super(db, pgp, schema, logger);
 
     // Determine default value for audit user fields based on schema configuration
@@ -221,22 +231,38 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
   }
 
   /**
-   * Deletes a record by its ID.
-   * @param id - Primary key of the row to delete.
+   * Deletes a record by its primary key.
+   *
+   * Targets the columns `constraints.primaryKey` declares. A scalar is accepted
+   * for single-column keys whatever they are called; composite keys take
+   * `{ column: value }`.
+   *
+   * @param id - The primary key: a scalar, or an object for composite keys.
    * @param options.tx - pg-promise task/transaction to run on.
    * @returns Number of rows deleted.
-   * @throws {Error} If the ID is invalid or deletion fails.
+   * @throws {SchemaDefinitionError} If the key does not match the declared one.
    */
-  async delete(id: number | string, { tx }: TxOption = {}): Promise<number> {
-    if (!isValidId(id)) {
-      return Promise.reject(new Error('Invalid ID format'));
-    }
-    const softCheck = this._schema.softDelete
-      ? ' AND deactivated_at IS NULL'
-      : '';
-    const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE id = $1${softCheck}`;
+  async delete(id: PrimaryKey, { tx }: TxOption = {}): Promise<number> {
+    let condition: WhereClauseResult;
     try {
-      return await this._exec(tx).result(query, [id], r => r.rowCount);
+      // Built through buildWhereClause rather than hand-formatted, so the
+      // soft-delete guard and parameter numbering match every other path.
+      condition = this.buildWhereClause([this._primaryKeyCondition(id)]);
+    } catch (err) {
+      // Surfaced as a rejection, not a throw: every other validation failure on
+      // these methods rejects, and a synchronous throw would break callers that
+      // only attach a .catch().
+      return Promise.reject(
+        err instanceof Error ? err : new Error(String(err))
+      );
+    }
+    const query = `DELETE FROM ${this.schemaName}.${this.tableName} WHERE ${condition.clause}`;
+    try {
+      return await this._exec(tx).result(
+        query,
+        condition.values,
+        r => r.rowCount
+      );
     } catch (err) {
       this.handleDbError(err);
     }
@@ -244,25 +270,49 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
 
   /**
    * Updates a record by ID with new data.
+   *
+   * Only the columns the DTO actually carries are written. Every column it
+   * omits is left untouched — the SET list is built per call from the DTO's own
+   * keys, not from the table's full column list.
+   *
+   * When audit fields are enabled, `updated_at` is owned by the library: it is
+   * always set to `CURRENT_TIMESTAMP`, and any value the DTO supplies for it is
+   * discarded. `updated_by` is not — a value in the DTO is honored, and the
+   * audit actor resolver only fills it in when the DTO leaves it out.
+   *
+   * An empty DTO is accepted when audit fields are enabled, since the audit
+   * columns alone make a valid update (this is the path `touch()` uses when no
+   * actor resolves). Without audit fields there is nothing to write, so it is
+   * rejected.
+   *
    * @param id - Primary key value.
-   * @param dto - Updated values.
+   * @param dto - Columns to write. Omitted columns are not modified.
    * @param options.tx - pg-promise task/transaction to run on.
    * @returns Updated record or null if not found.
    * @throws {SchemaDefinitionError} If ID or DTO is invalid.
    */
   async update(
-    id: number | string,
+    id: PrimaryKey,
     dto: Partial<TRow> & Row,
     { tx }: TxOption = {}
   ): Promise<TRow | null> {
-    if (!isValidId(id)) {
-      return Promise.reject(new SchemaDefinitionError('Invalid ID format'));
+    let keyClause: string;
+    try {
+      keyClause = this._primaryKeyClause(id);
+    } catch (err) {
+      // Surfaced as a rejection, not a throw: every other validation failure on
+      // these methods rejects, and a synchronous throw would break callers that
+      // only attach a .catch().
+      return Promise.reject(
+        err instanceof Error ? err : new Error(String(err))
+      );
     }
-    if (
-      typeof dto !== 'object' ||
-      Array.isArray(dto) ||
-      Object.keys(dto).length === 0
-    ) {
+    if (dto === null || typeof dto !== 'object' || Array.isArray(dto)) {
+      return Promise.reject(
+        new SchemaDefinitionError('DTO must be a non-empty object')
+      );
+    }
+    if (Object.keys(dto).length === 0 && !this._auditEnabled()) {
       return Promise.reject(
         new SchemaDefinitionError('DTO must be a non-empty object')
       );
@@ -290,14 +340,64 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       this._auditEnabled() &&
       !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')
     ) {
-      safeDto.updated_by = this._resolveAuditActor();
+      // Only when an actor actually resolves. Assigning the unresolved null
+      // put updated_by in the SET list and overwrote whoever last touched the
+      // row with null, destroying the audit trail the column exists to keep.
+      const actor = this._resolveAuditActor();
+      if (actor != null) {
+        safeDto.updated_by = actor;
+      }
     }
+    // Build the SET list from the DTO's own keys, exactly as upsert(),
+    // bulkUpsert(), updateWhere(), bulkInsert() and bulkUpdate() do.
+    //
+    // The cached `cs.update` covers every column in the table, and
+    // createColumnSet() gives each one a `def`, so pg-promise substituted for
+    // the columns a partial DTO omitted rather than leaving them out:
+    //
+    //   update(id, { name: 'x' })
+    //   -> SET "org_id"=null,"name"='x',"start_date"=null,"status"=DEFAULT,...
+    //
+    // That silently overwrote every unmentioned column. `updated_at` is still
+    // appended explicitly, because a SQL DEFAULT only applies on INSERT.
+    // `updated_at` is owned by the library when audit fields are enabled. Any
+    // caller-supplied value is dropped: the column is emitted with mod '^', so a
+    // JS Date would be inlined unquoted and produce invalid SQL.
+    if (this._auditEnabled()) {
+      delete safeDto.updated_at;
+    }
+    // The emptiness check above runs on the raw DTO, but sanitizeDto drops
+    // unknown and immutable columns — and the update validator strips unknown
+    // keys rather than rejecting them. So a non-empty DTO carrying only
+    // immutable or unknown columns arrives here empty, and with audit fields
+    // disabled there is no library-owned column to fall back on: the ColumnSet
+    // would be built with no columns and pg-promise would throw from two frames
+    // down instead of this method naming the problem.
+    if (!this._auditEnabled() && Object.keys(safeDto).length === 0) {
+      return Promise.reject(
+        new SchemaDefinitionError(
+          'DTO contains no writable columns; every key is unknown or immutable'
+        )
+      );
+    }
+    const setColumns = columnSetColumnsFor(this._schema, Object.keys(safeDto));
+    if (this._auditEnabled()) {
+      setColumns.push({
+        name: 'updated_at',
+        mod: '^',
+        def: 'CURRENT_TIMESTAMP',
+      });
+    }
+    const updateCs = new this.pgp.helpers.ColumnSet(setColumns, {
+      table: { table: this._schema.table, schema: this._schema.dbSchema },
+    });
+
     const softCheck = this._schema.softDelete
       ? ' AND deactivated_at IS NULL'
       : '';
-    const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
+    const condition = `WHERE ${keyClause}${softCheck}`;
     const query =
-      this.pgp.helpers.update(safeDto, this.cs.update, {
+      this.pgp.helpers.update(safeDto, updateCs, {
         schema: this.schema.dbSchema,
         table: this.schema.table,
       }) +
@@ -576,17 +676,33 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
   }
 
   /**
-   * Updates only the updated_by timestamp for a given row.
-   * @param id - Primary key.
-   * @param updatedBy - User performing the update.
-   * @returns Updated row.
+   * Advances `updated_at` on a row, and `updated_by` when an actor is known.
+   *
+   * Requires audit fields: with them disabled there is no column to write and
+   * the call is rejected. When no actor is supplied and none resolves, the
+   * timestamp still moves — `update()` owns `updated_at` and writes it for an
+   * empty DTO.
+   *
+   * @param id - Primary key: a scalar, or an object for composite keys.
+   * @param updatedBy - Actor identifier. Falls back to the audit actor resolver.
+   * @param options.tx - pg-promise task/transaction to run on.
+   * @returns Updated row, or null if no active row has that id.
+   * @throws {SchemaDefinitionError} If audit fields are not enabled.
    */
   async touch(
-    id: number | string,
+    id: PrimaryKey,
     updatedBy: string | null = null,
     { tx }: TxOption = {}
   ): Promise<TRow | null> {
-    // Route through update(), which already applies soft delete check
+    if (!this._auditEnabled()) {
+      return Promise.reject(
+        new SchemaDefinitionError(
+          'touch() requires audit fields; enable hasAuditFields on this schema'
+        )
+      );
+    }
+    // Route through update(), which already applies the soft delete check and
+    // appends updated_at itself.
     const effectiveUpdatedBy = updatedBy ?? this._resolveAuditActor();
     return this.update(
       id,
@@ -872,10 +988,29 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     // per row.
     const columnSetsByKeys = new Map<string, unknown>();
     const queries = records.map(dto => {
-      const id = dto.id;
-      if (!isValidId(id)) {
+      // Each record carries its own key, read from the columns the schema
+      // declares. This read `dto.id` while the guard above validated
+      // `constraints.primaryKey` — so a table keyed on anything else was
+      // checked against one column and then targeted by another.
+      const keyValues: Record<string, unknown> = {};
+      for (const column of pk) {
+        if (!Object.prototype.hasOwnProperty.call(dto, column)) {
+          throw new SchemaDefinitionError(
+            `Record is missing primary key column "${column}": ${JSON.stringify(dto)}`
+          );
+        }
+        keyValues[column] = dto[column];
+      }
+      let keyClause: string;
+      try {
+        keyClause = this._primaryKeyClause(
+          pk.length === 1
+            ? (keyValues[pk[0]!] as PrimaryKey)
+            : (keyValues as PrimaryKey)
+        );
+      } catch {
         throw new SchemaDefinitionError(
-          `Invalid ID in record: ${JSON.stringify(dto)}`
+          `Invalid primary key in record: ${JSON.stringify(dto)}`
         );
       }
       const safeDto = this.sanitizeDto(dto, { includeImmutable: false });
@@ -885,11 +1020,12 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       ) {
         safeDto.updated_by = this._resolveAuditActor();
       }
-      delete safeDto.id;
+      // The key columns identify the row; they are not part of the SET list.
+      for (const column of pk) delete safeDto[column];
       const softCheck = this._schema.softDelete
         ? ' AND deactivated_at IS NULL'
         : '';
-      const condition = this.pgp.as.format('WHERE id = $1', [id]) + softCheck;
+      const condition = `WHERE ${keyClause}${softCheck}`;
       const keys = Object.keys(safeDto);
       // Sort for the cache key only: key order varies between otherwise
       // identical DTOs, and pg-promise maps values by name, so one ColumnSet
@@ -1043,12 +1179,17 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     }
     const { clause, values } = this.buildWhereClause(where);
 
+    // updated_at tracks when the row changed and does not depend on knowing who
+    // changed it; only updated_by does. Gating both on actor resolution left an
+    // unconfigured resolver silently freezing the timestamp on every soft
+    // delete, contradicting the audit-fields guide.
     let setClause = 'deactivated_at = NOW()';
     if (this._auditEnabled()) {
+      setClause += ', updated_at = NOW()';
       const actor = this._resolveAuditActor();
       if (actor != null) {
         values.push(actor);
-        setClause += `, updated_by = $${values.length}, updated_at = NOW()`;
+        setClause += `, updated_by = $${values.length}`;
       }
     }
 
@@ -1078,12 +1219,14 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       true
     );
 
+    // Same split as removeWhere: the timestamp is unconditional, the actor is not.
     let setClause = 'deactivated_at = NULL';
     if (this._auditEnabled()) {
+      setClause += ', updated_at = NOW()';
       const actor = this._resolveAuditActor();
       if (actor != null) {
         values.push(actor);
-        setClause += `, updated_by = $${values.length}, updated_at = NOW()`;
+        setClause += `, updated_by = $${values.length}`;
       }
     }
 
@@ -1119,12 +1262,19 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
   }
 
   /**
-   * Permanently deletes a soft-deleted row by ID.
-   * @param id - Primary key value.
+   * Permanently deletes a soft-deleted row by its primary key.
+   *
+   * Targets the columns `constraints.primaryKey` declares. A scalar is accepted
+   * for single-column keys whatever they are called; composite keys take
+   * `{ column: value }`.
+   *
+   * @param id - The primary key: a scalar, or an object for composite keys.
+   * @param options.tx - pg-promise task/transaction to run on.
    * @returns pg-promise result.
+   * @throws {SchemaDefinitionError} If the key does not match the declared one.
    */
   async purgeSoftDeleteById(
-    id: number | string,
+    id: PrimaryKey,
     { tx }: TxOption = {}
   ): Promise<IResultExt> {
     if (!this._schema.softDelete) {
@@ -1132,8 +1282,20 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
         new Error('Soft delete is not enabled for this table.')
       );
     }
-    if (!isValidId(id)) throw new Error('Invalid ID format');
-    return this.purgeSoftDeleteWhere([{ id }], { tx });
+    // The eighth by-id method, and the one missed when the other seven moved
+    // off the hardcoded `id`. It built `[{ id }]` directly, so a table keyed on
+    // anything else purged by the wrong column — or failed outright when no
+    // `id` column existed. _primaryKeyCondition validates each value, so the
+    // separate isValidId guard is redundant.
+    let condition;
+    try {
+      condition = this._primaryKeyCondition(id);
+    } catch (err) {
+      return Promise.reject(
+        err instanceof Error ? err : new Error(String(err))
+      );
+    }
+    return this.purgeSoftDeleteWhere([condition], { tx });
   }
 
   // ---------------------------------------------------------------------------

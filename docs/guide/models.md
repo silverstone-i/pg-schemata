@@ -16,7 +16,7 @@ class UsersReadOnly extends QueryModel {
 }
 ```
 
-Key methods: `findAll`, `findById`, `findWhere`, `findOneBy`, `findAfterCursor`, `count`, `countAll`, `exists`, `exportToSpreadsheet`.
+Key methods: `findAll`, `findById`, `findWhere`, `findOneBy`, `findAfterCursor`, `countWhere`, `countAll`, `exists`, `exportToSpreadsheet`.
 
 ## TableModel — full CRUD
 
@@ -33,6 +33,10 @@ class Users extends TableModel {
 ```
 
 `TableModel` requires that your schema defines a `primaryKey` in `constraints`. It adds: `insert`, `update`, `delete`, `upsert`, `bulkInsert`, `bulkUpdate`, `bulkUpsert`, `deleteWhere`, `updateWhere`, `removeWhere`, `restoreWhere`, `importFromSpreadsheet`, `createTable`, `truncate`.
+
+The by-id methods target the columns `primaryKey` declares, so the key need not
+be named `id` and may span several columns — see
+[primary keys](/guide/schema-definition#primary-keys-drive-row-targeting).
 
 ## Constructor parameters
 

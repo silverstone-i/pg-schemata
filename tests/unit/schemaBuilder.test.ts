@@ -13,6 +13,7 @@ import {
   columnSetCache,
 } from '../../src/utils/schemaBuilder.js';
 import { LRUCache } from 'lru-cache';
+import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import { z } from 'zod';
 import type { IMain, IColumnDescriptor } from 'pg-promise';
 import type {
@@ -454,6 +455,97 @@ describe('Schema Utilities', () => {
       );
     });
 
+    // PostgreSQL spells generated expressions exactly one way:
+    // GENERATED ALWAYS AS (expr) STORED. The schema type advertised
+    // 'always' | 'by default' and an optional `stored`, and both of the other
+    // shapes were passed straight through as a syntax error at bootstrap —
+    // where createTableSQL's own debug-level logging made it hard to trace.
+    it('rejects a generated column without stored: true', () => {
+      const schema = {
+        dbSchema: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          {
+            name: 'schema_name',
+            type: 'varchar(63)',
+            generated: 'always',
+            expression: 'lower(tenant_code)',
+          },
+        ],
+        constraints: { primaryKey: ['tenant_code'] },
+      };
+
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
+        /requires stored: true/
+      );
+    });
+
+    it('rejects stored: false explicitly', () => {
+      // Virtual generated columns are PostgreSQL 18+; the floor is 13.
+      const schema = {
+        dbSchema: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          {
+            name: 'schema_name',
+            type: 'varchar(63)',
+            generated: 'always',
+            expression: 'lower(tenant_code)',
+            stored: false,
+          },
+        ],
+        constraints: { primaryKey: ['tenant_code'] },
+      };
+
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
+        /requires stored: true/
+      );
+    });
+
+    it('rejects a generated column with no expression', () => {
+      // Previously this fell through to the ordinary column branch and emitted
+      // a plain column, silently dropping the generation the schema asked for.
+      const schema = {
+        dbSchema: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          { name: 'schema_name', type: 'varchar(63)', generated: 'always' },
+        ],
+        constraints: { primaryKey: ['tenant_code'] },
+      };
+
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
+        /requires an expression/
+      );
+    });
+
+    it('emits ALWAYS regardless of the declared casing', () => {
+      // 'by default' is gone from the type, but schemas are plain JS objects,
+      // so the emitter must not echo whatever string it is handed.
+      const schema = {
+        dbSchema: 'public',
+        table: 'tenants',
+        columns: [
+          { name: 'tenant_code', type: 'varchar(6)', notNull: true },
+          {
+            name: 'schema_name',
+            type: 'varchar(63)',
+            generated: 'by default',
+            expression: 'lower(tenant_code)',
+            stored: true,
+          },
+        ],
+        constraints: { primaryKey: ['tenant_code'] },
+      };
+
+      const sql = createTableSQL(schema as unknown as TableSchema);
+      expect(sql).toContain('GENERATED ALWAYS AS (lower(tenant_code)) STORED');
+      expect(sql).not.toContain('BY DEFAULT');
+    });
+
     it('should automatically include index creation when indexes are defined', () => {
       const schema = {
         dbSchema: 'public',
@@ -474,6 +566,33 @@ describe('Schema Utilities', () => {
       expect(sql).toContain('CREATE TABLE IF NOT EXISTS "public"."users"');
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_email"');
       expect(sql).toContain('CREATE INDEX IF NOT EXISTS "idx_users_username"');
+    });
+
+    it('propagates index-generation errors instead of dropping every index', () => {
+      // This was caught and logged at debug level so table creation could
+      // continue — so one malformed entry silently discarded the valid unique
+      // index beside it while CREATE TABLE succeeded and bootstrap() reported
+      // success. The loss surfaced much later as duplicate rows.
+      //
+      // QueryModel's constructor rejects malformed entries first, but
+      // createTableSQL is exported and callable directly, which was the
+      // remaining silent path.
+      const schema = {
+        dbSchema: 'public',
+        table: 'users',
+        columns: [
+          { name: 'id', type: 'serial' },
+          { name: 'email', type: 'varchar(255)', notNull: true },
+        ],
+        constraints: {
+          primaryKey: ['id'],
+          indexes: [{ columns: ['email'], unique: true }, { columns: [] }],
+        },
+      };
+
+      expect(() => createTableSQL(schema as unknown as TableSchema)).toThrow(
+        SchemaDefinitionError
+      );
     });
 
     it('should not include indexes when no indexes are defined', () => {

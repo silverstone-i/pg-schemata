@@ -12,13 +12,16 @@ const manager = new MigrationManager({
   dir: path.join(__dirname, 'migrations'),
 });
 
-const { applied, files } = await manager.applyAll();
+// applyAll() returns { schema, dryRun, moduleOrder, pending, applied }.
+// `applied` is an array of PendingMigrationInfo — { module, id, description,
+// checksum, source, file } — not a count.
+const { schema, applied } = await manager.applyAll();
 
-if (applied === 0) {
-  console.log('No pending migrations. Database is up to date.');
+if (applied.length === 0) {
+  console.log(`No pending migrations. Schema "${schema}" is up to date.`);
 } else {
-  console.log(`Applied ${applied} migration(s):`);
-  for (const file of files) {
-    console.log(`- ${file}`);
+  console.log(`Applied ${applied.length} migration(s) to "${schema}":`);
+  for (const migration of applied) {
+    console.log(`- [${migration.module}] ${migration.id}`);
   }
 }

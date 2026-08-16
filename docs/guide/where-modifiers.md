@@ -177,6 +177,32 @@ await db().users.findWhere([
 // WHERE ("role" = 'admin' OR ("role" = 'user' AND "is_active" = true))
 ```
 
+### Boolean groups alongside plain columns
+
+An object may carry a boolean group and ordinary column keys together. The group
+becomes its own parenthesized fragment and the plain predicates sit beside it,
+joined by the outer join type:
+
+```js
+await db().users.findWhere([
+  { $or: [{ role: 'admin' }, { role: 'owner' }], tenant_id: TENANT },
+]);
+// WHERE ("role" = $1 OR "role" = $2) AND "tenant_id" = $3
+```
+
+Both `$and` and `$or` can appear on the same object, each contributing its own
+group.
+
+::: warning Changed in 3.0.0
+Before 3.0.0 an object carrying `$and` or `$or` contributed **only** that group
+— every ordinary column key beside it was silently discarded, so the query above
+was not scoped to the tenant. The emitted SQL was valid and simply matched more
+rows than asked for, which made it invisible except in results.
+
+If you worked around this by splitting the group into a sibling object, that
+form still works and still means the same thing.
+:::
+
 ## Combining operators on a single column
 
 Multiple operators can be applied to one column:

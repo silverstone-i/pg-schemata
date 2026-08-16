@@ -73,7 +73,7 @@ describe('no second format pass over finished statements', () => {
     const [query, values] = db.calls[0];
     expect(query).toContain("'refund $1 processed'");
     expect(query).toContain(
-      "WHERE id = 'aaaaaaaa-1111-2222-3333-444444444444'"
+      'WHERE "id" = \'aaaaaaaa-1111-2222-3333-444444444444\''
     );
     expect(values).toBeUndefined();
   });

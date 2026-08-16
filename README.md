@@ -80,7 +80,7 @@ export const userSchema = {
   hasAuditFields: true, // Adds created_at, created_by, updated_at, updated_by
   softDelete: true,
   columns: [
-    { name: 'id', type: 'uuid', notNull: true },
+    { name: 'id', type: 'uuid', notNull: true, default: 'gen_random_uuid()' },
     { name: 'email', type: 'text', notNull: true },
     { name: 'password', type: 'text', notNull: true },
   ],

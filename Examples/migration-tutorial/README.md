@@ -64,6 +64,10 @@ export const customersSchema = {
   dbSchema: 'public',
   table: 'customers',
   hasAuditFields: true,
+  // The partial index below filters on `deactivated_at IS NULL`. Index
+  // predicates are raw SQL emitted as written, so the column has to exist —
+  // which means soft delete has to be enabled.
+  softDelete: true,
   columns: [
     { name: 'id', type: 'uuid', default: 'gen_random_uuid()', immutable: true, colProps: { cnd: true } },
     { name: 'email', type: 'varchar(255)', notNull: true },
@@ -101,7 +105,7 @@ export const ordersSchema = {
     foreignKeys: [
       {
         columns: ['customer_id'],
-        references: { dbSchema: 'public', table: 'customers', columns: ['id'] },
+        references: { table: 'customers', columns: ['id'] },
         onDelete: 'CASCADE',
       },
     ],
@@ -131,7 +135,7 @@ export const orderItemsSchema = {
     foreignKeys: [
       {
         columns: ['order_id'],
-        references: { dbSchema: 'public', table: 'orders', columns: ['id'] },
+        references: { table: 'orders', columns: ['id'] },
         onDelete: 'CASCADE',
       },
     ],
@@ -191,10 +195,15 @@ single transaction.
 import { bootstrap } from 'pg-schemata';
 import { models } from '../src/models/index.js';
 
-export async function up({ schema }) {
-  await bootstrap({ models, schema });
+export async function up({ db, schema }) {
+  await bootstrap({ models, schema, db });
 }
 ```
+
+> **Pass `db` through.** It is the transaction `MigrationManager` already
+> opened. Omit it and `bootstrap()` calls `DB.db.tx()` itself, opening a second
+> independent transaction — a later failure in this migration would then roll
+> back the migration record while leaving the tables in place.
 
 > **Note**: The `bootstrap` function enables no extensions by default. UUID generation needs none — `gen_random_uuid()` has been part of core PostgreSQL since 13. If your own schemas depend on an extension, request it explicitly: `bootstrap({ models, schema, extensions: ['postgis'] })`.
 
@@ -217,8 +226,22 @@ const manager = new MigrationManager({
   dir: path.join(__dirname, 'migrations'),
 });
 
-const { applied, files } = await manager.applyAll();
+// applyAll() resolves to { schema, dryRun, moduleOrder, pending, applied }.
+// `applied` is an array of migration descriptors, not a count.
+const { schema, applied } = await manager.applyAll();
+
+if (applied.length === 0) {
+  console.log(`No pending migrations. Schema "${schema}" is up to date.`);
+} else {
+  console.log(`Applied ${applied.length} migration(s) to "${schema}":`);
+  for (const migration of applied) {
+    console.log(`- [${migration.module}] ${migration.id}`);
+  }
+}
 ```
+
+Each entry in `applied` carries `{ module, id, description, checksum, source }`,
+plus `file` in directory mode.
 
 ### Run the bootstrap migration
 
@@ -231,8 +254,8 @@ npm run migrate
 You should see output similar to:
 
 ```
-Applied 1 migration(s):
-- 0001_initial_catalog.mjs
+Applied 1 migration(s) to "public":
+- [default] 0001_initial_catalog.mjs
 ```
 
 Inspect the database (`psql` → `\dt public.*`) to confirm the three tables
@@ -275,7 +298,7 @@ export const ordersSchema = {
     foreignKeys: [
       {
         columns: ['customer_id'],
-        references: { dbSchema: 'public', table: 'customers', columns: ['id'] },
+        references: { table: 'customers', columns: ['id'] },
         onDelete: 'CASCADE',
       },
     ],
@@ -291,14 +314,25 @@ export const ordersSchema = {
 export async function up({ db, schema }) {
   await db.none(
     `ALTER TABLE "${schema}"."orders"
-       ADD COLUMN status varchar(20) NOT NULL DEFAULT 'pending',
-       ADD COLUMN shipped_at timestamptz`
+       ADD COLUMN IF NOT EXISTS status varchar(20) NOT NULL DEFAULT 'pending',
+       ADD COLUMN IF NOT EXISTS shipped_at timestamptz`
   );
 }
 ```
 
 The statement runs inside the transaction managed by `MigrationManager`, so a
 failure rolls back both column additions.
+
+> **Why `IF NOT EXISTS`?** Migration 0001 calls `bootstrap({ models })`, which
+> builds its DDL from the models as they exist *now*, not as they existed when
+> 0001 was written. You just added `status` and `shipped_at` to `ordersSchema`,
+> so on a database created from scratch today 0001 already creates them and this
+> migration would fail with "column already exists".
+>
+> That is the general rule whenever `bootstrap()` and hand-written `ALTER`s share
+> one migration history: the bootstrap step is always current, so every later
+> structural change has to tolerate having already been applied. An existing
+> database that ran 0001 before the schema changed still gets the columns here.
 
 ### 4.3 Apply the new migration
 
@@ -309,8 +343,8 @@ npm run migrate
 Output:
 
 ```
-Applied 1 migration(s):
-- 0002_add_order_status.mjs
+Applied 1 migration(s) to "public":
+- [default] 0002_add_order_status.mjs
 ```
 
 Existing rows receive the default status of `pending`. You can verify with

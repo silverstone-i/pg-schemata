@@ -28,6 +28,19 @@ export type ConditionOperator = (typeof CONDITION_OPERATORS)[number];
 /** Scalar values accepted as SQL parameters in conditions. */
 export type Scalar = string | number | boolean | Date | null;
 
+/** A single primary key column value. */
+export type PrimaryKeyValue = string | number;
+
+/**
+ * A primary key, in either accepted form.
+ *
+ * A scalar resolves against `constraints.primaryKey[0]`, so a table keyed on
+ * `code` takes `findById('abc')`. Tables whose primary key has more than one
+ * column must pass the object form, `{ tenant_id, code }`; the scalar form is
+ * rejected for them at model construction rather than at call time.
+ */
+export type PrimaryKey = PrimaryKeyValue | Record<string, PrimaryKeyValue>;
+
 /**
  * Operator-keyed condition on a single column. Multiple operator keys are
  * allowed on one object; each emits its own SQL clause.

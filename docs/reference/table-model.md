@@ -18,9 +18,31 @@ Same parameters as QueryModel, but requires `schema.constraints.primaryKey` to b
 
 **Throws:** `SchemaDefinitionError` if no primary key is defined
 
+`constraints.primaryKey` must be an array of column names. It generates the
+`PRIMARY KEY` constraint and determines which columns the by-id methods target —
+`findById`, `update`, `delete`, `bulkUpdate`, `reload`, and the soft-delete
+helpers.
+
+Those methods accept a **scalar** for single-column keys, resolved against the
+declared column whatever it is named, or an **object** carrying every column for
+composite keys:
+
+```js
+await coupons.findById('SAVE10'); // primaryKey: ['code']
+await memberships.findById({ tenant_id, user_id }); // composite
+```
+
+Passing a scalar to a composite-key model throws `SchemaDefinitionError`.
+
+::: warning Changed in 3.0.0
+These methods previously emitted `WHERE id = $1` against a column literally
+named `id`, whatever `primaryKey` declared. See
+[primary keys](/guide/schema-definition#primary-keys-drive-row-targeting).
+:::
+
 ## Inherited Methods
 
-TableModel inherits all methods from [QueryModel](/reference/query-model): `findAll`, `findById`, `findWhere`, `findOneBy`, `findAfterCursor`, `count`, `countAll`, `exists`, `findSoftDeleted`, `isSoftDeleted`, `exportToSpreadsheet`, and all utility methods.
+TableModel inherits all methods from [QueryModel](/reference/query-model): `findAll`, `findById`, `findWhere`, `findOneBy`, `findAfterCursor`, `countWhere`, `countAll`, `exists`, `findSoftDeleted`, `isSoftDeleted`, `exportToSpreadsheet`, and all utility methods.
 
 ## Write Methods
 
@@ -44,14 +66,23 @@ Inserts a single row after validation and sanitization.
 **Returns:** `Promise<Object>` — the inserted row (`RETURNING *`)
 **Throws:** `SchemaDefinitionError` if validation fails or DTO is empty
 
-### update(id, dto)
+### update(id, dto, options?)
 
-Updates a record by primary key.
+Updates a record by `id`. Only the columns `dto` carries are written; every
+column it omits keeps its current value.
 
-| Parameter | Type               | Description       |
-| --------- | ------------------ | ----------------- |
-| `id`      | `string \| number` | Primary key value |
-| `dto`     | `object`           | Updated values    |
+| Parameter    | Type               | Description                                        |
+| ------------ | ------------------ | -------------------------------------------------- |
+| `id`         | `string \| number` | Primary key value                                  |
+| `dto`        | `object`           | Columns to write. Omitted columns are not modified |
+| `options.tx` | `object`           | pg-promise task/transaction to run on              |
+
+When audit fields are enabled, `updated_at` is set to `CURRENT_TIMESTAMP` and
+any value `dto` supplies for it is discarded. `updated_by` is honored if
+supplied, otherwise filled from the audit actor resolver.
+
+An empty `dto` is accepted only when audit fields are enabled — the audit
+columns alone make a valid update. Without them there is nothing to write.
 
 **Returns:** `Promise<Object | null>` — updated row, or `null` if not found
 **Throws:** `SchemaDefinitionError` if validation fails
@@ -100,16 +131,22 @@ Updates rows matching a WHERE clause.
 
 **Returns:** `Promise<number>` — number of rows updated
 
-### touch(id, updatedBy?)
+### touch(id, updatedBy?, options?)
 
-Updates only the `updated_at` timestamp and optionally `updated_by`.
+Advances `updated_at`, and sets `updated_by` when an actor is known. No data
+column is written.
 
-| Parameter   | Type               | Description                                            |
-| ----------- | ------------------ | ------------------------------------------------------ |
-| `id`        | `string \| number` | Primary key value                                      |
-| `updatedBy` | `string`           | Actor identifier (optional — uses resolver if omitted) |
+| Parameter    | Type                         | Description                                             |
+| ------------ | ---------------------------- | ------------------------------------------------------- |
+| `id`         | `string \| number \| object` | Primary key — a scalar, or an object for composite keys |
+| `updatedBy`  | `string`                     | Actor identifier (optional — uses resolver if omitted)  |
+| `options.tx` | `object`                     | pg-promise task/transaction to run on                   |
 
-**Returns:** `Promise<Object | null>`
+Requires audit fields. With no actor supplied and no resolver configured the
+timestamp still advances and `updated_by` is left as it was.
+
+**Returns:** `Promise<Object | null>` — updated row, or `null` if no active row has that id
+**Throws:** `SchemaDefinitionError` if audit fields are not enabled
 
 ## Bulk Methods
 
@@ -169,11 +206,19 @@ Permanently deletes soft-deleted rows matching conditions.
 
 **Returns:** `Promise<Object>` — pg-promise result
 
-### purgeSoftDeleteById(id)
+### purgeSoftDeleteById(id, options?)
 
-Permanently deletes a specific soft-deleted row.
+Permanently deletes a specific soft-deleted row. Only removes rows that are
+already deactivated.
 
-**Returns:** `Promise<Object>`
+| Parameter    | Type         | Description                             |
+| ------------ | ------------ | --------------------------------------- |
+| `id`         | `PrimaryKey` | Scalar, or an object for composite keys |
+| `options.tx` | `object`     | pg-promise task/transaction to run on   |
+
+**Returns:** `Promise<Object>` — pg-promise result
+**Throws:** `Error` if soft delete is not enabled; `SchemaDefinitionError` if the
+key does not match the declared one
 
 ## Import/Export
 

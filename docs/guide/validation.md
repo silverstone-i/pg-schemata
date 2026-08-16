@@ -102,13 +102,32 @@ validation and then thrown away. Use validators that check rather than rewrite.
 
 ### Nullability and defaults
 
-- Columns with `notNull: true` and no `default` → required
-- Columns with `default` → optional (`.optional()`)
+Nullability and optionality are separate questions. **Optionality** is whether a
+value has to be supplied; **nullability** is whether `null` is a legal value.
+They follow different rules:
+
+| Column                         | Insert validator         | Update validator         |
+| ------------------------------ | ------------------------ | ------------------------ |
+| `notNull: true`, no `default`  | required, rejects `null` | optional, rejects `null` |
+| `notNull: true`, has `default` | optional, rejects `null` | optional, rejects `null` |
+| no `notNull`                   | `.nullable().optional()` | `.nullable().optional()` |
+
+Every column is optional on update, because an update writes only the keys the
+DTO carries. Nullability still tracks the column: setting a `NOT NULL` column to
+`null` is as invalid on update as it is on insert, and is now reported as a Zod
+issue naming the column rather than reaching PostgreSQL as a constraint
+violation.
+
+Omitting a defaulted `NOT NULL` column on insert is fine — the default applies.
+Passing `null` for it is not.
+
 - `serial`, `serial2/4/8`, `smallserial`, and `bigserial` count as having a default even
   when none is declared — PostgreSQL generates the value — so they are never required on
   insert, and they are excluded from the ColumnSet entirely
-- Columns without `notNull` → nullable (`.nullable().optional()`)
 - Immutable columns are excluded from the update validator
+- `json`/`jsonb` are the deliberate exception: `NOT NULL` forbids SQL NULL but admits the
+  JSON scalar `null`, and `pg` parses both to JavaScript `null`, so a `NOT NULL jsonb`
+  column accepts `null` as a value. The key must still be present
 
 ### Check constraints
 

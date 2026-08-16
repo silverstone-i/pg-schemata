@@ -31,6 +31,8 @@ describe('generateZodFromTableSchema', () => {
   const validators = generateZodFromTableSchema(tableSchema);
   const { insertValidator, updateValidator, baseValidator } = validators;
 
+  const UUID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+
   it('should require all non-nullable fields without defaults on insert', () => {
     const result = insertValidator.safeParse({
       email: 'a@b.com',
@@ -55,9 +57,38 @@ describe('generateZodFromTableSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should mark all update fields as optional and nullable', () => {
-    const result = updateValidator.safeParse({ phone: null, notes: null });
-    expect(result.success).toBe(true);
+  it('should mark every update field optional', () => {
+    expect(updateValidator.safeParse({}).success).toBe(true);
+    expect(updateValidator.safeParse({ phone: '555' }).success).toBe(true);
+  });
+
+  it('should allow null on update for nullable columns only', () => {
+    // Nullability follows the column; optionality is the separate question of
+    // whether a value has to be supplied. Every update field used to be
+    // .nullable() regardless, so clearing a NOT NULL column passed validation
+    // and failed at Postgres with a constraint violation instead of a Zod
+    // issue naming the column.
+    expect(
+      updateValidator.safeParse({ phone: null, notes: null }).success
+    ).toBe(true);
+    expect(updateValidator.safeParse({ email: null }).success).toBe(false);
+    expect(updateValidator.safeParse({ is_active: null }).success).toBe(false);
+  });
+
+  it('should reject an explicit null for a defaulted NOT NULL column on insert', () => {
+    // is_active is notNull with a default, so it is optional on insert — omit
+    // it and the default applies. Supplying null is still a NOT NULL violation.
+    expect(
+      insertValidator.safeParse({ id: UUID, email: 'a@b.co' }).success
+    ).toBe(true);
+    expect(
+      insertValidator.safeParse({ id: UUID, email: 'a@b.co', is_active: null })
+        .success
+    ).toBe(false);
+    expect(
+      insertValidator.safeParse({ id: UUID, email: 'a@b.co', created_at: null })
+        .success
+    ).toBe(false);
   });
 
   it('should fail on invalid email format in baseValidator', () => {
@@ -848,12 +879,54 @@ describe('NOT NULL columns reject null across every mapped type', () => {
       constraints: { primaryKey: ['c'] },
     }).baseValidator;
 
+  // The matrix originally probed baseValidator alone, which is why the write
+  // validators kept accepting null for NOT NULL columns unnoticed: insert
+  // wrapped a defaulted notNull column as .nullable().optional(), and update
+  // wrapped every column that way. Both write paths are now probed too.
+  const validatorsFor = (type: string, notNull: boolean, defaulted = false) =>
+    generateZodFromTableSchema({
+      table: 'null_probe',
+      dbSchema: 'public',
+      columns: [
+        {
+          name: 'c',
+          type,
+          notNull,
+          ...(defaulted ? { default: 'x' } : {}),
+        },
+      ],
+      constraints: { primaryKey: ['c'] },
+    });
+
   it.each(MAPPED_TYPES)('%s rejects null when notNull', type => {
     expect(baseFor(type, true).safeParse({ c: null }).success).toBe(false);
   });
 
   it.each(MAPPED_TYPES)('%s accepts null when nullable', type => {
     expect(baseFor(type, false).safeParse({ c: null }).success).toBe(true);
+  });
+
+  it.each(MAPPED_TYPES)(
+    '%s rejects null on insert when notNull and defaulted',
+    type => {
+      // The column is optional here — omit it and the default applies — but an
+      // explicit null is still a NOT NULL violation.
+      const { insertValidator } = validatorsFor(type, true, true);
+      expect(insertValidator.safeParse({}).success).toBe(true);
+      expect(insertValidator.safeParse({ c: null }).success).toBe(false);
+    }
+  );
+
+  it.each(MAPPED_TYPES)('%s rejects null on update when notNull', type => {
+    const { updateValidator } = validatorsFor(type, true);
+    expect(updateValidator.safeParse({}).success).toBe(true);
+    expect(updateValidator.safeParse({ c: null }).success).toBe(false);
+  });
+
+  it.each(MAPPED_TYPES)('%s accepts null on update when nullable', type => {
+    expect(
+      validatorsFor(type, false).updateValidator.safeParse({ c: null }).success
+    ).toBe(true);
   });
 
   it('still coerces the date forms pg and callers supply', () => {

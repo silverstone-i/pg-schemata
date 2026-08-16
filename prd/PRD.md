@@ -535,14 +535,18 @@ update(id: number | string, dto: Object) → Promise<Object | null>
 
 **Behavior:**
 
-1. Rejects if `id` is invalid or `dto` is empty/not-object
+1. Rejects if `id` is invalid, or if `dto` is not a plain object. An empty `dto` is accepted only when `hasAuditFields` — the audit columns alone make a valid update (this is the `touch()` path); without them there is nothing to write and it is rejected
 2. Validates via `updateValidator.parse(dto)`
 3. Sanitizes via `sanitizeDto(dto, { includeImmutable: false })` — immutable columns are stripped
-4. If `hasAuditFields` and `updated_by` not present: sets `updated_by = _resolveAuditActor()`
-5. Adds soft delete check: `AND deactivated_at IS NULL` if `softDelete`
-6. Builds query: `pgp.helpers.update(safeDto, this.cs.update, { schema, table }) + ' WHERE id = $1' + softCheck + ' RETURNING *'`
-7. Executes via `db.result()` with custom result handler
-8. Returns the updated row if `rowCount > 0`, otherwise `null`
+4. If `hasAuditFields` and `updated_by` not present: sets `updated_by = _resolveAuditActor()`, but only when the resolver returns non-null. Assigning an unresolved `null` would put the column in the SET list and erase the last known actor
+5. If `hasAuditFields`: deletes any caller-supplied `updated_at` from the DTO. The column is library-owned — it is emitted with `mod: '^'`, so a caller value is inlined as raw SQL
+6. Adds soft delete check: `AND deactivated_at IS NULL` if `softDelete`
+7. Builds a per-call `ColumnSet` from `columnSetColumnsFor(schema, Object.keys(safeDto))`, appending `{ name: 'updated_at', mod: '^', def: 'CURRENT_TIMESTAMP' }` when `hasAuditFields`. Only the DTO's own columns appear in the SET list, so omitted columns are left untouched
+8. Builds query: `pgp.helpers.update(safeDto, updateCs, { schema, table }) + ' WHERE id = $1' + softCheck + ' RETURNING *'`
+9. Executes via `db.result()` with custom result handler
+10. Returns the updated row if `rowCount > 0`, otherwise `null`
+
+> **Note:** the WHERE clause targets the columns `constraints.primaryKey` declares, resolved via `_primaryKeyClause()`. See [Primary key requirements](#primary-key-requirements).
 
 ---
 
@@ -642,7 +646,7 @@ updateWhere(
 2. Validates `updates` via `updateValidator`
 3. Sanitizes `updates` with `{ includeImmutable: false }`
 4. Sets `updated_by` via actor resolution if audit fields enabled
-5. Builds a dynamic `ColumnSet` from `Object.keys(safeUpdates)` (not `this.cs.update`)
+5. Builds a per-call `ColumnSet` from `columnSetColumnsFor(schema, Object.keys(safeUpdates))`, as every write path does
 6. Executes: `pgp.helpers.update(safeUpdates, dynamicCs) + ' WHERE ' + clause`
 7. Returns `rowCount`
 
@@ -928,15 +932,17 @@ While `schemaBuilder.js` is internal, its behavior defines the SQL contracts tha
    - Sets `def` from column `default` or `colProps.def`
 6. Creates three `ColumnSet` variants:
 
-| Variant         | Content                                                                          | Purpose           |
-| --------------- | -------------------------------------------------------------------------------- | ----------------- |
-| `cs[tableName]` | Base columns (no audit fields)                                                   | General use       |
-| `cs.insert`     | Base + `created_by`                                                              | INSERT operations |
-| `cs.update`     | Base + `updated_at` (with `mod: '^'`, `def: 'CURRENT_TIMESTAMP'`) + `updated_by` | UPDATE operations |
+| Variant         | Content                                                                          | Consumed by                                      |
+| --------------- | -------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `cs[tableName]` | Base columns (no audit fields)                                                   | `QueryModel._columns()`                          |
+| `cs.insert`     | Base + `created_by`                                                              | `insert()`                                       |
+| `cs.update`     | Base + `updated_at` (with `mod: '^'`, `def: 'CURRENT_TIMESTAMP'`) + `updated_by` | Nothing — retained for compatibility (see below) |
 
 The `mod: '^'` on `updated_at` means the value is injected as raw SQL (not parameterized), so `CURRENT_TIMESTAMP` is used literally.
 
 When `hasAuditFields` is false, `cs.insert` and `cs.update` both equal `cs[tableName]`.
+
+`cs.update` has no internal consumer. It covers every column in the table and gives each one a `def`, so passing it to `pgp.helpers.update()` made pg-promise substitute a value for whatever the DTO omitted — a partial update overwrote the rest of the row. Every write path now builds its SET list per call from the DTO's own keys via `columnSetColumnsFor`. The variant is still constructed because `cs` is a public instance property on `QueryModel` and consumers may read it.
 
 ---
 
@@ -1123,15 +1129,38 @@ A table schema is a plain JavaScript object. The canonical structure is defined 
 
 **Constraints:** `primaryKey` (string[]), `unique` (string[] | UniqueConstraintDefinition)[], `foreignKeys` (ConstraintDefinition[]), `checks` (CheckConstraintDefinition | string)[], `indexes` (IndexDefinition[])
 
+<a id="primary-key-requirements"></a>
+
+**Primary key requirements:** `constraints.primaryKey` drives DDL generation **and** row targeting. `findById`, `findByIdIncludingDeactivated`, `reload`, `isSoftDeleted`, `update`, `delete` and `bulkUpdate` all resolve their predicate from the declared columns.
+
+The accepted key forms:
+
+| `primaryKey`               | Accepted argument                  | Emitted predicate                     |
+| -------------------------- | ---------------------------------- | ------------------------------------- |
+| `['id']`                   | `'abc'` or `{ id: 'abc' }`         | `"id" = 'abc'`                        |
+| `['code']`                 | `'SAVE10'` or `{ code: 'SAVE10' }` | `"code" = 'SAVE10'`                   |
+| `['tenant_id', 'user_id']` | `{ tenant_id, user_id }`           | `"tenant_id" = $1 AND "user_id" = $2` |
+
+- A scalar resolves against `primaryKey[0]`, so single-column keys need no call-site change whatever the column is named.
+- A scalar passed to a composite-key model throws `SchemaDefinitionError` naming the columns to supply.
+- An object must carry exactly the declared columns — missing and unexpected keys are both named in the error.
+- `bulkUpdate` reads the key columns off each record, requires all of them, and excludes them from the `SET` list.
+- `constraints.primaryKey` must be an array. A bare string throws at model construction; it was previously ignored, since nothing iterated it.
+
+Two helpers on `QueryModel` back this: `_primaryKeyCondition()` returns a condition object for the parameterized paths, and `_primaryKeyClause()` returns an inlined fragment for `update`/`bulkUpdate`, whose statements are assembled as literal strings by `pgp.helpers.update()` and executed with no parameter array.
+
 **Invariants:**
 
 - TableModel requires `constraints.primaryKey` to be defined; constructor throws `SchemaDefinitionError` if missing
+- `generated` accepts only `'always'`, requires `expression`, and requires `stored: true`. PostgreSQL has no other valid spelling for a generated expression — `BY DEFAULT` belongs to identity columns, and virtual (non-stored) generated columns arrived in PostgreSQL 18, past the supported floor of 13. `createTableSQL` throws `SchemaDefinitionError` on either violation rather than emitting a statement the server rejects
 - `notNull: true` is the canonical way to express NOT NULL. `nullable` was removed in 2.0.0 and now throws `SchemaDefinitionError` at model construction
 - `indexes` must live under `constraints`. A top-level `indexes` property throws `SchemaDefinitionError` at model construction (3.0.0); an empty `indexes: []` throws too
 - String defaults must be single-quoted within the string: `default: "'user'"`
 - Function defaults must not include schema prefix: `default: 'gen_random_uuid()'`
 - The property is `dbSchema`, never `schema`
 - Naming convention: snake_case for all table names, column names, and schema names
+- **Identifiers are validated, not escaped.** Every schema, table, column, constraint and index name must match `/^[A-Za-z_][A-Za-z0-9_$]*$/` and fit within PostgreSQL's 63-byte limit, checked at model construction, in `forSchema()`, and in `createTableSQL`/`createIndexesSQL`. Query paths route identifiers through `pgp.as.name()`, but DDL generation builds statements as strings with no pg-promise instance available, so validation at the boundary is what keeps a new interpolation site from silently missing an escape. It also rejects the truncation hazard, where two schema names differing only past byte 63 collapse onto one. Raw-SQL fields — `expression`, `where`, `checks[].expression`, `using`, column `type` and `default` — are deliberately not validated; they are documented as emitted verbatim
+- **`joinType` is validated at runtime**, not only by the `JoinType` union, which erases at compile time. `buildCondition` throws `SchemaDefinitionError` for anything other than `'AND'` or `'OR'`, since the value lands between predicates as raw SQL and every public query method forwards it straight from its caller
 
 ### 6.2 Soft Delete
 
@@ -1183,6 +1212,9 @@ A table schema is a plain JavaScript object. The canonical structure is defined 
 **Invariants:**
 
 - `created_at`, `created_by`, `updated_at`, `updated_by` are reserved names when audit fields are enabled
+- `updated_at` is library-owned on the update paths: `update()` deletes any value the DTO supplies and always writes `CURRENT_TIMESTAMP`. `updated_by` is not — a value in the DTO is honored, and the resolver only fills it in when the DTO leaves it out
+- Timestamps do not depend on actor resolution. `update()`, `removeWhere` and `restoreWhere` advance `updated_at` whenever audit fields are enabled; `updated_by` is written only when the resolver returns a non-null actor, so an unconfigured resolver leaves the previously recorded actor intact rather than nulling it
+- `touch()` requires audit fields and rejects with `SchemaDefinitionError` without them. With them, it works whether or not an actor resolves — the timestamp still moves
 - The resolver must be synchronous — async functions are not supported
 - Only one resolver can be active (module-level singleton)
 - `clearAuditActorResolver()` resets to null (for test cleanup)
@@ -1398,6 +1430,7 @@ See `prd/adr/` for historical decision context — why alternatives were conside
 - ADR-0012: Cursor-based pagination
 - ADR-0013: SHA-256 migration integrity
 - ADR-0014: Zod 4 as a peer dependency, and validating only what Postgres validates
+- ADR-0015: Primary-key-driven row targeting, replacing the hardcoded `id`
 
 ---
 

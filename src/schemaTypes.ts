@@ -90,11 +90,20 @@ export interface ColumnDefinition {
    * {@link ColProps.validator} for those.
    */
   type: string;
-  /** Marks the column as a generated column. */
-  generated?: 'always' | 'by default';
-  /** SQL expression used for the generated column. */
+  /**
+   * Marks the column as a generated column. `'always'` is the only value
+   * PostgreSQL accepts for a generated expression — `BY DEFAULT` applies to
+   * identity columns, not this. Requires {@link ColumnDefinition.expression}
+   * and `stored: true`.
+   */
+  generated?: 'always';
+  /** SQL expression used for the generated column. Required when `generated` is set. */
   expression?: string;
-  /** Whether the generated column should be stored. */
+  /**
+   * Must be `true` when `generated` is set. PostgreSQL supports only STORED
+   * generated columns through version 17, and omitting STORED is a syntax
+   * error rather than a different storage mode.
+   */
   stored?: boolean;
   /** Whether the column is NOT NULL. Defaults to false. */
   notNull?: boolean;

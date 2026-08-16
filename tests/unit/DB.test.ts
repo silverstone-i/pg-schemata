@@ -94,6 +94,10 @@ describe('DB', () => {
   it('should throw error if repositories is not an object', () => {
     const connection = {};
     expect(() => {
+      // @ts-expect-error deliberately passes a string as the repositories map.
+      // This used to compile: with Repositories un-augmented the old mapped
+      // arm was `{}`, which accepts any non-nullish value. The runtime guard
+      // is still what callers rely on, so the case stays covered.
       DB.init(connection, 'notAnObject');
     }).toThrow(Error);
   });
@@ -101,6 +105,7 @@ describe('DB', () => {
   it('should throw error if repositories is an array', () => {
     const connection = {};
     expect(() => {
+      // @ts-expect-error deliberately passes an array as the repositories map
       DB.init(connection, []);
     }).toThrow(Error);
   });

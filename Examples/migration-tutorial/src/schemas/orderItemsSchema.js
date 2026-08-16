@@ -15,7 +15,7 @@ export const orderItemsSchema = {
     foreignKeys: [
       {
         columns: ['order_id'],
-        references: { dbSchema: 'public', table: 'orders', columns: ['id'] },
+        references: { table: 'orders', columns: ['id'] },
         onDelete: 'CASCADE',
       },
     ],

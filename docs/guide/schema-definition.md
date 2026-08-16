@@ -20,16 +20,39 @@ Every model requires a schema object with these properties:
 
 Each column is defined as an object in the `columns` array:
 
-| Property     | Type                       | Required | Description                                                                                     |
-| ------------ | -------------------------- | -------- | ----------------------------------------------------------------------------------------------- |
-| `name`       | `string`                   | Yes      | Column name                                                                                     |
-| `type`       | `string`                   | Yes      | PostgreSQL data type (`'uuid'`, `'varchar(255)'`, `'integer'`, `'jsonb'`, etc.)                 |
-| `notNull`    | `boolean`                  | No       | Whether the column rejects null values. Defaults to `false`                                     |
-| `default`    | `any`                      | No       | Default value — a SQL expression as a string (e.g. `'gen_random_uuid()'`, `'true'`, `"'user'"`) |
-| `immutable`  | `boolean`                  | No       | If `true`, excluded from update operations                                                      |
-| `generated`  | `'always' \| 'by default'` | No       | Marks the column as a generated column                                                          |
-| `expression` | `string`                   | No       | SQL expression for generated columns                                                            |
-| `colProps`   | `object`                   | No       | pg-promise column behavior modifiers                                                            |
+| Property     | Type       | Required | Description                                                                                     |
+| ------------ | ---------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `name`       | `string`   | Yes      | Column name                                                                                     |
+| `type`       | `string`   | Yes      | PostgreSQL data type (`'uuid'`, `'varchar(255)'`, `'integer'`, `'jsonb'`, etc.)                 |
+| `notNull`    | `boolean`  | No       | Whether the column rejects null values. Defaults to `false`                                     |
+| `default`    | `any`      | No       | Default value — a SQL expression as a string (e.g. `'gen_random_uuid()'`, `'true'`, `"'user'"`) |
+| `immutable`  | `boolean`  | No       | If `true`, excluded from update operations                                                      |
+| `generated`  | `'always'` | No       | Marks the column as a generated column. Requires `expression` and `stored: true`                |
+| `expression` | `string`   | No       | SQL expression for generated columns                                                            |
+| `stored`     | `boolean`  | No       | Must be `true` when `generated` is set                                                          |
+| `colProps`   | `object`   | No       | pg-promise column behavior modifiers                                                            |
+
+### Generated columns
+
+PostgreSQL has exactly one valid form for a generated expression:
+
+```js
+{
+  name: 'schema_name',
+  type: 'varchar(63)',
+  generated: 'always',
+  expression: 'lower(tenant_code)',
+  stored: true,
+}
+// "schema_name" varchar(63) GENERATED ALWAYS AS (lower(tenant_code)) STORED
+```
+
+`generated` takes only `'always'` — `BY DEFAULT` applies to identity columns,
+not generated expressions. `stored: true` is required: virtual generated
+columns arrived in PostgreSQL 18, and the supported floor is 13.
+
+Omitting either throws `SchemaDefinitionError` at table creation, rather than
+producing DDL the server rejects.
 
 ### colProps
 
@@ -96,15 +119,56 @@ constraints: {
 
 | Property      | Type                                         | Description                                                           |
 | ------------- | -------------------------------------------- | --------------------------------------------------------------------- |
-| `primaryKey`  | `string[]`                                   | Column names for the primary key                                      |
+| `primaryKey`  | `string[]`                                   | Column names for the primary key. See the note below                  |
 | `unique`      | `(string[] \| UniqueConstraintDefinition)[]` | Unique constraints — simple arrays or objects with `nullsNotDistinct` |
 | `foreignKeys` | `ConstraintDefinition[]`                     | Foreign key references with optional `onDelete` behavior              |
 | `checks`      | `ConstraintDefinition[]`                     | SQL check expressions                                                 |
 
+| `indexes` | `IndexDefinition[]` | Index definitions for query optimization |
+
 ::: info
 Check expressions and index predicates are deliberately raw SQL — they are emitted into the DDL as written. Column `default` strings, by contrast, are quoted and escaped when they are not a function call, number, or already-quoted literal.
 :::
-| `indexes` | `IndexDefinition[]` | Index definitions for query optimization |
+
+### Primary keys drive row targeting
+
+`constraints.primaryKey` generates the `PRIMARY KEY` constraint **and** tells
+`findById`, `update`, `delete`, `bulkUpdate`, `reload` and the soft-delete
+helpers which columns identify a row. The column does not have to be called
+`id`:
+
+```js
+// Keyed on `code`
+constraints: {
+  primaryKey: ['code'];
+}
+
+await coupons.findById('SAVE10'); // WHERE "code" = 'SAVE10'
+```
+
+Composite keys are supported. Pass an object carrying every key column:
+
+```js
+constraints: {
+  primaryKey: ['tenant_id', 'user_id'];
+}
+
+await memberships.findById({ tenant_id, user_id });
+// WHERE "tenant_id" = $1 AND "user_id" = $2
+```
+
+A scalar is only accepted for single-column keys; passing one to a
+composite-key model throws `SchemaDefinitionError` naming the columns to supply.
+`bulkUpdate` reads the key columns off each record and keeps them out of the
+`SET` list.
+
+::: warning Changed in 3.0.0
+Before 3.0.0 every by-id method emitted `WHERE id = $1` against a column
+literally named `id`, whatever `primaryKey` declared. A table keyed on anything
+else got a correct constraint and silently wrong targeting, and a composite key
+matched on `id` alone. `constraints.primaryKey` must now be an array of column
+names — a bare string throws, where it was previously ignored.
+:::
 
 ::: warning Removed — these throw at model construction
 Declaring `indexes` at the top level of the schema (outside `constraints`) and

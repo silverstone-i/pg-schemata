@@ -43,11 +43,31 @@ const schema = {
 When audit fields are enabled:
 
 - **On insert**: `created_by` is set from the audit actor resolver (or the schema default)
-- **On update**: `updated_by` is set from the audit actor resolver
+- **On update**: `updated_at` and `updated_by` are both set
 - **On soft delete** (`removeWhere`): `updated_by` and `updated_at` are updated
 - **On restore** (`restoreWhere`): `updated_by` and `updated_at` are updated
 
-You don't need to pass these values in your DTOs — they are populated automatically.
+### Timestamps do not depend on the resolver
+
+`updated_at` records _when_ a row changed and is written on every update path
+whether or not an actor resolves. `updated_by` records _who_, so it is written
+only when the resolver returns one — with no resolver configured, the column
+keeps whatever actor was last recorded rather than being overwritten with null.
+
+That means `touch()` works without a resolver: the timestamp still advances.
+
+### What you can and cannot pass
+
+You don't need to pass any of these in your DTOs. Two behave differently if you
+do:
+
+| Column       | Value in your DTO                                                                 |
+| ------------ | --------------------------------------------------------------------------------- |
+| `updated_at` | **Discarded.** The library owns this column and always writes `CURRENT_TIMESTAMP` |
+| `updated_by` | **Honored.** An explicit value wins over the resolver                             |
+
+To preserve original timestamps during a data import, write those rows with
+`updateWhere()` or raw SQL rather than `update()`.
 
 ## Audit actor resolver
 

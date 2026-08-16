@@ -15,6 +15,7 @@ import crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
 import { logMessage } from './pg-util.js';
 import { normalizeSqlType, isSerialType } from './sqlTypes.js';
+import { assertSchemaIdentifiers } from './identifiers.js';
 import type { IMain } from 'pg-promise';
 import type {
   ColPropsContext,
@@ -64,12 +65,15 @@ interface ColumnSetColumn {
 /**
  * Builds ColumnSet descriptors for an explicit list of column names.
  *
- * The write paths that cannot use the cached ColumnSet — upsert, bulkUpsert,
- * bulkInsert, updateWhere, bulkUpdate — build one from the keys of the DTO
- * actually being written, since the column list varies per call. Passing bare
- * name strings there discarded every `colProps` entry: `cast` (so a `uuid[]`
- * column reached Postgres as a `text[]` literal and the insert failed), `mod`
- * (`:json`), `skip`, `cnd`, and `init`. Only `insert()` behaved as documented.
+ * Every write path except insert() — update, upsert, bulkUpsert, bulkInsert,
+ * updateWhere, bulkUpdate — builds its ColumnSet from the keys of the DTO
+ * actually being written, since the column list varies per call. insert() is
+ * the one that can use the cached ColumnSet, because an insert supplies a full
+ * row and the omitted columns genuinely should take their defaults.
+ *
+ * Passing bare name strings here discarded every `colProps` entry: `cast` (so a
+ * `uuid[]` column reached Postgres as a `text[]` literal and the insert
+ * failed), `mod` (`:json`), `skip`, `cnd`, and `init`.
  *
  * A name with no `colProps` stays a plain string — pg-promise treats the two
  * forms identically, and the string keeps the common case readable.
@@ -154,16 +158,36 @@ function createTableSQL(
   schema: TableSchema,
   logger: Logger | null = null
 ): string {
+  // Every identifier below is interpolated into a SQL string rather than passed
+  // through pgp.as.name(), because DDL generation has no pg-promise instance.
+  // Validating the whole schema up front means a new interpolation site cannot
+  // silently miss the check.
+  assertSchemaIdentifiers(schema);
+
   // Extract schema components: schema name, table name, columns, and constraints
   const { table, columns, constraints = {} } = schema;
   const schemaName = resolveDbSchema(schema);
 
   // Build column definitions with types, NOT NULL, and DEFAULT clauses
   const columnDefs = columns.map(col => {
-    // Support for generated columns
+    // Support for generated columns. PostgreSQL spells this exactly one way:
+    // GENERATED ALWAYS AS (expr) STORED. `BY DEFAULT` belongs to identity
+    // columns, not generated expressions, and STORED is mandatory through
+    // PostgreSQL 17 — virtual generated columns arrived in 18. Emitting either
+    // variant produced a syntax error at bootstrap, so both are rejected here
+    // with the reason rather than passed through to the server.
     if (col.generated && col.expression) {
-      const def = `"${col.name}" ${col.type} GENERATED ${col.generated.toUpperCase()} AS (${col.expression})${col.stored ? ' STORED' : ''}`;
-      return def;
+      if (col.stored !== true) {
+        throw new SchemaDefinitionError(
+          `Generated column "${col.name}" requires stored: true — PostgreSQL only supports STORED generated columns`
+        );
+      }
+      return `"${col.name}" ${col.type} GENERATED ALWAYS AS (${col.expression}) STORED`;
+    }
+    if (col.generated && !col.expression) {
+      throw new SchemaDefinitionError(
+        `Generated column "${col.name}" requires an expression`
+      );
     }
     let def = `"${col.name}" ${col.type}`;
     if (col.notNull) def += ' NOT NULL';
@@ -295,25 +319,19 @@ function createTableSQL(
 
   let finalSQL = sql;
 
-  // Automatically include index creation if indexes are defined in the schema
+  // Index generation errors propagate. This was previously caught and logged at
+  // debug level so table creation could continue, which meant one malformed
+  // entry dropped *every* index on the table — unique and partial-unique
+  // included — while the CREATE TABLE succeeded and bootstrap() reported
+  // success. The loss surfaced later as duplicate rows, with nothing in the
+  // logs above debug to connect them to the schema.
+  //
+  // QueryModel's constructor rejects malformed entries before reaching here,
+  // but createTableSQL is exported and callable directly, which was the
+  // remaining silent path.
   const indexDefinitions = resolveIndexes(schema);
   if (indexDefinitions) {
-    try {
-      const indexSQL = createIndexesSQL(schema, false, logger);
-      finalSQL += '\n' + indexSQL;
-    } catch (error) {
-      // If createIndexesSQL throws an error, log it but don't fail the table creation
-      logMessage({
-        logger,
-        level: 'debug',
-        schema: schemaName,
-        table,
-        message: 'Error generating index SQL',
-        data: {
-          error: error instanceof Error ? error.message : String(error),
-        },
-      });
-    }
+    finalSQL += '\n' + createIndexesSQL(schema, false, logger);
   }
 
   logMessage({
@@ -472,6 +490,10 @@ function createIndexesSQL(
   unique = false,
   logger: Logger | null = null
 ): string {
+  // Exported and callable directly, so it validates independently of
+  // createTableSQL rather than relying on having been called through it.
+  assertSchemaIdentifiers(schema);
+
   const indexes = resolveIndexes(schema);
   // Ensure that index definitions are present in the schema
   if (!indexes) {
@@ -596,6 +618,129 @@ function normalizeSQL(sql: string): string {
 }
 
 /**
+ * Reference identities for values that cannot be hashed structurally.
+ *
+ * `colProps.skip` and `colProps.init` are functions, and `colProps.validator` is
+ * a Zod object whose internals are not meaningfully serializable. Each gets a
+ * stable id on first sight, so the cache key distinguishes two schemas that
+ * differ only in one of these — at the cost of treating two structurally
+ * identical but separately-declared functions as different. That trade is
+ * deliberate: the hot path is one schema object reused across many `forSchema()`
+ * calls, which keeps reference identity and still hits the cache.
+ *
+ * A WeakMap so an abandoned schema's functions stay collectable.
+ */
+const referenceIds = new WeakMap<object, number>();
+let nextReferenceId = 1;
+
+/** Per-pgp-instance ids, mirroring `_cloneCacheId` in QueryModel.forSchema(). */
+const pgpIds = new WeakMap<object, number>();
+let nextPgpId = 1;
+
+function identityOf(value: object, store: WeakMap<object, number>): number {
+  let id = store.get(value);
+  if (id === undefined) {
+    id = store === referenceIds ? nextReferenceId++ : nextPgpId++;
+    store.set(value, id);
+  }
+  return id;
+}
+
+/**
+ * @private
+ *
+ * Serializes `colProps.def` for the fingerprint without assuming it is JSON.
+ *
+ * `def` is typed `unknown` and handed to pg-promise as a substitution value, so
+ * it may legitimately be a `bigint` — and `JSON.stringify(1n)` throws a
+ * `TypeError`, which would surface as a failure to construct the model rather
+ * than anything about the schema. Circular objects throw the same way. Every
+ * branch is tagged with its type so `1` and `'1'` cannot fingerprint alike.
+ *
+ * @param value - The declared `def` value.
+ * @returns A stable string for an unchanged value.
+ */
+function serializeDef(value: unknown): string {
+  if (value === null) return 'null';
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint' ||
+    typeof value === 'undefined'
+  ) {
+    return `${typeof value}:${String(value)}`;
+  }
+  if (typeof value === 'function') {
+    return `function:${identityOf(value, referenceIds)}`;
+  }
+  // Not a usable substitution value in the first place, so the description is
+  // enough: two identically-described symbols fingerprinting alike cannot arise
+  // from a schema that would have worked.
+  if (typeof value === 'symbol') {
+    return `symbol:${value.description ?? ''}`;
+  }
+  try {
+    return `json:${JSON.stringify(value)}`;
+  } catch {
+    return `ref:${identityOf(value, referenceIds)}`;
+  }
+}
+
+/**
+ * @private
+ *
+ * Fingerprints everything a ColumnSet is derived from.
+ *
+ * The cache key was `${table}::${dbSchema}` alone, which carries no information
+ * about the schema definition — so two different definitions of one qualified
+ * table name shared an entry and the first one constructed won for the lifetime
+ * of that entry. A second model asking for column `b` received a ColumnSet
+ * built for column `a`.
+ *
+ * Covers exactly the inputs createColumnSet reads: the column list and every
+ * `colProps` field, the audit configuration (which decides the insert/update
+ * variants), and the primary key (which decides which columns are skipped as
+ * auto-generated).
+ *
+ * @param schema - Table schema to fingerprint.
+ * @returns A hex digest stable across calls for an unchanged schema.
+ */
+function schemaFingerprint(schema: TableSchema): string {
+  const parts = schema.columns.map(col => {
+    const p = col.colProps;
+    return [
+      col.name,
+      col.type,
+      Object.prototype.hasOwnProperty.call(col, 'default') ? '1' : '0',
+      col.immutable ? '1' : '0',
+      p?.mod ?? '',
+      p?.cast ?? '',
+      p?.cnd ? '1' : '0',
+      // `def` is a plain substitution value of unknown type — see
+      // serializeDef. The three below cannot be serialized at all and fall
+      // back to reference identity.
+      p && Object.prototype.hasOwnProperty.call(p, 'def')
+        ? serializeDef(p.def)
+        : '',
+      p?.skip ? `s${identityOf(p.skip, referenceIds)}` : '',
+      p?.init ? `i${identityOf(p.init, referenceIds)}` : '',
+      p?.validator ? `v${identityOf(p.validator, referenceIds)}` : '',
+    ].join('\u0001');
+  });
+
+  parts.push(JSON.stringify(schema.hasAuditFields ?? false));
+  parts.push((schema.constraints?.primaryKey ?? []).join(','));
+
+  // crypto.createHash, not the local createHash() above — that one is a 6-char
+  // md5 slice for generated constraint names, where a collision is cosmetic.
+  // A cache key wants the full digest. The \u0001 / \u0002 separators keep field
+  // and part boundaries unambiguous, so 'ab' + 'c' cannot collide with
+  // 'a' + 'bc'; neither byte can occur in a validated identifier.
+  return crypto.createHash('sha256').update(parts.join('\u0002')).digest('hex');
+}
+
+/**
  * @private
  *
  * Validates column definitions to ensure colProps.skip is a function if provided.
@@ -632,13 +777,19 @@ function createColumnSet(
   pgp: IMain,
   logger: Logger | null = null
 ): TableColumnSets {
-  // Check if the schema is already cached
-  const cacheKey = `${schema.table}::${schema.dbSchema}`;
+  // The key was `${table}::${dbSchema}` alone, which says nothing about the
+  // definition behind those names — so two schemas describing one qualified
+  // table shared an entry and the first constructed won until the TTL expired.
+  // A model declaring column `b` received a ColumnSet built for column `a`.
+  //
+  // ColumnSet instances are also bound to the pg-promise instance that built
+  // them, so the key carries a per-pgp id too.
+  validateColumnProps(schema.columns);
+  const cacheKey = `${identityOf(pgp, pgpIds)}::${schema.table}::${schema.dbSchema}::${schemaFingerprint(schema)}`;
   const cached = columnSetCache.get(cacheKey);
   if (cached) {
     return cached;
   }
-  validateColumnProps(schema.columns);
 
   // Define standard audit field names to exclude from base ColumnSet
   const auditFields = ['created_at', 'created_by', 'updated_at', 'updated_by'];
