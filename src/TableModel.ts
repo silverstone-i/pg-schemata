@@ -244,8 +244,23 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
 
   /**
    * Updates a record by ID with new data.
+   *
+   * Only the columns the DTO actually carries are written. Every column it
+   * omits is left untouched — the SET list is built per call from the DTO's own
+   * keys, not from the table's full column list.
+   *
+   * When audit fields are enabled, `updated_at` is owned by the library: it is
+   * always set to `CURRENT_TIMESTAMP`, and any value the DTO supplies for it is
+   * discarded. `updated_by` is not — a value in the DTO is honored, and the
+   * audit actor resolver only fills it in when the DTO leaves it out.
+   *
+   * An empty DTO is accepted when audit fields are enabled, since the audit
+   * columns alone make a valid update (this is the path `touch()` uses when no
+   * actor resolves). Without audit fields there is nothing to write, so it is
+   * rejected.
+   *
    * @param id - Primary key value.
-   * @param dto - Updated values.
+   * @param dto - Columns to write. Omitted columns are not modified.
    * @param options.tx - pg-promise task/transaction to run on.
    * @returns Updated record or null if not found.
    * @throws {SchemaDefinitionError} If ID or DTO is invalid.
@@ -258,11 +273,12 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     if (!isValidId(id)) {
       return Promise.reject(new SchemaDefinitionError('Invalid ID format'));
     }
-    if (
-      typeof dto !== 'object' ||
-      Array.isArray(dto) ||
-      Object.keys(dto).length === 0
-    ) {
+    if (dto === null || typeof dto !== 'object' || Array.isArray(dto)) {
+      return Promise.reject(
+        new SchemaDefinitionError('DTO must be a non-empty object')
+      );
+    }
+    if (Object.keys(dto).length === 0 && !this._auditEnabled()) {
       return Promise.reject(
         new SchemaDefinitionError('DTO must be a non-empty object')
       );
@@ -290,7 +306,13 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       this._auditEnabled() &&
       !Object.prototype.hasOwnProperty.call(safeDto, 'updated_by')
     ) {
-      safeDto.updated_by = this._resolveAuditActor();
+      // Only when an actor actually resolves. Assigning the unresolved null
+      // put updated_by in the SET list and overwrote whoever last touched the
+      // row with null, destroying the audit trail the column exists to keep.
+      const actor = this._resolveAuditActor();
+      if (actor != null) {
+        safeDto.updated_by = actor;
+      }
     }
     // Build the SET list from the DTO's own keys, exactly as upsert(),
     // bulkUpsert(), updateWhere(), bulkInsert() and bulkUpdate() do.
@@ -312,7 +334,11 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     }
     const setColumns = columnSetColumnsFor(this._schema, Object.keys(safeDto));
     if (this._auditEnabled()) {
-      setColumns.push({ name: 'updated_at', mod: '^', def: 'CURRENT_TIMESTAMP' });
+      setColumns.push({
+        name: 'updated_at',
+        mod: '^',
+        def: 'CURRENT_TIMESTAMP',
+      });
     }
     const updateCs = new this.pgp.helpers.ColumnSet(setColumns, {
       table: { table: this._schema.table, schema: this._schema.dbSchema },
@@ -602,17 +628,33 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
   }
 
   /**
-   * Updates only the updated_by timestamp for a given row.
+   * Advances `updated_at` on a row, and `updated_by` when an actor is known.
+   *
+   * Requires audit fields: with them disabled there is no column to write and
+   * the call is rejected. When no actor is supplied and none resolves, the
+   * timestamp still moves — `update()` owns `updated_at` and writes it for an
+   * empty DTO.
+   *
    * @param id - Primary key.
-   * @param updatedBy - User performing the update.
-   * @returns Updated row.
+   * @param updatedBy - Actor identifier. Falls back to the audit actor resolver.
+   * @param options.tx - pg-promise task/transaction to run on.
+   * @returns Updated row, or null if no active row has that id.
+   * @throws {SchemaDefinitionError} If audit fields are not enabled.
    */
   async touch(
     id: number | string,
     updatedBy: string | null = null,
     { tx }: TxOption = {}
   ): Promise<TRow | null> {
-    // Route through update(), which already applies soft delete check
+    if (!this._auditEnabled()) {
+      return Promise.reject(
+        new SchemaDefinitionError(
+          'touch() requires audit fields; enable hasAuditFields on this schema'
+        )
+      );
+    }
+    // Route through update(), which already applies the soft delete check and
+    // appends updated_at itself.
     const effectiveUpdatedBy = updatedBy ?? this._resolveAuditActor();
     return this.update(
       id,
@@ -1069,12 +1111,17 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     }
     const { clause, values } = this.buildWhereClause(where);
 
+    // updated_at tracks when the row changed and does not depend on knowing who
+    // changed it; only updated_by does. Gating both on actor resolution left an
+    // unconfigured resolver silently freezing the timestamp on every soft
+    // delete, contradicting the audit-fields guide.
     let setClause = 'deactivated_at = NOW()';
     if (this._auditEnabled()) {
+      setClause += ', updated_at = NOW()';
       const actor = this._resolveAuditActor();
       if (actor != null) {
         values.push(actor);
-        setClause += `, updated_by = $${values.length}, updated_at = NOW()`;
+        setClause += `, updated_by = $${values.length}`;
       }
     }
 
@@ -1104,12 +1151,14 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       true
     );
 
+    // Same split as removeWhere: the timestamp is unconditional, the actor is not.
     let setClause = 'deactivated_at = NULL';
     if (this._auditEnabled()) {
+      setClause += ', updated_at = NOW()';
       const actor = this._resolveAuditActor();
       if (actor != null) {
         values.push(actor);
-        setClause += `, updated_by = $${values.length}, updated_at = NOW()`;
+        setClause += `, updated_by = $${values.length}`;
       }
     }
 
