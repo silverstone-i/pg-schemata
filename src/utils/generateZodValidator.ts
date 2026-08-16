@@ -231,8 +231,18 @@ function mapNormalizedType(
         `Multi-dimensional array type "${original}" (column "${columnName}") is not supported: PostgreSQL does not enforce declared array dimensions, so a nested validator would reject rows the database accepts. Declare it with a single "[]" or provide colProps.validator.`
       );
     }
+    // Elements are nullable unconditionally. PostgreSQL arrays may contain
+    // NULL, and there is no way to forbid it in the type — `text[] NOT NULL`
+    // constrains the array, not its contents. pg returns those elements as
+    // JavaScript null, so a non-nullable element validator would reject rows
+    // the database returned.
     return z.array(
-      mapNormalizedType(arrayMatch[1].trim(), original, columnName, false)
+      mapNormalizedType(
+        arrayMatch[1].trim(),
+        original,
+        columnName,
+        false
+      ).nullable()
     );
   }
 

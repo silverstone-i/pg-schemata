@@ -89,6 +89,29 @@ describe('consumer schema coverage (integration)', () => {
       expect(row.related_ids).toEqual([GUID.toLowerCase(), OTHER_GUID]);
     });
 
+    it('parses a row whose array contains a NULL element', async () => {
+      // PostgreSQL permits NULL array elements and the type cannot forbid
+      // them, so such a row must satisfy its own generated validator.
+      const withNull = await ctx.db.one(
+        `UPDATE "${dbSchema}"."types_coverage"
+            SET tags = ARRAY['a', NULL]::text[]
+          WHERE id = $1
+        RETURNING *`,
+        [row.id]
+      );
+
+      expect(withNull.tags).toEqual(['a', null]);
+      expect(
+        model._schema.validators!.baseValidator.safeParse(withNull).success
+      ).toBe(true);
+
+      // Restore, so the ordering of these cases does not matter.
+      await ctx.db.none(
+        `UPDATE "${dbSchema}"."types_coverage" SET tags = $2 WHERE id = $1`,
+        [row.id, ['a', 'b']]
+      );
+    });
+
     it('returns numeric as a string', () => {
       // Precision preservation, same as int8 — which is why the numeric
       // validator accepts a string as well as a number.

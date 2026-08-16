@@ -703,3 +703,30 @@ describe('serial columns are implicitly defaulted on insert', () => {
     expect(base.safeParse({ id: 1 }).success).toBe(true);
   });
 });
+
+describe('array elements may be NULL', () => {
+  // PostgreSQL arrays may contain NULL and the type cannot forbid it, so pg
+  // returns JS null elements and a non-nullable element validator would reject
+  // rows the database just handed back.
+  it('accepts null elements in text[] and uuid[]', () => {
+    expect(accepts('text[]', ['a', null])).toBe(true);
+    expect(accepts('text[]', [null])).toBe(true);
+    expect(accepts('uuid[]', [null])).toBe(true);
+    expect(accepts('integer[]', [1, null])).toBe(true);
+  });
+
+  it('still rejects wrong element types', () => {
+    expect(accepts('text[]', [1])).toBe(false);
+    expect(accepts('uuid[]', ['nope'])).toBe(false);
+    expect(accepts('integer[]', [1.5])).toBe(false);
+  });
+
+  it('still rejects a non-array value', () => {
+    expect(accepts('text[]', 'a')).toBe(false);
+  });
+
+  it('keeps the element length limit for non-null elements', () => {
+    expect(accepts('varchar(10)[]', ['short', null])).toBe(true);
+    expect(accepts('varchar(10)[]', ['12345678901'])).toBe(false);
+  });
+});

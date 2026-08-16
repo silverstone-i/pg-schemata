@@ -60,6 +60,12 @@ matched; use `colProps.validator` for those.
 `text[]`, `uuid[]`, and `varchar(10)[]` map to `z.array(...)` with the element
 validator intact, so `varchar(10)[]` still enforces the per-element length.
 
+**Elements are always nullable.** PostgreSQL arrays may contain `NULL`, and the
+column type cannot forbid it — `text[] NOT NULL` constrains the array, not its
+contents — so `['a', null]` is a legal `text[]` value that `pg` returns as
+`['a', null]`. The element validator allows `null` accordingly; the column's own
+nullability is unaffected. Use a CHECK constraint if you need to exclude them.
+
 `text[][]` throws. PostgreSQL does not enforce declared array dimensions —
 `text[][]` and `text[]` are the same type, and a `text[][]` column happily
 stores a flat array — so a nested `z.array(z.array(...))` would reject rows the
