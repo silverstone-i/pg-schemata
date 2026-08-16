@@ -730,3 +730,56 @@ describe('array elements may be NULL', () => {
     expect(accepts('varchar(10)[]', ['12345678901'])).toBe(false);
   });
 });
+
+describe('CHECK constraints compose rather than overwrite', () => {
+  it('keeps the strictest of several char_length checks', () => {
+    // Every CHECK holds in the database, so the last one parsed must not win.
+    const v = generateZodFromTableSchema({
+      table: 'compose',
+      dbSchema: 'public',
+      columns: [{ name: 'code', type: 'varchar(20)', notNull: true }],
+      constraints: {
+        primaryKey: ['code'],
+        checks: [
+          { expression: 'char_length(code) > 10' },
+          { expression: 'char_length(code) > 3' },
+        ],
+      },
+    }).baseValidator;
+
+    expect(v.safeParse({ code: 'short' }).success).toBe(false);
+    expect(v.safeParse({ code: 'abc' }).success).toBe(false);
+    expect(v.safeParse({ code: 'abcdefghijk' }).success).toBe(true);
+  });
+
+  it('keeps varchar(n) when an IN check applies', () => {
+    // Substituting z.enum() discarded .max(n); PostgreSQL would reject an
+    // over-length value too, so the validator must.
+    const v = withCheck(
+      { name: 'st', type: 'varchar(5)', notNull: true },
+      "st IN ('aaaaaaaaaa', 'b')"
+    ).baseValidator;
+
+    expect(v.safeParse({ st: 'aaaaaaaaaa' }).success).toBe(false);
+    expect(v.safeParse({ st: 'b' }).success).toBe(true);
+    expect(v.safeParse({ st: 'z' }).success).toBe(false);
+  });
+
+  it('applies an IN check and a char_length check together', () => {
+    const v = generateZodFromTableSchema({
+      table: 'compose',
+      dbSchema: 'public',
+      columns: [{ name: 's', type: 'text', notNull: true }],
+      constraints: {
+        primaryKey: ['s'],
+        checks: [
+          { expression: "s IN ('ab', 'abcdef')" },
+          { expression: 'char_length(s) > 3' },
+        ],
+      },
+    }).baseValidator;
+
+    expect(v.safeParse({ s: 'ab' }).success).toBe(false);
+    expect(v.safeParse({ s: 'abcdef' }).success).toBe(true);
+  });
+});

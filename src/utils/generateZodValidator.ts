@@ -305,7 +305,15 @@ function collectCheckHints(tableSchema: TableSchema): Map<string, CheckHints> {
 
     const lengthMatch = /char_length\((\w+)\)\s*>\s*(\d+)/i.exec(expr);
     if (lengthMatch?.[1] && lengthMatch[2]) {
-      hintFor(lengthMatch[1]).minLen = parseInt(lengthMatch[2], 10) + 1;
+      // Several CHECKs may constrain one column. Every one of them holds in
+      // the database, so keep the strictest rather than letting the last
+      // parsed expression overwrite the others.
+      const hint = hintFor(lengthMatch[1]);
+      const candidate = parseInt(lengthMatch[2], 10) + 1;
+      hint.minLen =
+        hint.minLen === undefined
+          ? candidate
+          : Math.max(hint.minLen, candidate);
       continue;
     }
 
@@ -359,12 +367,11 @@ function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
     // `.min`, which was safe only while arrays were unmappable: z.array() has
     // a `.min` too, and it means array *length*, so a char_length check on a
     // text[] column would have silently become an item-count minimum.
-    if (hint?.enumOptions && zodType instanceof z.ZodString) {
-      // zod 4 accepts a plain string array; the non-empty tuple cast the
-      // zod 3 signature required is no longer needed.
-      zodType = z.enum(hint.enumOptions);
-    }
-
+    //
+    // Order matters: each step must leave a ZodString behind for the next one.
+    // The enum therefore goes last and refines rather than replaces — a
+    // substituted z.enum() dropped varchar(n)'s .max(n), any custom
+    // refinement, and (being the first step previously) the length hint too.
     if (hint?.minLen !== undefined && zodType instanceof z.ZodString) {
       zodType = zodType.min(hint.minLen);
     }
@@ -377,6 +384,17 @@ function generateZodFromTableSchema(tableSchema: TableSchema): TableValidators {
     // instanceof ZodString in zod 4.
     if (name === 'email' && zodType instanceof z.ZodString) {
       zodType = zodType.check(z.email());
+    }
+
+    // Applied last: refining keeps everything above it, where substituting a
+    // z.enum() would discard it. The ZodString guard also stops an IN check
+    // from clobbering a non-string column.
+    if (hint?.enumOptions && zodType instanceof z.ZodString) {
+      const allowed = new Set(hint.enumOptions);
+      zodType = zodType.refine(
+        value => allowed.has(value),
+        `Expected one of: ${hint.enumOptions.join(', ')}`
+      );
     }
 
     // baseValidator: required if notNull, else optional + nullable
