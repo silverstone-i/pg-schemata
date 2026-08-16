@@ -2,6 +2,10 @@ export const customersSchema = {
   dbSchema: 'public',
   table: 'customers',
   hasAuditFields: true,
+  // Required by the partial index below: `deactivated_at IS NULL` is raw SQL
+  // emitted into the CREATE INDEX as written, and the column only exists when
+  // soft delete is enabled. Without this the whole table fails to create.
+  softDelete: true,
   columns: [
     { name: 'id', type: 'uuid', default: 'gen_random_uuid()', immutable: true, colProps: { cnd: true } },
     { name: 'email', type: 'varchar(255)', notNull: true },
