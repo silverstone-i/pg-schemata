@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { z } from 'zod';
 import pgPromise from 'pg-promise';
 import TableModel from '../../src/TableModel.js';
 import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
@@ -151,5 +152,134 @@ describe('SchemaDefinitionError.cause carries Zod issues', () => {
 
     expect(caught).toBeInstanceOf(SchemaDefinitionError);
     expect((caught as SchemaDefinitionError).cause).toBe(boom);
+  });
+});
+
+describe('upsert and bulkUpsert validate their input', () => {
+  // Both went straight from sanitizeDto to SQL, so invalid types, the email
+  // check, and colProps.validator rules all reached the database despite the
+  // docs stating every write is validated. Both are async, so they reject
+  // rather than throw.
+  beforeEach(() => {
+    columnSetCache.clear();
+  });
+
+  it('upsert rejects a wrong-typed value with an issue array', async () => {
+    const model = makeModel('cause_upsert');
+
+    const caught = await model
+      .upsert({ email: 123 } as never, ['id'])
+      .then(() => null)
+      .catch((err: unknown) => err);
+
+    expectZodIssueCause(caught, 'email');
+  });
+
+  it('bulkUpsert reports the offending record index', async () => {
+    const model = makeModel('cause_bulk_upsert');
+
+    const caught = await model
+      .bulkUpsert([{ email: 'ok@example.com' }, { email: 123 }] as never, [
+        'id',
+      ])
+      .then(() => null)
+      .catch((err: unknown) => err);
+
+    expect(caught).toBeInstanceOf(SchemaDefinitionError);
+    const issues = (caught as SchemaDefinitionError).cause as {
+      path: PropertyKey[];
+    }[];
+    expect(Array.isArray(issues)).toBe(true);
+    expect(issues[0]!.path).toEqual([1, 'email']);
+  });
+
+  it('upsert enforces a colProps.validator', async () => {
+    const schema = makeSchema('cause_upsert_custom');
+    schema.columns = schema.columns.map(col =>
+      col.name === 'age'
+        ? { ...col, colProps: { validator: z.number().int().min(21) } }
+        : col
+    );
+    const model = new TableModel(stubDb, pgp, schema);
+
+    const caught = await model
+      .upsert({ email: 'a@b.com', age: 18 } as never, ['id'])
+      .then(() => null)
+      .catch((err: unknown) => err);
+
+    expectZodIssueCause(caught, 'age');
+  });
+});
+
+describe('colProps.validator survives schema cloning', () => {
+  // The constructor deep-clones the caller's schema. cloneDeep walked the Zod
+  // internals and produced an object that looked like a validator but had no
+  // _zod.def.checks, so composing it into the generated z.object threw a
+  // TypeError on the first parse — breaking every custom validator, which is
+  // the documented escape hatch for interval, bytea, and unmapped types.
+  beforeEach(() => {
+    columnSetCache.clear();
+  });
+
+  const intervalSchema = (
+    table: string,
+    validator: z.ZodType
+  ): TableSchema => ({
+    dbSchema: 'public',
+    table,
+    columns: [
+      {
+        name: 'id',
+        type: 'uuid',
+        notNull: true,
+        default: 'gen_random_uuid()',
+      },
+      { name: 'duration', type: 'interval', colProps: { validator } },
+    ],
+    constraints: { primaryKey: ['id'] },
+  });
+
+  it('validates rather than throwing a TypeError', async () => {
+    const model = new TableModel(
+      stubDb,
+      pgp,
+      intervalSchema('clone_ok', z.string())
+    );
+
+    await expect(
+      model.insert({ duration: '1 day' } as never)
+    ).resolves.toBeDefined();
+
+    const caught = await model
+      .insert({ duration: 123 } as never)
+      .then(() => null)
+      .catch((err: unknown) => err);
+
+    // A real validation failure, not a crashed validator.
+    expectZodIssueCause(caught, 'duration');
+  });
+
+  it('keeps the caller validator instance by reference', () => {
+    const validator = z.string();
+    const model = new TableModel(
+      stubDb,
+      pgp,
+      intervalSchema('clone_ref', validator)
+    );
+
+    const column = model._schema.columns.find(c => c.name === 'duration');
+    expect(column?.colProps?.validator).toBe(validator);
+  });
+
+  it('still does not mutate the schema the caller passed', () => {
+    const schema = intervalSchema('clone_no_mutate', z.string());
+    schema.hasAuditFields = true;
+    const before = schema.columns.length;
+
+    const model = new TableModel(stubDb, pgp, schema);
+
+    expect(schema.columns.length).toBe(before);
+    expect(schema.columns.some(c => c.name === 'created_at')).toBe(false);
+    expect(model.schema.columns.some(c => c.name === 'created_at')).toBe(true);
   });
 });

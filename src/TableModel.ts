@@ -337,6 +337,18 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       );
     }
 
+    // An upsert supplies a full row, so it validates against insertValidator
+    // like insert() does. Without this, invalid types, the email check, and
+    // colProps.validator rules all reached the database despite the docs
+    // stating that every write is validated.
+    if (this._schema.validators?.insertValidator) {
+      this.validateDto(
+        dto,
+        this._schema.validators.insertValidator,
+        'Upsert DTO'
+      );
+    }
+
     const safeDto = this.sanitizeDto(dto);
     if (this._auditEnabled()) {
       if (!Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
@@ -445,6 +457,16 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     // invalid SQL and took the return-rows branch (PR #10 review).
     if (Array.isArray(returning) && returning.length === 0) {
       returning = null;
+    }
+
+    // Mirrors bulkInsert: validateDto handles the array form and reports the
+    // offending record index in the issue path.
+    if (this._schema.validators?.insertValidator) {
+      this.validateDto(
+        records,
+        this._schema.validators.insertValidator,
+        'Bulk Upsert DTO'
+      );
     }
 
     const safeRecords = records.map(dto => {

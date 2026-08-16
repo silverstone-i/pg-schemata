@@ -34,11 +34,28 @@ import type {
 } from './internalTypes.js';
 import type { IMain } from 'pg-promise';
 import type { ColumnSet } from 'pg-promise';
-import { ZodError } from 'zod';
-import type { ZodType } from 'zod';
+import { ZodError, ZodType } from 'zod';
 import _ from 'lodash';
 // eslint-disable-next-line @typescript-eslint/unbound-method -- lodash functions are this-free
-const { cloneDeep } = _;
+const { cloneDeepWith } = _;
+
+/**
+ * Deep-clones a schema while keeping Zod validators by reference.
+ *
+ * `cloneDeep` walks a Zod schema's internals and produces an object that looks
+ * like a validator but is not one — `_zod.def.checks` comes back `undefined` —
+ * so composing it into the generated `z.object` throws a TypeError on the
+ * first parse. That silently broke every `colProps.validator`, which is the
+ * documented escape hatch for `interval`, `bytea`, and any unmapped type.
+ *
+ * Validators are only ever read and composed, never mutated, so sharing the
+ * caller's instance is safe and is what passing one already implies.
+ */
+function cloneSchema(schema: TableSchema): TableSchema {
+  return cloneDeepWith(schema, value =>
+    value instanceof ZodType ? value : undefined
+  ) as TableSchema;
+}
 
 /**
  * A condition node with every recognized boolean-logic key made visible for
@@ -111,7 +128,7 @@ class QueryModel<TRow = any> {
     // Clone before normalizing so the caller's schema object is never mutated.
     // Both helpers guard internally, so they run unconditionally — gating on
     // hasAuditFields here would skip the soft-delete column too (issue N1).
-    const working = cloneDeep(schema);
+    const working = cloneSchema(schema);
     this._rejectRemovedNullableKey(working);
     this._rejectRemovedTopLevelIndexes(working);
     this._rejectMalformedIndexes(working);
