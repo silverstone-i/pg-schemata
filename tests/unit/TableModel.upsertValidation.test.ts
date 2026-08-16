@@ -116,7 +116,14 @@ describe('bulkUpsert input validation', () => {
   it('rejects the batch when any record is invalid', async () => {
     await expect(
       model.bulkUpsert(
-        [VALID, { ...VALID, id: 'bbbbbbbb-1111-4222-8333-444444444444', seats: 'three' } as never],
+        [
+          VALID,
+          {
+            ...VALID,
+            id: 'bbbbbbbb-1111-4222-8333-444444444444',
+            seats: 'three',
+          } as never,
+        ],
         ['id']
       )
     ).rejects.toThrow('Bulk Upsert DTO validation failed');
@@ -127,12 +134,21 @@ describe('bulkUpsert input validation', () => {
     // without it a failed batch gives no way to find the bad row.
     const err = await model
       .bulkUpsert(
-        [VALID, { ...VALID, id: 'bbbbbbbb-1111-4222-8333-444444444444', seats: 'three' } as never],
+        [
+          VALID,
+          {
+            ...VALID,
+            id: 'bbbbbbbb-1111-4222-8333-444444444444',
+            seats: 'three',
+          } as never,
+        ],
         ['id']
       )
       .catch((e: unknown) => e);
 
-    const cause = (err as SchemaDefinitionError).cause as { path: (string | number)[] }[];
+    const cause = (err as SchemaDefinitionError).cause as {
+      path: (string | number)[];
+    }[];
     expect(Array.isArray(cause)).toBe(true);
     expect(cause[0]?.path).toEqual([1, 'seats']);
   });

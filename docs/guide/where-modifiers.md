@@ -177,6 +177,27 @@ await db().users.findWhere([
 // WHERE ("role" = 'admin' OR ("role" = 'user' AND "is_active" = true))
 ```
 
+::: danger Keep `$and` / `$or` alone in their object
+An object containing `$and` or `$or` contributes **only** that group. Any
+ordinary column key sitting beside it is silently dropped:
+
+```js
+// ⚠️ tenant_id is ignored — the query is not scoped to the tenant
+[{ $or: [{ role: 'admin' }, { role: 'owner' }], tenant_id: TENANT }];
+```
+
+Put the boolean group and the plain predicate in sibling objects instead, so
+both are emitted:
+
+```js
+[{ tenant_id: TENANT }, { $or: [{ role: 'admin' }, { role: 'owner' }] }];
+// WHERE "tenant_id" = $1 AND ("role" = $2 OR "role" = $3)
+```
+
+This matters most for tenancy and authorization filters, where the dropped
+predicate is the one restricting the result set.
+:::
+
 ## Combining operators on a single column
 
 Multiple operators can be applied to one column:

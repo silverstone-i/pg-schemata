@@ -27,7 +27,9 @@ function makeCapturingDb() {
     calls,
     result: (q: string, _v?: unknown, cb?: (r: any) => unknown) => {
       calls.push(q);
-      return Promise.resolve(cb ? cb({ rowCount: 1, rows: [{}] }) : { rowCount: 1 });
+      return Promise.resolve(
+        cb ? cb({ rowCount: 1, rows: [{}] }) : { rowCount: 1 }
+      );
     },
   };
   exec.tx = async (fn: (t: any) => unknown) => fn(exec);

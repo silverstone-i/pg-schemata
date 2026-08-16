@@ -36,7 +36,7 @@ Defines the structure of a single column.
 interface ColumnDefinition {
   name: string;
   type: string;
-  generated?: 'always' | 'by default';
+  generated?: 'always';
   expression?: string;
   stored?: boolean;
   notNull?: boolean;
@@ -54,17 +54,17 @@ interface ColumnDefinition {
 }
 ```
 
-| Property     | Type                       | Description                              |
-| ------------ | -------------------------- | ---------------------------------------- |
-| `name`       | `string`                   | Column name                              |
-| `type`       | `string`                   | PostgreSQL data type                     |
-| `generated`  | `'always' \| 'by default'` | Generated column mode                    |
-| `expression` | `string`                   | SQL expression for generated columns     |
-| `stored`     | `boolean`                  | Whether generated column is stored       |
-| `notNull`    | `boolean`                  | Reject null values                       |
-| `default`    | `any`                      | Default value (SQL expression as string) |
-| `immutable`  | `boolean`                  | Exclude from update operations           |
-| `colProps`   | `object`                   | pg-promise column behavior modifiers     |
+| Property     | Type       | Description                                                                         |
+| ------------ | ---------- | ----------------------------------------------------------------------------------- |
+| `name`       | `string`   | Column name                                                                         |
+| `type`       | `string`   | PostgreSQL data type                                                                |
+| `generated`  | `'always'` | Generated column mode. The only value PostgreSQL accepts for a generated expression |
+| `expression` | `string`   | SQL expression for generated columns. Required when `generated` is set              |
+| `stored`     | `boolean`  | Must be `true` when `generated` is set — PostgreSQL 13–17 support only STORED       |
+| `notNull`    | `boolean`  | Reject null values                                                                  |
+| `default`    | `any`      | Default value (SQL expression as string)                                            |
+| `immutable`  | `boolean`  | Exclude from update operations                                                      |
+| `colProps`   | `object`   | pg-promise column behavior modifiers                                                |
 
 ### colProps detail
 
@@ -91,6 +91,13 @@ interface Constraints {
   indexes?: IndexDefinition[];
 }
 ```
+
+::: warning `primaryKey` is DDL only
+It generates the `PRIMARY KEY` constraint. It does not determine which column
+`TableModel`'s by-id methods match on — those hardcode `WHERE id = $1`.
+Composite primary keys are therefore unsupported by `findById`, `update`,
+`delete`, `bulkUpdate`, and the soft-delete helpers.
+:::
 
 ::: warning Removed in 2.0.0
 Three legacy schema-shape aliases (deprecated with runtime warnings in 1.8.0)

@@ -27,10 +27,26 @@ const updated = await db().users.update(user.id, {
 // Returns the updated row, or null if not found
 ```
 
+- **Only the columns you pass are written.** The `SET` list is built from the DTO's own keys, so every column you leave out keeps its current value. The call above touches `last_name` and nothing else.
 - Validates the DTO against the update validator
 - Immutable columns are excluded from updates
-- Sets `updated_by` from the audit actor resolver
+- Sets `updated_by` from the audit actor resolver, unless the DTO supplies one
+- Sets `updated_at` automatically when audit fields are enabled. This column is owned by the library — a value you pass for it is discarded
 - When soft delete is enabled, only updates non-deactivated rows
+
+::: tip Partial updates are the normal case
+You never need to read a row, merge your changes into it, and write the whole
+thing back. Pass just the columns that changed.
+
+If you genuinely need to set a column to SQL `NULL`, pass it explicitly —
+`{ notes: null }` writes null, while omitting `notes` leaves it alone.
+:::
+
+::: warning Backdating `updated_at`
+Because `updated_at` is library-owned, a data import that wants to preserve
+original timestamps cannot do it through `update()`. Use `updateWhere()` or
+raw SQL for those rows.
+:::
 
 ## Delete
 
@@ -81,13 +97,20 @@ const count = await db().users.updateWhere(
 
 ### touch
 
-Update only the `updated_at` timestamp:
+Advance `updated_at` without changing any data column:
 
 ```js
 await db().users.touch(user.id);
 // Or with an explicit actor:
 await db().users.touch(user.id, 'admin-user');
 ```
+
+`touch()` routes through `update()` with an empty (or actor-only) DTO, so it
+relies on the same guarantee: nothing outside the audit columns is written.
+
+Requires audit fields — without them there is no column to advance and the call
+rejects. It works with or without an actor resolver configured: `updated_by` is
+set only when an actor is known, but the timestamp always moves.
 
 ## Bulk operations
 

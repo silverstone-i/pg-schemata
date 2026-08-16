@@ -51,12 +51,13 @@ Same as `findById` but includes soft-deleted records.
 
 ### findOneBy(conditions, options?)
 
-Finds the first row matching the given conditions.
+Finds the first row matching the given conditions. Always queries with
+`LIMIT 1`.
 
-| Parameter    | Type       | Description                 |
-| ------------ | ---------- | --------------------------- |
-| `conditions` | `Object[]` | Array of condition objects  |
-| `options`    | `object`   | Same as `findWhere` options |
+| Parameter    | Type       | Description                                     |
+| ------------ | ---------- | ----------------------------------------------- |
+| `conditions` | `Object[]` | Array of condition objects                      |
+| `options`    | `object`   | Same as `findWhere` options; `limit` is ignored |
 
 **Returns:** `Promise<Object | null>`
 
@@ -81,17 +82,24 @@ Finds rows matching conditions with full query options.
 
 Keyset-based cursor pagination.
 
-| Parameter                    | Type       | Default  | Description                            |
-| ---------------------------- | ---------- | -------- | -------------------------------------- |
-| `cursor`                     | `object`   | `{}`     | Cursor values keyed by orderBy columns |
-| `limit`                      | `number`   | `50`     | Maximum rows                           |
-| `orderBy`                    | `string[]` | `['id']` | Columns for ordering                   |
-| `options.descending`         | `boolean`  | `false`  | Descending order                       |
-| `options.columnWhitelist`    | `string[]` | `null`   | Columns to return                      |
-| `options.filters`            | `object`   | `{}`     | Additional filters                     |
-| `options.includeDeactivated` | `boolean`  | `false`  | Include soft-deleted rows              |
+| Parameter                    | Type       | Default  | Description                                                |
+| ---------------------------- | ---------- | -------- | ---------------------------------------------------------- |
+| `cursor`                     | `object`   | `{}`     | Cursor values keyed by orderBy columns                     |
+| `limit`                      | `number`   | `50`     | Maximum rows                                               |
+| `orderBy`                    | `string[]` | `['id']` | Columns for ordering                                       |
+| `options.descending`         | `boolean`  | `false`  | Descending order. Applies to **every** column in `orderBy` |
+| `options.columnWhitelist`    | `string[]` | `null`   | Columns to return. Must include every `orderBy` column     |
+| `options.filters`            | `object`   | `{}`     | Additional filters                                         |
+| `options.includeDeactivated` | `boolean`  | `false`  | Include soft-deleted rows                                  |
 
 **Returns:** `Promise<{ rows: Object[], nextCursor: Object | null }>`
+
+`nextCursor` is `null` on the last page — that is, whenever fewer than `limit`
+rows come back. A caller can loop on it without an extra empty round trip.
+
+**Throws:** `SchemaDefinitionError` if `columnWhitelist` omits an `orderBy`
+column. The cursor is read off the last returned row, so an ordering column
+that is not projected would produce a cursor that cannot be passed back in.
 
 ### findSoftDeleted(conditions?, joinType?, options?)
 
@@ -162,6 +170,12 @@ Validates a DTO or array of DTOs against a Zod schema.
 ### buildWhereClause(where, requireNonEmpty?, values?, joinType?, includeDeactivated?)
 
 Builds a SQL WHERE clause from conditions.
+
+When soft delete is enabled and `includeDeactivated` is false, the returned
+clause is parenthesized before the `deactivated_at IS NULL` guard is appended —
+`("a" = $1 OR "b" = $2) AND deactivated_at IS NULL`. Without the parentheses
+`AND` would bind tighter than `OR` and the guard would cover only the last
+disjunct.
 
 **Returns:** `{ clause: string, values: any[] }`
 

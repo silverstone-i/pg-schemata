@@ -108,7 +108,9 @@ describe('TableModel partial update integration', () => {
 
     const row = await model.findById(inserted.id);
     expect(row!.name).toBe('Backdate attempt');
-    expect(new Date(row!.updated_at as string).getUTCFullYear()).toBeGreaterThan(1970);
+    expect(
+      new Date(row!.updated_at as string).getUTCFullYear()
+    ).toBeGreaterThan(1970);
   });
 
   test('touch() changes nothing but the audit columns', async () => {

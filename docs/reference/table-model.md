@@ -18,6 +18,17 @@ Same parameters as QueryModel, but requires `schema.constraints.primaryKey` to b
 
 **Throws:** `SchemaDefinitionError` if no primary key is defined
 
+::: warning Row-targeting methods require a column named `id`
+`constraints.primaryKey` drives DDL generation. It does **not** drive row
+targeting: `findById`, `update`, `delete`, `bulkUpdate`, and the soft-delete
+helpers all emit `WHERE id = $1` regardless of what you declare.
+
+Composite primary keys are therefore not supported by these methods — the
+constraint is created correctly, but a by-id call matches on `id` alone. Tables
+whose real key is composite or named something else should use `findWhere`,
+`updateWhere`, and `deleteWhere`.
+:::
+
 ## Inherited Methods
 
 TableModel inherits all methods from [QueryModel](/reference/query-model): `findAll`, `findById`, `findWhere`, `findOneBy`, `findAfterCursor`, `count`, `countAll`, `exists`, `findSoftDeleted`, `isSoftDeleted`, `exportToSpreadsheet`, and all utility methods.
@@ -44,14 +55,23 @@ Inserts a single row after validation and sanitization.
 **Returns:** `Promise<Object>` — the inserted row (`RETURNING *`)
 **Throws:** `SchemaDefinitionError` if validation fails or DTO is empty
 
-### update(id, dto)
+### update(id, dto, options?)
 
-Updates a record by primary key.
+Updates a record by `id`. Only the columns `dto` carries are written; every
+column it omits keeps its current value.
 
-| Parameter | Type               | Description       |
-| --------- | ------------------ | ----------------- |
-| `id`      | `string \| number` | Primary key value |
-| `dto`     | `object`           | Updated values    |
+| Parameter    | Type               | Description                                        |
+| ------------ | ------------------ | -------------------------------------------------- |
+| `id`         | `string \| number` | Primary key value                                  |
+| `dto`        | `object`           | Columns to write. Omitted columns are not modified |
+| `options.tx` | `object`           | pg-promise task/transaction to run on              |
+
+When audit fields are enabled, `updated_at` is set to `CURRENT_TIMESTAMP` and
+any value `dto` supplies for it is discarded. `updated_by` is honored if
+supplied, otherwise filled from the audit actor resolver.
+
+An empty `dto` is accepted only when audit fields are enabled — the audit
+columns alone make a valid update. Without them there is nothing to write.
 
 **Returns:** `Promise<Object | null>` — updated row, or `null` if not found
 **Throws:** `SchemaDefinitionError` if validation fails
@@ -100,16 +120,22 @@ Updates rows matching a WHERE clause.
 
 **Returns:** `Promise<number>` — number of rows updated
 
-### touch(id, updatedBy?)
+### touch(id, updatedBy?, options?)
 
-Updates only the `updated_at` timestamp and optionally `updated_by`.
+Advances `updated_at`, and sets `updated_by` when an actor is known. No data
+column is written.
 
-| Parameter   | Type               | Description                                            |
-| ----------- | ------------------ | ------------------------------------------------------ |
-| `id`        | `string \| number` | Primary key value                                      |
-| `updatedBy` | `string`           | Actor identifier (optional — uses resolver if omitted) |
+| Parameter    | Type               | Description                                            |
+| ------------ | ------------------ | ------------------------------------------------------ |
+| `id`         | `string \| number` | Primary key value                                      |
+| `updatedBy`  | `string`           | Actor identifier (optional — uses resolver if omitted) |
+| `options.tx` | `object`           | pg-promise task/transaction to run on                  |
 
-**Returns:** `Promise<Object | null>`
+Requires audit fields. With no actor supplied and no resolver configured the
+timestamp still advances and `updated_by` is left as it was.
+
+**Returns:** `Promise<Object | null>` — updated row, or `null` if no active row has that id
+**Throws:** `SchemaDefinitionError` if audit fields are not enabled
 
 ## Bulk Methods
 

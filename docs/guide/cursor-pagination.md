@@ -21,7 +21,8 @@ const page2 = await db().users.findAfterCursor(
 );
 ```
 
-When there are no more rows, `nextCursor` is `null`.
+`nextCursor` is `null` on the last page — whenever fewer than `limit` rows come
+back. You can loop on it directly without a trailing empty query.
 
 ## Multi-column cursors
 
@@ -37,10 +38,16 @@ The cursor object must contain a value for every column in `orderBy`.
 ## Descending order
 
 ```js
-const page = await db().users.findAfterCursor({}, 25, ['created_at'], {
+const page = await db().users.findAfterCursor({}, 25, ['created_at', 'id'], {
   descending: true,
 });
+// ORDER BY "created_at" DESC, "id" DESC
 ```
+
+`descending` applies to every column in `orderBy`. That matters for
+multi-column cursors: the keyset comparison is a single row-constructor
+predicate (`("created_at", "id") < ($1, $2)`), which is only correct if every
+column sorts the same way.
 
 ## Filtering
 
@@ -52,6 +59,13 @@ const page = await db().users.findAfterCursor({}, 25, ['id'], {
   columnWhitelist: ['id', 'email', 'first_name'],
 });
 ```
+
+::: warning `columnWhitelist` must cover `orderBy`
+The next cursor is read off the last row returned, so every ordering column has
+to survive the projection. A whitelist that omits one throws
+`SchemaDefinitionError` rather than handing back a cursor with an undefined
+value in it.
+:::
 
 Filters support nested `$and` / `$or` logic:
 

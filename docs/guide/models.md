@@ -34,6 +34,9 @@ class Users extends TableModel {
 
 `TableModel` requires that your schema defines a `primaryKey` in `constraints`. It adds: `insert`, `update`, `delete`, `upsert`, `bulkInsert`, `bulkUpdate`, `bulkUpsert`, `deleteWhere`, `updateWhere`, `removeWhere`, `restoreWhere`, `importFromSpreadsheet`, `createTable`, `truncate`.
 
+The by-id methods additionally require a column named `id` — see
+[primary key requirements](/guide/schema-definition#constraint-types).
+
 ## Constructor parameters
 
 Both models receive three required parameters from pg-promise's `extend` event:
