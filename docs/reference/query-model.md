@@ -157,7 +157,7 @@ Returns a filtered copy of the DTO containing only valid column names.
 
 Validates a DTO or array of DTOs against a Zod schema.
 
-**Throws:** `SchemaDefinitionError` with `.cause` containing Zod details
+**Throws:** `SchemaDefinitionError` with `.cause` set to the Zod issues array (`ZodError.issues`)
 
 ### buildWhereClause(where, requireNonEmpty?, values?, joinType?, includeDeactivated?)
 

@@ -34,11 +34,28 @@ import type {
 } from './internalTypes.js';
 import type { IMain } from 'pg-promise';
 import type { ColumnSet } from 'pg-promise';
-import { ZodError } from 'zod';
-import type { ZodTypeAny } from 'zod';
+import { ZodError, ZodType } from 'zod';
 import _ from 'lodash';
 // eslint-disable-next-line @typescript-eslint/unbound-method -- lodash functions are this-free
-const { cloneDeep } = _;
+const { cloneDeepWith } = _;
+
+/**
+ * Deep-clones a schema while keeping Zod validators by reference.
+ *
+ * `cloneDeep` walks a Zod schema's internals and produces an object that looks
+ * like a validator but is not one — `_zod.def.checks` comes back `undefined` —
+ * so composing it into the generated `z.object` throws a TypeError on the
+ * first parse. That silently broke every `colProps.validator`, which is the
+ * documented escape hatch for `interval`, `bytea`, and any unmapped type.
+ *
+ * Validators are only ever read and composed, never mutated, so sharing the
+ * caller's instance is safe and is what passing one already implies.
+ */
+function cloneSchema(schema: TableSchema): TableSchema {
+  return cloneDeepWith(schema, value =>
+    value instanceof ZodType ? value : undefined
+  ) as TableSchema;
+}
 
 /**
  * A condition node with every recognized boolean-logic key made visible for
@@ -111,8 +128,10 @@ class QueryModel<TRow = any> {
     // Clone before normalizing so the caller's schema object is never mutated.
     // Both helpers guard internally, so they run unconditionally — gating on
     // hasAuditFields here would skip the soft-delete column too (issue N1).
-    const working = cloneDeep(schema);
+    const working = cloneSchema(schema);
     this._rejectRemovedNullableKey(working);
+    this._rejectRemovedTopLevelIndexes(working);
+    this._rejectMalformedIndexes(working);
     addAuditFields(working);
     addSoftDeleteField(working);
     this._schema = working;
@@ -593,7 +612,7 @@ class QueryModel<TRow = any> {
    * @param type - Optional label used in error messages.
    * @throws {SchemaDefinitionError} If validation fails. The `.cause` property contains Zod error details.
    */
-  validateDto(data: unknown, validator: ZodTypeAny, type = 'DTO'): void {
+  validateDto(data: unknown, validator: ZodType, type = 'DTO'): void {
     try {
       if (Array.isArray(data)) {
         validator.array().parse(data);
@@ -602,7 +621,7 @@ class QueryModel<TRow = any> {
       }
     } catch (err) {
       const error = new SchemaDefinitionError(`${type} validation failed`);
-      error.cause = err instanceof ZodError ? err.errors : err;
+      error.cause = err instanceof ZodError ? err.issues : err;
       this.logger?.error?.(error);
       if (this.logger) {
         this.logger.error?.(`${type} validation failed: ${error.message}`, {
@@ -712,6 +731,64 @@ class QueryModel<TRow = any> {
         );
       }
     }
+  }
+
+  /**
+   * Rejects the removed top-level `indexes` property (dropped in 2.0.0).
+   *
+   * The fallback that once read it is gone, so the property is now simply
+   * ignored: `createTableSQL` emits a table with no indexes, `bootstrap()`
+   * succeeds, and the loss of any unique or partial-unique index surfaces
+   * only as duplicate rows much later. TypeScript cannot help either, since
+   * the schemas that use this placement are plain JavaScript objects.
+   *
+   * Checked here rather than in `resolveIndexes` because `createTableSQL`
+   * swallows index-generation errors at debug level — a throw from there
+   * would be caught and logged into the void.
+   *
+   * Uses `hasOwnProperty` rather than a truthiness check: an empty
+   * `indexes: []` is just as misplaced as a populated one, and accepting it
+   * would teach the wrong lesson.
+   *
+   * @param schema - Cloned schema to validate.
+   * @throws {SchemaDefinitionError} If the schema has a top-level `indexes`.
+   */
+  _rejectRemovedTopLevelIndexes(schema: TableSchema): void {
+    if (Object.prototype.hasOwnProperty.call(schema, 'indexes')) {
+      throw new SchemaDefinitionError(
+        `Schema "${schema.table}" uses the removed top-level "indexes" property; move it inside "constraints" (constraints.indexes).`
+      );
+    }
+  }
+
+  /**
+   * Rejects `constraints.indexes` entries that cannot produce valid SQL.
+   *
+   * `createTableSQL` wraps index generation in a try/catch that logs at debug
+   * level, so a single malformed entry silently drops *every* index on the
+   * table — valid unique and partial-unique ones included — while the CREATE
+   * TABLE still succeeds. That is the same silent data-integrity loss the
+   * top-level-`indexes` rejection exists to prevent, reached by a different
+   * route.
+   *
+   * Validated here, before any SQL is generated, for the same reason: a throw
+   * from inside `createTableSQL` would be caught and logged into the void.
+   *
+   * @param schema - Cloned schema to validate.
+   * @throws {SchemaDefinitionError} If an index definition has no usable columns.
+   */
+  _rejectMalformedIndexes(schema: TableSchema): void {
+    const indexes = schema.constraints?.indexes;
+    if (!Array.isArray(indexes)) return;
+
+    indexes.forEach((index, position) => {
+      const columns = (index as { columns?: unknown })?.columns;
+      if (!Array.isArray(columns) || columns.length === 0) {
+        throw new SchemaDefinitionError(
+          `Index at constraints.indexes[${position}] in "${schema.table}" must have a non-empty "columns" array; a malformed entry would silently drop every index on the table.`
+        );
+      }
+    });
   }
 
   /**
@@ -883,7 +960,13 @@ class QueryModel<TRow = any> {
       }
       for (const [key, val] of Object.entries(item as FieldConditions)) {
         const col = this.escapeName(key);
-        if (val && typeof val === 'object') {
+        // A Date is an object but not an operator map, and Object.keys() on
+        // one is empty — so it matched no operator, emitted no SQL, and the
+        // condition silently vanished. `Scalar` explicitly includes Date, and
+        // Date is its only non-plain member, so excluding it here is exact.
+        // Narrower than switching to isPlainObject, which would also reroute
+        // arrays and Buffers.
+        if (val && typeof val === 'object' && !(val instanceof Date)) {
           const keys = Object.keys(val);
           const unsupported = keys.filter(
             k => !(CONDITION_OPERATORS as readonly string[]).includes(k)

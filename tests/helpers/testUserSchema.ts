@@ -11,7 +11,7 @@ export const testUserSchema = {
   table: 'test_users',
   hasAuditFields: true,
   columns: [
-    { name: 'id', type: 'uuid', default: 'uuid_generate_v4()', notNull: true },
+    { name: 'id', type: 'uuid', default: 'gen_random_uuid()', notNull: true },
     { name: 'tenant_id', type: 'uuid', notNull: true },
     { name: 'email', type: 'text', notNull: true },
     { name: 'name', type: 'text', default: null },

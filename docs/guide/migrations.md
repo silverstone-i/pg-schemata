@@ -54,7 +54,7 @@ Each migration's `up()` receives:
 | `pgp`              | `IMain`    | The pg-promise root library (formatting helpers etc.)                                       |
 | `logger`           | `Logger`   | The logger passed to the manager, or `null`                                                 |
 | `models`           | `object`   | The module's models, constructed on the transaction and bound to `schema` via `forSchema()` |
-| `ensureExtensions` | `function` | `await ensureExtensions(['pgcrypto'])` — CREATE EXTENSION IF NOT EXISTS                     |
+| `ensureExtensions` | `function` | `await ensureExtensions(['postgis'])` — CREATE EXTENSION IF NOT EXISTS                      |
 
 ## Directory mode
 
@@ -107,7 +107,6 @@ export async function up({ db, schema }) {
   await bootstrap({
     models: { users: Users, products: Products },
     schema,
-    extensions: ['pgcrypto'],
     db, // pass the transaction to avoid nested transactions
   });
 }

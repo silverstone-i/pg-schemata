@@ -9,7 +9,8 @@
 // The `bootstrap` function is a convenience wrapper that walks through
 // your repository map (as passed to `DB.init()`) and calls the
 // `createTable()` method on each TableModel subclass. It can also enable
-// PostgreSQL extensions as needed (defaults to pgcrypto for UUID support).
+// PostgreSQL extensions, but enables none by default: `gen_random_uuid()`
+// has been part of core Postgres since 13, so UUID defaults need no extension.
 //
 // It should be executed before any migrations if your database does not yet
 // have the required tables. Use it from within a migration or during initial setup.
@@ -24,7 +25,7 @@ export interface BootstrapOptions {
   models: Record<string, RepositoryCtor>;
   /** Target Postgres schema. Defaults to 'public'. */
   schema?: string;
-  /** PostgreSQL extensions to enable before creating tables. */
+  /** PostgreSQL extensions to enable before creating tables. Defaults to none. */
   extensions?: string[];
   /** Optional pg-promise transaction/connection to use (avoids nested transaction deadlock). */
   db?: DbConnection | null;
@@ -47,7 +48,7 @@ interface BootstrapModel {
 export async function bootstrap({
   models,
   schema = 'public',
-  extensions = ['pgcrypto'],
+  extensions = [],
   db = null,
 }: BootstrapOptions): Promise<void> {
   if (!models || typeof models !== 'object') {

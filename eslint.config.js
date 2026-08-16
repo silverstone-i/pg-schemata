@@ -33,6 +33,7 @@ export default tseslint.config(
       'Examples/**',
       'docs/.vitepress/dist/**',
       'docs/.vitepress/cache/**',
+      'docs/.vitepress/.temp/**',
     ],
   },
   {

@@ -4,7 +4,7 @@
 [![build status](https://img.shields.io/github/actions/workflow/status/silverstone-i/pg-schemata/ci.yml?branch=main)](https://github.com/silverstone-i/pg-schemata/actions)
 [![license](https://img.shields.io/npm/l/pg-schemata.svg)](LICENSE)
 [![postgresql](https://img.shields.io/badge/PostgreSQL-✔️-blue)](https://www.postgresql.org/)
-[![node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
+[![node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org/)
 
 ---
 
@@ -44,8 +44,15 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD, fle
 ## 📦 Installation
 
 ```bash
-npm install pg-schemata pg-promise
+npm install pg-schemata zod
 ```
+
+`zod` is a **peer dependency** (`^4.0.0`) — pg-schemata exchanges Zod objects with your
+code in both directions, so both sides must resolve the same copy. Installing against
+zod 3 fails with `ERESOLVE`; upgrade your app to zod 4 first, then pg-schemata.
+
+`pg-promise` is a direct dependency and is installed for you. Add it explicitly only if
+you import from it yourself.
 
 ---
 
@@ -252,8 +259,9 @@ npm run docs:preview  # preview the build
 
 ## 🧠 Requirements
 
-- Node.js >= 18
-- PostgreSQL >= 12
+- Node.js >= 20
+- PostgreSQL >= 13
+- `zod` >= 4 — a peer dependency you install alongside pg-schemata
 
 ---
 

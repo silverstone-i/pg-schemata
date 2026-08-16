@@ -4,7 +4,7 @@
 
 import QueryModel from './QueryModel.js';
 import SchemaDefinitionError from './SchemaDefinitionError.js';
-import { createTableSQL } from './utils/schemaBuilder.js';
+import { createTableSQL, columnSetColumnsFor } from './utils/schemaBuilder.js';
 import { readFileSync } from 'node:fs';
 import { WorkbookReader } from '@nap-sft/tablsx';
 import { isValidId, isPlainObject } from './utils/validation.js';
@@ -175,7 +175,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     } catch (err) {
       const error = new SchemaDefinitionError('DTO validation failed');
 
-      error.cause = err instanceof ZodError ? err.errors : err;
+      error.cause = err instanceof ZodError ? err.issues : err;
       this.logger?.error?.(error);
       if (this.logger) {
         this.logger.error?.(`DTO validation failed: ${error.message}`, {
@@ -274,7 +274,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     } catch (err) {
       const error = new SchemaDefinitionError('DTO validation failed');
 
-      error.cause = err instanceof ZodError ? err.errors : err;
+      error.cause = err instanceof ZodError ? err.issues : err;
       this.logger?.error?.(error);
       if (this.logger) {
         this.logger.error?.(`DTO validation failed: ${error.message}`, {
@@ -337,6 +337,18 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       );
     }
 
+    // An upsert supplies a full row, so it validates against insertValidator
+    // like insert() does. Without this, invalid types, the email check, and
+    // colProps.validator rules all reached the database despite the docs
+    // stating that every write is validated.
+    if (this._schema.validators?.insertValidator) {
+      this.validateDto(
+        dto,
+        this._schema.validators.insertValidator,
+        'Upsert DTO'
+      );
+    }
+
     const safeDto = this.sanitizeDto(dto);
     if (this._auditEnabled()) {
       if (!Object.prototype.hasOwnProperty.call(safeDto, 'created_by')) {
@@ -347,9 +359,12 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       }
     }
 
-    const insertCs = new this.pgp.helpers.ColumnSet(Object.keys(safeDto), {
-      table: { table: this._schema.table, schema: this._schema.dbSchema },
-    });
+    const insertCs = new this.pgp.helpers.ColumnSet(
+      columnSetColumnsFor(this._schema, Object.keys(safeDto)),
+      {
+        table: { table: this._schema.table, schema: this._schema.dbSchema },
+      }
+    );
 
     const auditExclude = this._auditEnabled()
       ? ['created_at', 'created_by', 'updated_at', 'updated_by']
@@ -447,6 +462,16 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       returning = null;
     }
 
+    // Mirrors bulkInsert: validateDto handles the array form and reports the
+    // offending record index in the issue path.
+    if (this._schema.validators?.insertValidator) {
+      this.validateDto(
+        records,
+        this._schema.validators.insertValidator,
+        'Bulk Upsert DTO'
+      );
+    }
+
     const safeRecords = records.map(dto => {
       const sanitized = this.sanitizeDto(dto);
       if (this._auditEnabled()) {
@@ -465,9 +490,12 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       throw new SchemaDefinitionError('Records must be a non-empty array');
     }
 
-    const insertCs = new this.pgp.helpers.ColumnSet(Object.keys(firstRecord), {
-      table: { table: this._schema.table, schema: this._schema.dbSchema },
-    });
+    const insertCs = new this.pgp.helpers.ColumnSet(
+      columnSetColumnsFor(this._schema, Object.keys(firstRecord)),
+      {
+        table: { table: this._schema.table, schema: this._schema.dbSchema },
+      }
+    );
 
     const auditExclude = this._auditEnabled()
       ? ['created_at', 'created_by', 'updated_at', 'updated_by']
@@ -610,7 +638,7 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     } catch (err) {
       const error = new SchemaDefinitionError('DTO validation failed');
 
-      error.cause = err instanceof ZodError ? err.errors : err;
+      error.cause = err instanceof ZodError ? err.issues : err;
       this.logger?.error?.(error);
       if (this.logger) {
         this.logger.error?.(`DTO validation failed: ${error.message}`, {
@@ -630,9 +658,12 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
     ) {
       safeUpdates.updated_by = this._resolveAuditActor();
     }
-    const updateCs = new this.pgp.helpers.ColumnSet(Object.keys(safeUpdates), {
-      table: { table: this._schema.table, schema: this._schema.dbSchema },
-    });
+    const updateCs = new this.pgp.helpers.ColumnSet(
+      columnSetColumnsFor(this._schema, Object.keys(safeUpdates)),
+      {
+        table: { table: this._schema.table, schema: this._schema.dbSchema },
+      }
+    );
 
     const setClause = this.pgp.helpers.update(safeUpdates, updateCs) as string;
 
@@ -761,9 +792,12 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       }
     }
 
-    const cs = new this.pgp.helpers.ColumnSet(Object.keys(firstRecord), {
-      table: { table: this._schema.table, schema: this._schema.dbSchema },
-    });
+    const cs = new this.pgp.helpers.ColumnSet(
+      columnSetColumnsFor(this._schema, Object.keys(firstRecord)),
+      {
+        table: { table: this._schema.table, schema: this._schema.dbSchema },
+      }
+    );
 
     const query =
       this.pgp.helpers.insert(safeRecords, cs) +
@@ -863,9 +897,12 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
       const cacheKey = [...keys].sort().join(',');
       let updateCs = columnSetsByKeys.get(cacheKey);
       if (!updateCs) {
-        updateCs = new this.pgp.helpers.ColumnSet(keys, {
-          table: { table: this._schema.table, schema: this._schema.dbSchema },
-        });
+        updateCs = new this.pgp.helpers.ColumnSet(
+          columnSetColumnsFor(this._schema, keys),
+          {
+            table: { table: this._schema.table, schema: this._schema.dbSchema },
+          }
+        );
         columnSetsByKeys.set(cacheKey, updateCs);
       }
       const returningClause = returning

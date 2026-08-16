@@ -74,12 +74,12 @@ new SchemaDefinitionError(message, originalError?)
 
 ### Properties
 
-| Property   | Type                | Description                                    |
-| ---------- | ------------------- | ---------------------------------------------- |
-| `name`     | `string`            | Always `'SchemaDefinitionError'`               |
-| `message`  | `string`            | Error description                              |
-| `original` | `Error \| null`     | Original error (if provided)                   |
-| `cause`    | `ZodError \| Error` | Set by model methods when Zod validation fails |
+| Property   | Type                  | Description                                                                             |
+| ---------- | --------------------- | --------------------------------------------------------------------------------------- |
+| `name`     | `string`              | Always `'SchemaDefinitionError'`                                                        |
+| `message`  | `string`              | Error description                                                                       |
+| `original` | `Error \| null`       | Original error (if provided)                                                            |
+| `cause`    | `ZodIssue[] \| Error` | Zod **issues array** (`ZodError.issues`) when validation fails; otherwise the raw error |
 
 ### Common scenarios
 

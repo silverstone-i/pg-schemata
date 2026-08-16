@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import pgPromise from 'pg-promise';
 import QueryModel from '../../src/QueryModel.js';
 import { columnSetCache } from '../../src/utils/schemaBuilder.js';
+import SchemaDefinitionError from '../../src/SchemaDefinitionError.js';
 import type {
   ColumnDefinition,
   DbConnection,
@@ -130,6 +131,54 @@ describe('QueryModel constructor schema normalization (real schemaBuilder)', () 
   });
 });
 
+describe('removed top-level indexes property', () => {
+  beforeEach(() => {
+    columnSetCache.clear();
+  });
+
+  /** Builds a schema with `indexes` at the top level rather than nested. */
+  const withTopLevelIndexes = (table: string, indexes: unknown): TableSchema =>
+    ({
+      ...makeSchema({ hasAuditFields: false, softDelete: false }, table),
+      indexes,
+    }) as unknown as TableSchema;
+
+  it('throws naming the table and the fix', () => {
+    expect(
+      () =>
+        new QueryModel(
+          stubDb,
+          pgp,
+          withTopLevelIndexes('idx_top_level', [
+            { columns: ['message'], unique: true },
+          ])
+        )
+    ).toThrow(
+      'Schema "idx_top_level" uses the removed top-level "indexes" property; move it inside "constraints"'
+    );
+  });
+
+  it('throws on an empty array too', () => {
+    // Truthiness would let this through, and it is just as misplaced.
+    expect(
+      () => new QueryModel(stubDb, pgp, withTopLevelIndexes('idx_empty', []))
+    ).toThrow(SchemaDefinitionError);
+  });
+
+  it('accepts indexes nested under constraints (negative control)', () => {
+    const schema = makeSchema(
+      { hasAuditFields: false, softDelete: false },
+      'idx_nested'
+    );
+    schema.constraints = {
+      ...schema.constraints,
+      indexes: [{ columns: ['message'], unique: true }],
+    };
+
+    expect(() => new QueryModel(stubDb, pgp, schema)).not.toThrow();
+  });
+});
+
 describe('column defaults through the real ColumnSet (N3)', () => {
   beforeEach(() => {
     columnSetCache.clear();
@@ -192,5 +241,65 @@ describe('buildValuesClause (issue 13)', () => {
       ])
     ).toBe("('a','o''k'),('b',null)");
     expect(model.buildValuesClause([])).toBe('');
+  });
+});
+
+describe('malformed constraints.indexes', () => {
+  beforeEach(() => {
+    columnSetCache.clear();
+  });
+
+  /** Builds a schema with the given index definitions nested correctly. */
+  const withIndexes = (table: string, indexes: unknown[]): TableSchema => {
+    const schema = makeSchema(
+      { hasAuditFields: false, softDelete: false },
+      table
+    );
+    return {
+      ...schema,
+      constraints: { ...schema.constraints, indexes },
+    } as unknown as TableSchema;
+  };
+
+  it.each([
+    ['empty columns array', [{ columns: [] }]],
+    ['columns not an array', [{ columns: 'message' }]],
+    ['columns missing', [{ unique: true }]],
+  ])('throws on %s', (_label, indexes) => {
+    // createTableSQL swallows index errors at debug level, so one malformed
+    // entry silently drops every index on the table.
+    expect(
+      () => new QueryModel(stubDb, pgp, withIndexes('idx_bad', indexes))
+    ).toThrow(SchemaDefinitionError);
+  });
+
+  it('names the offending position and the table', () => {
+    expect(
+      () =>
+        new QueryModel(
+          stubDb,
+          pgp,
+          withIndexes('idx_pos', [{ columns: ['message'] }, { columns: [] }])
+        )
+    ).toThrow('constraints.indexes[1] in "idx_pos"');
+  });
+
+  it('accepts plain, unique, and partial-unique definitions', () => {
+    expect(
+      () =>
+        new QueryModel(
+          stubDb,
+          pgp,
+          withIndexes('idx_good', [
+            { columns: ['message'] },
+            { columns: ['message'], unique: true },
+            {
+              columns: ['message'],
+              unique: true,
+              where: 'message IS NOT NULL',
+            },
+          ])
+        )
+    ).not.toThrow();
   });
 });

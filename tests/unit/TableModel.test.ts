@@ -56,6 +56,11 @@ vi.mock('../../src/utils/schemaBuilder.js', () => ({
     update: {},
   })),
   createTableSQL: vi.fn(() => 'CREATE TABLE IF NOT EXISTS public.users (...);'),
+  // Identity stub: this file mocks the whole builder, so there are no real
+  // schemas behind the names here. Whether colProps actually reach the
+  // ColumnSet is asserted against real pg-promise in
+  // TableModel.columnSetProps.test.ts.
+  columnSetColumnsFor: vi.fn((_schema, names: string[]) => names),
 }));
 
 // ================================

@@ -9,9 +9,11 @@ import {
   createIndexesSQL,
   normalizeSQL,
   createColumnSet,
+  columnSetColumnsFor,
   columnSetCache,
 } from '../../src/utils/schemaBuilder.js';
 import { LRUCache } from 'lru-cache';
+import { z } from 'zod';
 import type { IMain, IColumnDescriptor } from 'pg-promise';
 import type {
   TableSchema,
@@ -1081,6 +1083,70 @@ describe('Schema Utilities', () => {
       expect(columnNames).toContain('email'); // 'email' should be there
     });
 
+    /** Builds a one-key table of the given type and returns its column names. */
+    const columnNamesFor = (type: string): string[] => {
+      columnSetCache.clear();
+      const columnSet = createColumnSet(
+        {
+          dbSchema: 'public',
+          table: 'auto_gen',
+          columns: [
+            { name: 'id', type, notNull: true },
+            { name: 'note', type: 'text' },
+          ],
+          constraints: { primaryKey: ['id'] },
+        },
+        mockPgp
+      );
+      return columnSet.auto_gen!.columns.map(col => col.name);
+    };
+
+    it.each([
+      'serial',
+      'serial2',
+      'serial4',
+      'serial8',
+      'smallserial',
+      'bigserial',
+    ])('skips every serial spelling: %s', type => {
+      // Only the literal 'serial' was skipped before 3.0.0, so smallserial and
+      // bigserial stayed in the ColumnSet despite being auto-generated.
+      const names = columnNamesFor(type);
+      expect(names).not.toContain('id');
+      expect(names).toContain('note');
+    });
+
+    it.each(['SERIAL', ' serial ', 'BigSerial'])(
+      'normalizes case and whitespace before skipping: %s',
+      type => {
+        expect(columnNamesFor(type)).not.toContain('id');
+      }
+    );
+
+    it('normalizes the uuid primary-key arm too', () => {
+      columnSetCache.clear();
+      const columnSet = createColumnSet(
+        {
+          dbSchema: 'public',
+          table: 'auto_gen',
+          columns: [
+            { name: 'id', type: 'UUID', default: 'gen_random_uuid()' },
+            { name: 'note', type: 'text' },
+          ],
+          constraints: { primaryKey: ['id'] },
+        },
+        mockPgp
+      );
+      expect(columnSet.auto_gen!.columns.map(col => col.name)).not.toContain(
+        'id'
+      );
+    });
+
+    it('keeps a plain integer primary key (control)', () => {
+      // The skip must not over-fire onto ordinary integer keys.
+      expect(columnNamesFor('integer')).toContain('id');
+    });
+
     it('should apply colProps for pg-promise column configuration', () => {
       const schema: TableSchema = {
         dbSchema: 'public',
@@ -1176,6 +1242,50 @@ describe('Schema Utilities', () => {
         expect(testCache.get(key)).toBeUndefined();
         done();
       }, 200); // Wait longer than TTL
+    });
+  });
+
+  describe('columnSetColumnsFor', () => {
+    const schema: TableSchema = {
+      dbSchema: 'public',
+      table: 'props',
+      columns: [
+        { name: 'id', type: 'uuid', notNull: true },
+        { name: 'plain', type: 'text' },
+        { name: 'tags', type: 'uuid[]', colProps: { cast: 'uuid[]' } },
+        { name: 'doc', type: 'jsonb', colProps: { mod: ':json' } },
+        {
+          name: 'validated',
+          type: 'text',
+          colProps: { validator: z.string() },
+        },
+      ],
+      constraints: { primaryKey: ['id'] },
+    };
+
+    it('returns a bare name for a column with no colProps', () => {
+      expect(columnSetColumnsFor(schema, ['plain'])).toEqual(['plain']);
+    });
+
+    it('returns a descriptor carrying cast and mod', () => {
+      expect(columnSetColumnsFor(schema, ['tags', 'doc'])).toEqual([
+        { name: 'tags', cast: 'uuid[]' },
+        { name: 'doc', mod: ':json' },
+      ]);
+    });
+
+    it('drops the pg-schemata-only validator key', () => {
+      // pg-promise rejects unknown Column properties, and `validator` is ours.
+      expect(columnSetColumnsFor(schema, ['validated'])).toEqual(['validated']);
+    });
+
+    it('preserves the requested order and passes unknown names through', () => {
+      // Audit columns are added to the DTO by TableModel, not declared in the
+      // caller's schema, so they legitimately have no descriptor.
+      expect(columnSetColumnsFor(schema, ['tags', 'updated_by'])).toEqual([
+        { name: 'tags', cast: 'uuid[]' },
+        'updated_by',
+      ]);
     });
   });
 });

@@ -65,12 +65,15 @@ try {
 
 ### Properties
 
-| Property   | Type                | Description                                    |
-| ---------- | ------------------- | ---------------------------------------------- |
-| `message`  | `string`            | Description of the schema or validation issue  |
-| `name`     | `string`            | Always `'SchemaDefinitionError'`               |
-| `original` | `Error \| null`     | Optional original error                        |
-| `cause`    | `ZodError \| Error` | Zod validation details (when validation fails) |
+| Property   | Type                  | Description                                                         |
+| ---------- | --------------------- | ------------------------------------------------------------------- |
+| `message`  | `string`              | Description of the schema or validation issue                       |
+| `name`     | `string`              | Always `'SchemaDefinitionError'`                                    |
+| `original` | `Error \| null`       | Optional original error                                             |
+| `cause`    | `ZodIssue[] \| Error` | Zod **issues array** when validation fails; otherwise the raw error |
+
+`.cause` is `ZodError.issues`, not the `ZodError` itself — an array of objects each
+carrying `path` and `code`. See [the `.cause` shape](/guide/validation#the-cause-shape).
 
 ## Handling errors in application code
 

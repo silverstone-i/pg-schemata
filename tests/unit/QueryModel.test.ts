@@ -114,6 +114,61 @@ describe('QueryModel', () => {
     });
   });
 
+  describe('buildCondition with Date values', () => {
+    // A Date is an object with no enumerable keys, so it used to fall into the
+    // operator-map branch, match no operator, and emit nothing — the condition
+    // silently disappeared. `Scalar` explicitly includes Date.
+    const DATE = new Date('2020-01-01T00:00:00Z');
+
+    test('emits a predicate for a bare Date value', () => {
+      const values: unknown[] = [];
+      const clause = model.buildCondition([{ id: DATE }], 'AND', values);
+      expect(clause).toBe('"id" = $1');
+      expect(values).toEqual([DATE]);
+    });
+
+    test('does not drop a Date alongside another column', () => {
+      // The dangerous case: the Date vanished while the rest of the condition
+      // still applied, so writes reached a broader set of rows than intended.
+      const values: unknown[] = [];
+      const clause = model.buildCondition(
+        [{ id: DATE, email: 'a@b.com' }],
+        'AND',
+        values
+      );
+      expect(clause).toBe('"id" = $1 AND "email" = $2');
+      expect(values).toEqual([DATE, 'a@b.com']);
+    });
+
+    test('still supports Dates inside operators', () => {
+      const eq: unknown[] = [];
+      expect(model.buildCondition([{ id: { $eq: DATE } }], 'AND', eq)).toBe(
+        '"id" = $1'
+      );
+
+      const range: unknown[] = [];
+      expect(
+        model.buildCondition([{ id: { $from: DATE, $to: DATE } }], 'AND', range)
+      ).toBe('"id" >= $1 AND "id" <= $2');
+
+      const list: unknown[] = [];
+      expect(model.buildCondition([{ id: { $in: [DATE] } }], 'AND', list)).toBe(
+        '"id" IN ($1)'
+      );
+    });
+
+    test('still rejects an unsupported operator on a plain object', () => {
+      expect(() =>
+        model.buildCondition(
+          // @ts-expect-error deliberately uses an unknown operator
+          [{ id: { $nope: 1 } }],
+          'AND',
+          []
+        )
+      ).toThrow(SchemaDefinitionError);
+    });
+  });
+
   describe('buildCondition', () => {
     test('should handle simple equality condition', () => {
       const values: unknown[] = [];

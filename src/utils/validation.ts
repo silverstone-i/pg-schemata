@@ -25,21 +25,6 @@ export function isValidId(id: unknown): id is number | string {
 /**
  * @private
  *
- * Validates whether a string matches the UUID v1–v5 format.
- *
- * @param id - The string to test as a UUID.
- * @returns True if the string matches a UUID pattern.
- */
-export function validateUUID(id: unknown): boolean {
-  // Regular expression to match UUID versions 1 through 5
-  const UUID_REGEX =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return typeof id === 'string' && UUID_REGEX.test(id);
-}
-
-/**
- * @private
- *
  * Re-export of lodash's isPlainObject utility.
  */
 export { isPlainObject };

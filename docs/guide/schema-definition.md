@@ -38,11 +38,24 @@ The `colProps` object controls how pg-promise handles the column in insert and u
 | Property    | Type               | Description                                                                                                  |
 | ----------- | ------------------ | ------------------------------------------------------------------------------------------------------------ |
 | `mod`       | `string`           | pg-promise format modifier (e.g. `':json'` for JSONB columns)                                                |
+| `cast`      | `string`           | SQL type appended as a cast (e.g. `'uuid[]'`). Required for typed array columns — see below                  |
 | `skip`      | `(col) => boolean` | Skip this column conditionally. Common pattern: `c => !c.exists` skips the column if not provided in the DTO |
 | `cnd`       | `boolean`          | Use this column in the conditional update clause                                                             |
 | `init`      | `(dto) => any`     | Function to compute the value dynamically at insert/update time                                              |
 | `def`       | `string`           | Override the default value in pg-promise's ColumnSet                                                         |
 | `validator` | `ZodSchema`        | Custom Zod validator for this specific column                                                                |
+
+### Typed array columns need `cast`
+
+pg-promise renders a JavaScript array as a `text[]` literal, and PostgreSQL will not
+implicitly cast that to `uuid[]` — an insert fails with
+`column "related_ids" is of type uuid[] but expression is of type text[]`. Add the cast:
+
+```js
+{ name: 'related_ids', type: 'uuid[]', colProps: { cast: 'uuid[]' } }
+```
+
+`text[]` columns need no cast, since that is already the rendered type.
 
 ## Constraints
 
@@ -93,11 +106,24 @@ Check expressions and index predicates are deliberately raw SQL — they are emi
 :::
 | `indexes` | `IndexDefinition[]` | Index definitions for query optimization |
 
-::: info Removed in 2.0.0
+::: warning Removed — these throw at model construction
 Declaring `indexes` at the top level of the schema (outside `constraints`) and
 the `schemaName` alias for `dbSchema` were removed in 2.0.0 after warning at
-runtime in 1.8.0. The column key `nullable` was removed too — a schema still
-passing it throws `SchemaDefinitionError` at model construction; use `notNull`.
+runtime in 1.8.0, along with the column key `nullable`.
+
+As of 3.0.0 a schema still using **top-level `indexes`** throws
+`SchemaDefinitionError` at model construction rather than being silently
+ignored — 2.0.0 dropped every such index, including unique and partial-unique
+ones, with no signal until duplicate rows appeared. An empty `indexes: []`
+throws too.
+
+```diff
+- indexes: [{ columns: ['email'], unique: true }],
++ constraints: { indexes: [{ columns: ['email'], unique: true }] },
+```
+
+A column still passing `nullable` also throws; use `notNull`
+(`nullable: false` becomes `notNull: true`).
 :::
 
 ## Audit fields

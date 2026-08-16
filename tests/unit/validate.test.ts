@@ -3,11 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  isValidId,
-  validateUUID,
-  isPlainObject,
-} from '../../src/utils/validation.js';
+import { isValidId, isPlainObject } from '../../src/utils/validation.js';
 
 describe('isValidId', () => {
   it('should return true for finite numbers', () => {
@@ -37,27 +33,6 @@ describe('isValidId', () => {
     expect(isValidId({})).toBe(false);
     expect(isValidId([])).toBe(false);
     expect(isValidId(true)).toBe(false);
-  });
-});
-
-describe('validateUUID', () => {
-  it('should return true for valid UUIDs', () => {
-    expect(validateUUID('123e4567-e89b-12d3-a456-426614174000')).toBe(true);
-    expect(validateUUID('550e8400-e29b-41d4-a716-446655440000')).toBe(true);
-  });
-
-  it('should return false for invalid UUIDs', () => {
-    expect(validateUUID('123e4567e89b12d3a456426614174000')).toBe(false); // missing hyphens
-    expect(validateUUID('g23e4567-e89b-12d3-a456-426614174000')).toBe(false); // invalid character
-    expect(validateUUID('')).toBe(false);
-    expect(validateUUID('not-a-uuid')).toBe(false);
-  });
-
-  it('should return false for non-string input', () => {
-    expect(validateUUID(123)).toBe(false);
-    expect(validateUUID(null)).toBe(false);
-    expect(validateUUID(undefined)).toBe(false);
-    expect(validateUUID({})).toBe(false);
   });
 });
 

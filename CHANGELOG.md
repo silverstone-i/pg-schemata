@@ -10,6 +10,67 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+### 💥 Breaking
+
+- **Minimum supported Node.js raised from 18 to 20.** Node 18 is end-of-life, CI only ever tested 20 and 22, and the `lru-cache` dependency already required `20 || >=22` — so the advertised floor was untested and unusable
+- **`upsert()` and `bulkUpsert()` now validate their input.** They went straight from sanitization to SQL while every other write path validated, so invalid types, the automatic email check, and `colProps.validator` rules all reached the database. Upserts that previously succeeded with invalid data will now be rejected up front
+- **A condition containing a `Date` now generates the predicate it always should have.** `{ created_at: someDate }` emitted no SQL at all, so `{ created_at: someDate, tenant_id: id }` filtered on `tenant_id` alone and destructive `updateWhere`/`deleteWhere` calls reached more rows than intended. Queries will now return **fewer** rows than before — that is the fix, not a regression
+- **A malformed `constraints.indexes` entry now throws at model construction.** One entry with an empty or missing `columns` array previously caused *every* index on the table — unique and partial-unique included — to be dropped silently while the `CREATE TABLE` succeeded
+- **`zod` is now a peer dependency and requires zod 4** (`"peerDependencies": { "zod": "^4.0.0" }`). It was previously a bundled `dependencies` entry on zod 3, so npm nested a second copy under any consumer already on zod 4 — and a zod-3 object validating a zod-4 schema throws `TypeError: keyValidator._parse is not a function`. The public API exchanges zod objects in both directions (`colProps.validator` in, `_schema.validators` out, `validateDto`, `err instanceof ZodError`), all of which need a single instance.
+  **Upgrade order: move your app to zod 4 first, then pg-schemata.** Installing against zod 3 now fails loudly with `ERESOLVE` rather than silently nesting a broken second copy
+- **`SchemaDefinitionError.cause` is now `ZodError.issues`** — zod 4 removed `ZodError.errors`. The value is still an array of issue objects with `path` and `code`; only the accessor it came from changed. Code reading `err.cause[0].message` is unaffected
+- **A top-level `indexes` property now throws at model construction** — it has been ignored since 2.0.0, which silently dropped every index including unique and partial-unique ones, with no signal at any layer until duplicate rows appeared. Move it inside `constraints`:
+  ```diff
+  - indexes: [{ columns: ['email'], unique: true }],
+  + constraints: { indexes: [{ columns: ['email'], unique: true }] },
+  ```
+  An empty `indexes: []` throws too — it is just as misplaced
+- **`char(n)` and `character varying(n)` now enforce `.max(n)`** — both previously fell through to the unsized branch and silently dropped the length limit the validation guide has always documented. **Expect this to look like a regression**: it is a dropped limit finally taking effect, and rows that were passing validation while exceeding the declared length will now be rejected
+- **`json`/`jsonb` columns marked `notNull` are now actually required on insert** — they mapped to `z.any()`, which makes the object key optional in zod, so a `jsonb NOT NULL` column passed validation with the key absent entirely. The key must be present; its value may still be `null`, because `NOT NULL` rejects SQL NULL but admits the JSON scalar `null`, and `pg` parses both to JavaScript `null`
+- **`CHECK` constraints now apply to the column's own type before nullability wrapping.** Three consequences, all cases where the generated validator disagreed with Postgres:
+  - `char_length(col) > n` now applies to nullable columns and to `notNull` columns with a default. It was silently dropped for both, because the wrapped value is a `ZodOptional`, which has no `.min`
+  - `col IN (...)` no longer discards `.nullable().optional()`. A nullable column with an `IN` check previously **rejected `null`**, though `NULL IN (...)` is unknown and `CHECK` admits unknown
+  - Neither check mutates a non-string column any more
+- **Minimum supported PostgreSQL raised from 12 to 13** — UUID primary keys default to the core `gen_random_uuid()`, which was added in 13
+- **`bootstrap()` no longer enables `pgcrypto` by default** — the `extensions` option now defaults to `[]`. Nothing in pg-schemata ever called a pgcrypto function; the default was a pre-PostgreSQL-13 artifact from when `gen_random_uuid()` lived in that extension. Pass `extensions: ['pgcrypto']` explicitly if your own schemas still need it
+
+### ✨ Added
+
+- **One-dimensional array types** — `text[]`, `uuid[]`, `varchar(10)[]`, and so on map to `z.array(...)` with the element validator intact, so `varchar(10)[]` still enforces the per-element length. Whitespace and declared dimensions (`text[3]`, `text [ ]`) are tolerated
+- **`time` and `timetz`** map to a string with a time pattern. `pg` leaves OID 1083 unparsed, so a `time` column round-trips as `'07:00:00'` — `z.coerce.date()` would have failed every `time` column in existence. The pattern is hand-rolled rather than `z.iso.time()`, which rejects `24:00:00`, a legal end-of-day value Postgres accepts
+- **New scalar aliases** — `bool`, `float`, `float(n)`, `serial2`, `serial4`, `serial8`, `citext`, `inet`, `cidr`, `macaddr`, `macaddr8`, and bare `char` / `bpchar` / `character`
+- **`colProps.cast`** — appends a SQL cast to the column, passed through to pg-promise. Needed for typed array columns: pg-promise renders a JavaScript array as a `text[]` literal, and PostgreSQL will not implicitly cast that to `uuid[]`:
+  ```js
+  { name: 'related_ids', type: 'uuid[]', colProps: { cast: 'uuid[]' } }
+  ```
+  The builder already forwarded this to pg-promise; only the type declaration was missing
+- **[ADR-0014](prd/adr/ADR-0014-zod-4-peer-dependency.md)** records the zod 4 peer decision, the `z.guid()`-over-`z.uuid()` choice, and the principle behind them: the validator must never be stricter than the database
+
+### 🐛 Fixed
+
+- **`colProps` survives on every write path.** `upsert`, `bulkUpsert`, `bulkInsert`, `updateWhere`, and `bulkUpdate` build a ColumnSet per call from the DTO's keys, and they built it from bare column-name strings — discarding `cast`, `mod`, `skip`, `cnd`, and `init`. Only `insert()`, which uses the cached ColumnSet, behaved as documented: a `uuid[]` column with the new `cast` reached Postgres as a `text[]` literal on all five other paths, and `mod: ':json'` was dropped alongside it
+- **A compound `CHECK` no longer yields a bogus minimum length.** The `char_length(col) > n` pattern was unanchored, so `CHECK (char_length(code) > 3 OR code = 'x')` produced a `.min(4)` that rejected the legal value `'x'`. Both recognized CHECK forms are now matched only as whole expressions
+- **`uuid` columns accept every GUID Postgres does.** The mapping uses `z.guid()`, not zod 4's `z.uuid()`, which enforces RFC 4122 variant bits and rejects values Postgres stores happily — including `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF` and any GUID whose variant nibble falls outside `8`/`9`/`a`/`b`
+- **`numeric` and `decimal` accept the string `pg` returns.** OID 1700 comes back as a string to preserve precision, exactly like `int8`, so a row read straight back out of the database failed its own validator under the old `z.number()` mapping
+- **A `char_length` check on an array column no longer becomes an item-count minimum.** The old helper duck-typed `.min`, which was safe only while arrays were unmappable — `z.array()` has a `.min` too, and it means array length
+- **`colProps.validator` works at all.** The constructor deep-clones the caller's schema, and that clone walked Zod's internals and produced an object that was no longer a working validator — so every custom validator failed with a `TypeError` (surfaced as `SchemaDefinitionError: DTO validation failed` whose `.cause` was a `TypeError`, not a Zod issue array) on the first insert, update, or upsert. Cloning now preserves Zod instances by reference. This matters more in 3.0.0 than before, since `colProps.validator` is the escape hatch for `interval`, `bytea`, and every unmapped type
+- **`NOT NULL` columns reject `null` in every mapped type.** `z.coerce.date()` did not merely accept `null`, it coerced it to the Unix epoch, so a `NOT NULL timestamptz` with no default validated `null`. `json`/`jsonb` are the deliberate exception — see the `notNull` json note above
+- **Array validators accept `NULL` elements.** PostgreSQL arrays may contain `NULL` and the column type cannot forbid it, so `pg` returns `['a', null]` for a legal value that the validator rejected — meaning a row read straight back out of the database failed its own base validator
+- **CHECK constraints compose instead of overwriting.** Several `char_length` checks on one column no longer let the last one win (the strictest is kept), and an `IN` check no longer discards `varchar(n)`'s `.max(n)`, a `colProps.validator`, or a length hint
+- **Type names are normalized once** — trimmed, lowercased, and interior whitespace collapsed — so `DOUBLE   PRECISION` and `Timestamp Without Time Zone` resolve correctly
+- **The whole `serial` family is recognized as auto-generated.** `createColumnSet` compared against the literal string `'serial'`, so `smallserial`, `bigserial`, and the newly added `serial2`/`serial4`/`serial8` stayed in the ColumnSet despite being database-generated, and the comparison was case- and whitespace-sensitive (`SERIAL` validated but was not skipped). Both call sites now share one normalized definition, and the `uuid` primary-key arm of the same check gains normalization too
+- **A `notNull` serial column is no longer required at insert.** It was required whenever no explicit `default` was declared, forcing the caller to invent a value for a column Postgres populates — which, for plain `serial`, the ColumnSet then discarded. Base and update validators are unchanged: a serial still validates as an integer when a value is supplied
+
+### 🔥 Removed (internal)
+
+- **`validateUUID`** — it enforced RFC 4122 v1–v5 and rejected the all-F GUID the `uuid` mapping now accepts, leaving two contradicting definitions of "valid UUID" in one package. It was unreachable: not exported from the package entry point, not referenced anywhere in `src/`, and the `exports` map is `"."` only, so no deep-path import could reach it either
+
+### 📝 Notes
+
+- **`interval` and `bytea` remain unmapped by design.** Both round-trip asymmetrically — `pg` returns an object or a `Buffer` while inserts accept a string — so any built-in validator would have to be a union broad enough to accept nearly anything, which is worse than no validator because it looks like protection. Use `colProps.validator`
+- **`text[][]` throws.** Postgres does not enforce declared array dimensions: `text[][]` and `text[]` are the same type, and a `text[][]` column happily stores a flat array, so a nested validator would reject rows the database accepts
+- **`_text` throws**, naming `text[]` as the intended spelling. It is the `pg_type` internal name for `text[]`, but also a legal user-defined identifier, so guessing would eventually be wrong
+
 ## [v2.0.0] - 2026-08-02
 
 ### 💥 Breaking

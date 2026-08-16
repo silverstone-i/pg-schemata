@@ -51,6 +51,16 @@ export interface ColPropsContext {
 export interface ColProps {
   /** pg-promise format modifier (e.g. ':json'). */
   mod?: string;
+  /**
+   * SQL type appended as a cast (e.g. 'uuid[]'), passed through to
+   * pg-promise's Column.
+   *
+   * Needed for typed array columns: pg-promise renders a JavaScript array as
+   * a `text[]` literal, and PostgreSQL will not implicitly cast that to
+   * `uuid[]`, so an insert fails with "column is of type uuid[] but
+   * expression is of type text[]" without it.
+   */
+  cast?: string;
   /** Conditionally skip this column in insert/update. */
   skip?: (col: ColPropsContext) => boolean;
   /** Use in conditional update clause. */
@@ -60,7 +70,7 @@ export interface ColProps {
   /** Override default value (a JavaScript substitution value, not raw SQL). */
   def?: unknown;
   /** Custom Zod validator for this column. */
-  validator?: z.ZodTypeAny;
+  validator?: z.ZodType;
 }
 
 /**
@@ -69,7 +79,16 @@ export interface ColProps {
 export interface ColumnDefinition {
   /** The name of the column. */
   name: string;
-  /** PostgreSQL data type (e.g. 'text', 'uuid', 'integer', 'varchar(255)', 'jsonb'). */
+  /**
+   * PostgreSQL data type (e.g. 'text', 'uuid', 'integer', 'varchar(255)',
+   * 'jsonb', 'text[]').
+   *
+   * The mapped set is closed: a type with no validator mapping throws
+   * `SchemaDefinitionError` when the model is constructed, rather than
+   * silently accepting anything. Arrays are supported one dimension deep.
+   * `interval` and `bytea` are unmapped by design — supply
+   * {@link ColProps.validator} for those.
+   */
   type: string;
   /** Marks the column as a generated column. */
   generated?: 'always' | 'by default';
@@ -230,9 +249,9 @@ export interface TableSchema {
  * The Zod validators auto-generated from a table schema.
  */
 export interface TableValidators {
-  baseValidator: z.ZodTypeAny;
-  insertValidator: z.ZodTypeAny;
-  updateValidator: z.ZodTypeAny;
+  baseValidator: z.ZodType;
+  insertValidator: z.ZodType;
+  updateValidator: z.ZodType;
 }
 
 /**

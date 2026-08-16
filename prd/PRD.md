@@ -1,6 +1,6 @@
 # pg-schemata — Product Requirements Document
 
-**Current Version:** 1.3.0
+**Current Version:** 3.0.0 (pending release)
 **License:** MIT
 **Author:** Ian Silverstone
 
@@ -75,11 +75,12 @@ The following exports from `src/index.js` constitute the **stable public API**. 
 
 The following are implementation details and may change without a major version bump:
 
-- `src/utils/schemaBuilder.js` — ColumnSet generation, DDL generation, LRU cache internals
-- `src/utils/generateZodValidator.js` — Zod schema auto-generation
-- `src/utils/pg-util.js` — Logging utilities
-- `src/utils/validation.js` — ID/UUID validation helpers
-- `src/utils/ddlGenerator.js` — DDL generation internals
+- `src/utils/schemaBuilder.ts` — ColumnSet generation, DDL generation, LRU cache internals
+- `src/utils/generateZodValidator.ts` — Zod schema auto-generation
+- `src/utils/sqlTypes.ts` — shared SQL type-string normalization
+- `src/utils/pg-util.ts` — Logging utilities
+- `src/utils/validation.ts` — ID and plain-object validation helpers
+- `src/utils/ddlGenerator.ts` — DDL generation internals
 - ColumnSet cache size, TTL, and key format
 - Internal method names prefixed with `_` or not listed in this contract
 
@@ -89,17 +90,16 @@ The following are implementation details and may change without a major version 
 
 | Requirement     | Value                         |
 | --------------- | ----------------------------- |
-| Runtime         | Node.js >= 18                 |
-| Database        | PostgreSQL >= 12              |
+| Runtime         | Node.js >= 20                 |
+| Database        | PostgreSQL >= 13              |
 | Module System   | ESM only (`"type": "module"`) |
-| Peer Dependency | pg-promise >= 11.x            |
+| Peer Dependency | zod >= 4 (see ADR-0014)       |
 
 ### Runtime Dependencies
 
 | Package         | Purpose                  | Rationale                            |
 | --------------- | ------------------------ | ------------------------------------ |
 | pg-promise      | Database driver          | See ADR-0001                         |
-| zod             | DTO validation           | See ADR-0006                         |
 | lodash          | cloneDeep, isPlainObject | Minimal usage; candidate for removal |
 | @nap-sft/tablsx | Excel I/O                | See ADR-0009                         |
 | lru-cache       | ColumnSet caching        | See ADR-0008                         |
@@ -785,7 +785,7 @@ If `modelOrName` is a string, resolves from `DB.db[modelOrName]`. Validates the 
 bootstrap({
   models: Object<string, Function>,
   schema?: string = 'public',
-  extensions?: string[] = ['pgcrypto'],
+  extensions?: string[] = [],
   db?: object = null
 }) → Promise<void>
 ```
@@ -1021,32 +1021,45 @@ Also adds `deactivated_at timestamptz` (nullable, no default) if `softDelete: tr
 
 Returns `{ baseValidator: ZodObject, insertValidator: ZodObject, updateValidator: ZodObject }`.
 
-**Type mapping:**
+**Type mapping:** see [docs/guide/validation.md](../docs/guide/validation.md#type-mapping),
+which is the single canonical table. It is not duplicated here — three hand-maintained
+copies of it drifted apart and contradicted the implementation before 3.0.0.
 
-| SQL Type                              | Zod Type            |
-| ------------------------------------- | ------------------- |
-| `varchar(N)`                          | `z.string().max(N)` |
-| `text`                                | `z.string()`        |
-| `uuid`                                | `z.string().uuid()` |
-| `int`, `serial`                       | `z.number().int()`  |
-| `numeric`                             | `z.number()`        |
-| `boolean`                             | `z.boolean()`       |
-| `timestamp`, `date`                   | `z.coerce.date()`   |
-| `jsonb`                               | `z.any()`           |
-| (all others, including `timestamptz`) | `z.any()`           |
+Summary of the contract, as of 3.0.0:
+
+- Type names are normalized once (trim, collapse whitespace, lowercase) before matching.
+- The mapped set is **closed**. An unmapped type throws `SchemaDefinitionError` at model
+  construction rather than falling back to `z.any()`.
+- `interval` and `bytea` are unmapped **by design** — both round-trip asymmetrically, so
+  any built-in validator would accept nearly anything. Use `colProps.validator`.
+- `uuid` uses `z.guid()`, not `z.uuid()`: the latter enforces RFC 4122 variant bits and
+  rejects values PostgreSQL stores. See ADR-0014.
+- `time`/`timetz` map to a string, because pg leaves OID 1083 unparsed. `date`,
+  `timestamp`, and `timestamptz` map to `z.coerce.date()`, because pg does parse those.
+- `numeric` and the 64-bit integer family accept a string as well as a number, because pg
+  returns them as strings to preserve precision.
+- Arrays map one dimension deep; `text[][]` and `_text` both throw.
 
 **Validator variants:**
 
 - **baseValidator:** `notNull` → required; otherwise `zodType.nullable().optional()`
-- **insertValidator:** `notNull` AND no `default` → required; otherwise `nullable().optional()`
+- **insertValidator:** `notNull` AND nothing supplies a value → required; otherwise
+  `nullable().optional()`. A `default` or a serial type counts as supplying a value.
 - **updateValidator:** all fields `nullable().optional()`
 
 **Special behaviors:**
 
-- Column named `email` with string type: adds `.email()` validation
-- `colProps.validator` overrides the auto-generated Zod type for that column
-- CHECK constraints with `char_length(field) > N`: adds `.min(N+1)` to the Zod type
-- CHECK constraints with `field IN ('A', 'B')`: replaces Zod type with `z.enum(['A', 'B'])`
+- Column named `email` with a string type: composes `.check(z.email())` onto the mapped
+  type, so a `varchar(N)` email column keeps its `.max(N)`
+- `colProps.validator` overrides the auto-generated Zod type for that column, bypassing
+  the type mapping and its throws entirely
+- CHECK `char_length(field) > N`: adds `.min(N+1)`
+- CHECK `field IN ('A', 'B')`: refines the mapped type with an allow-list rather than
+  replacing it with `z.enum(['A', 'B'])`, so `.max(N)`, the `email` check, and a
+  `colProps.validator` all survive alongside it
+- Both are recognized only as whole expressions; a compound CHECK is left uninterpreted
+- Both CHECK forms apply to the column's own type **before** nullability wrapping, so a
+  nullable column keeps accepting `null`, and both are ignored for non-string columns
 
 ---
 
@@ -1079,7 +1092,7 @@ new SchemaDefinitionError(message: string, originalError?: Error = null)
 - `name`: `'SchemaDefinitionError'`
 - `message`: The provided message string
 - `original`: The `originalError` passed to the constructor (or `null`)
-- `cause`: Set after construction by calling code (e.g., `error.cause = zodError.errors`) — used by validation to attach ZodError details
+- `cause`: Set after construction by calling code (`error.cause = zodError.issues`) — the Zod **issues array**, not the `ZodError`. `ZodError.errors` does not exist in zod 4.
 
 ---
 
@@ -1100,20 +1113,21 @@ These define how the system **must** behave. They are the acceptance criteria fo
 
 ### 6.1 Schema Definition
 
-A table schema is a plain JavaScript object. The canonical structure is defined in `src/schemaTypes.d.ts` (`TableSchema` interface).
+A table schema is a plain JavaScript object. The canonical structure is defined in `src/schemaTypes.ts` (`TableSchema` interface).
 
 **Required properties:** `dbSchema` (string), `table` (string), `columns` (ColumnDefinition[])
 
 **Optional properties:** `constraints` (Constraints), `hasAuditFields` (boolean | AuditFieldsConfig), `softDelete` (boolean), `version` (string)
 
-**Column definition properties:** `name` (required), `type` (required), `notNull`, `default`, `immutable`, `generated`, `expression`, `stored`, `colProps` ({ mod, skip, cnd, init, def, validator })
+**Column definition properties:** `name` (required), `type` (required), `notNull`, `default`, `immutable`, `generated`, `expression`, `stored`, `colProps` ({ mod, cast, skip, cnd, init, def, validator })
 
-**Constraints:** `primaryKey` (string[]), `unique` (string[] | UniqueConstraintDefinition)[], `foreignKeys` (ConstraintDefinition[]), `checks` (ConstraintDefinition[]), `indexes` (ConstraintDefinition[])
+**Constraints:** `primaryKey` (string[]), `unique` (string[] | UniqueConstraintDefinition)[], `foreignKeys` (ConstraintDefinition[]), `checks` (CheckConstraintDefinition | string)[], `indexes` (IndexDefinition[])
 
 **Invariants:**
 
 - TableModel requires `constraints.primaryKey` to be defined; constructor throws `SchemaDefinitionError` if missing
-- `notNull: true` is the canonical way to express NOT NULL (not the deprecated `nullable: false`)
+- `notNull: true` is the canonical way to express NOT NULL. `nullable` was removed in 2.0.0 and now throws `SchemaDefinitionError` at model construction
+- `indexes` must live under `constraints`. A top-level `indexes` property throws `SchemaDefinitionError` at model construction (3.0.0); an empty `indexes: []` throws too
 - String defaults must be single-quoted within the string: `default: "'user'"`
 - Function defaults must not include schema prefix: `default: 'gen_random_uuid()'`
 - The property is `dbSchema`, never `schema`
@@ -1208,23 +1222,27 @@ Conditions are passed as an **array of objects**. Each object is a set of AND co
 Three validators are auto-generated per schema from `generateZodFromTableSchema()`:
 
 - **baseValidator** — All fields, notNull enforced
-- **insertValidator** — Only required fields (notNull without default)
+- **insertValidator** — Only fields required at insert (notNull with no default and no
+  implied default; a serial type implies one)
 - **updateValidator** — All fields optional
 
-**Type mapping:** varchar/text/char → `z.string()`, uuid → `z.string().uuid()`, int/serial → `z.number().int()`, numeric → `z.number()`, boolean → `z.boolean()`, date/timestamp → `z.coerce.date()`, jsonb → `z.any()`. Note: `timestamptz` falls through to `z.any()` (the regex only matches exact `timestamp` and `date`).
+**Type mapping:** see [docs/guide/validation.md](../docs/guide/validation.md#type-mapping)
+and §5.8 above. zod is a **peer dependency** (`^4.0.0`) — see ADR-0014.
 
 **Invariants:**
 
 - Validation runs automatically on `insert`, `update`, `bulkInsert`, `bulkUpdate`
-- Validation failures throw `SchemaDefinitionError` with the ZodError as `original`
+- Validation failures throw `SchemaDefinitionError` with the Zod **issues array**
+  (`ZodError.issues`) as `cause` — not the `ZodError`, and not `original`
 - Custom validators via `colProps.validator` override the auto-generated validator for that column
-- Check constraints with `char_length` and `IN` clauses are integrated as `.min()` and `.enum()` Zod constraints
+- Check constraints with `char_length` and `IN` clauses are integrated as `.min()` and `.enum()` Zod constraints, applied to the column's own type before nullability wrapping and skipped for non-string columns
+- An unmapped column type throws at model construction; there is no `z.any()` fallback
 
 ### 6.6 Error Handling
 
 **DatabaseError** — Wraps pg/pg-promise errors. Properties: `code` (SQLSTATE), `detail`, `constraint`, `table`, `original`.
 
-**SchemaDefinitionError** — Schema validation and DTO failures. Properties: `original` (optional, e.g., ZodError).
+**SchemaDefinitionError** — Schema validation and DTO failures. Properties: `original` (optional wrapped error) and `cause`, which on a Zod failure holds `ZodError.issues` — an array of issue objects, not the `ZodError` itself.
 
 **SQLSTATE mapping:** 23505 (unique violation), 23503 (FK violation), 23514 (check violation), 22P02 (invalid input syntax)
 
@@ -1344,17 +1362,19 @@ Planned enhancements, ordered by priority. Items move to the behavioral contract
 
 ## 9. Version History
 
-| Version       | Date       | Type  | Highlights                                                                        |
-| ------------- | ---------- | ----- | --------------------------------------------------------------------------------- |
-| v0.1.0-beta.1 | 2025-04-17 | Beta  | Schema definitions, ColumnSet generation, base CRUD                               |
-| v0.2.0-beta.1 | 2025-06-22 | Beta  | Zod validation, spreadsheet I/O, cursor pagination, WHERE builders, error classes |
-| v1.0.0        | 2025-08-16 | Major | First stable release: upsert/bulkUpsert, soft delete, TypeScript types            |
-| v1.1.0        | 2025-09-23 | Minor | Migration management, bootstrap utility                                           |
-| v1.2.0        | 2026-01-28 | Minor | Configurable audit fields (object format)                                         |
-| v1.2.1        | 2026-01-29 | Patch | NULLS NOT DISTINCT unique constraints                                             |
-| v1.2.2        | 2026-02-02 | Patch | Excel library migration (exceljs → xlsxjs)                                        |
-| v1.2.3        | 2026-02-02 | Patch | Fix xlsxjs import path                                                            |
-| v1.3.0        | 2026-02-13 | Minor | Audit actor resolver, upsert/soft-delete audit fixes                              |
+| Version       | Date       | Type  | Highlights                                                                         |
+| ------------- | ---------- | ----- | ---------------------------------------------------------------------------------- |
+| v0.1.0-beta.1 | 2025-04-17 | Beta  | Schema definitions, ColumnSet generation, base CRUD                                |
+| v0.2.0-beta.1 | 2025-06-22 | Beta  | Zod validation, spreadsheet I/O, cursor pagination, WHERE builders, error classes  |
+| v1.0.0        | 2025-08-16 | Major | First stable release: upsert/bulkUpsert, soft delete, TypeScript types             |
+| v1.1.0        | 2025-09-23 | Minor | Migration management, bootstrap utility                                            |
+| v1.2.0        | 2026-01-28 | Minor | Configurable audit fields (object format)                                          |
+| v1.2.1        | 2026-01-29 | Patch | NULLS NOT DISTINCT unique constraints                                              |
+| v1.2.2        | 2026-02-02 | Patch | Excel library migration (exceljs → xlsxjs)                                         |
+| v1.2.3        | 2026-02-02 | Patch | Fix xlsxjs import path                                                             |
+| v1.3.0        | 2026-02-13 | Minor | Audit actor resolver, upsert/soft-delete audit fixes                               |
+| v2.0.0        | 2026-08-02 | Major | Removed legacy schema aliases, PostgreSQL 13 minimum, unmapped types throw         |
+| v3.0.0        | _pending_  | Major | zod 4 peer dependency, array/time/scalar type coverage, top-level `indexes` throws |
 
 Full details in `CHANGELOG.md`.
 
@@ -1377,6 +1397,7 @@ See `prd/adr/` for historical decision context — why alternatives were conside
 - ADR-0011: Schema-per-tenant multi-tenancy
 - ADR-0012: Cursor-based pagination
 - ADR-0013: SHA-256 migration integrity
+- ADR-0014: Zod 4 as a peer dependency, and validating only what Postgres validates
 
 ---
 
