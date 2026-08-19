@@ -57,7 +57,9 @@ export async function createTestContext(
 
   async function teardown() {
     await db.none(`DROP SCHEMA IF EXISTS "${schemaCopy.dbSchema}" CASCADE`);
-    pgp.end();
+    // Per-instance shutdown: pgp.end() would destroy every pool in the
+    // process, including any other database handle a test holds.
+    await DB.close();
   }
 
   return { ctx: { db }, model: dbAny.model as TableModel, teardown, pgp };

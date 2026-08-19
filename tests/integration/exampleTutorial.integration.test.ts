@@ -80,7 +80,8 @@ describe('migration tutorial example (integration)', () => {
 
   afterAll(async () => {
     await db.none(`DROP SCHEMA IF EXISTS "${dbSchema}" CASCADE`);
-    pgp.end();
+    // Per-instance shutdown; pgp.end() would close unrelated pools too.
+    await DB.close();
   });
 
   it('creates all three tables parent-first, as migration 0001 does', async () => {

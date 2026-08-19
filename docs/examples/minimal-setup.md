@@ -58,15 +58,31 @@ export default {
 };
 ```
 
-## 3. Initialize the database
+## 3. Connect the database
 
 ```js
 // src/db.js
-import { DB } from 'pg-schemata';
+import { createDb } from 'pg-schemata';
 import repositories from './repositories.js';
 
 const { DATABASE_URL } = process.env;
 if (!DATABASE_URL) throw new Error('DATABASE_URL is not set');
+
+export const appDb = createDb({
+  connectionString: DATABASE_URL,
+  repositories,
+});
+
+export const db = appDb.db;
+export const pgp = appDb.pgp;
+
+// At shutdown: await appDb.close();
+```
+
+The `DB` singleton form still works if you prefer it:
+
+```js
+import { DB } from 'pg-schemata';
 
 if (!DB.db) {
   DB.init(DATABASE_URL, repositories);

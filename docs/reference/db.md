@@ -1,6 +1,16 @@
 # DB
 
-Singleton class that initializes and provides access to a configured pg-promise database instance.
+Singleton class that initializes and provides access to a configured pg-promise
+database instance.
+
+`DB` is the **compatibility default instance**: internally it holds one
+[`Database`](./database.md) built by `createDb()`, and republishes its handles on
+the static `DB.db` / `DB.pgp` fields. It remains the simplest entry point for a
+single-database application.
+
+Applications that need more than one database in a process — an admin database
+plus one or more cells — should call [`createDb()`](./database.md) directly
+instead. `DB` connects exactly one.
 
 **Import:**
 
@@ -39,7 +49,31 @@ DB.init(process.env.DATABASE_URL, { users: Users }, console, {
 });
 ```
 
-Calling `init()` multiple times is safe — subsequent calls are no-ops (singleton).
+Calling `init()` multiple times is safe — subsequent calls are complete no-ops:
+the database is not recreated, and an `auditActorResolver` passed to a later call
+is ignored.
+
+## DB.close()
+
+Closes the default instance's pool and resets the singleton so a later
+`DB.init()` starts cleanly. It clears `DB.db`, `DB.pgp`, and — only when a
+default instance existed — the audit resolver registered through `DB.init()`.
+Closing an uninitialized singleton leaves a resolver set by
+`setAuditActorResolver()` alone.
+
+**Returns:** `Promise<void>`
+
+```js
+await DB.close();
+```
+
+Safe before initialization, and safe to call repeatedly or concurrently. Use it
+instead of `pgp.end()`, which destroys **every** pg-promise pool in the process —
+including handles owned by `createDb()` instances.
+
+`DB.db` and `DB.pgp` remain writable fields in 3.x, so existing code that assigns
+them keeps working. Reassignment is discouraged: `DB.close()` is the supported
+way to reset the singleton.
 
 ## db()
 

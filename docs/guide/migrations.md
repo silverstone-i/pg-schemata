@@ -10,6 +10,28 @@ pg-schemata includes a `MigrationManager` for discovering, applying, and trackin
 - Migrations run in a single transaction — if any fails, all are rolled back
 - An advisory lock prevents concurrent migration runs on the same schema
 - Content hashes are **verified on every run** — editing an applied migration aborts the run; write a new migration instead
+- Migrations run against exactly one database: `database.migrate()` targets the instance it is called on, and a standalone `new MigrationManager()` falls back to the `DB` singleton
+
+## Choosing the database
+
+`Database.migrate()` and `Database.migrationManager()` always run against the
+instance they are called on:
+
+```js
+const result = await cellDb.migrate({ schema: 'public', dir: './migrations' });
+console.log(`Applied ${result.applied.length} migration(s)`);
+
+// Preview without executing or recording anything:
+await cellDb.migrate({ schema: 'public', dir: './migrations', dryRun: true });
+```
+
+The target database, its pg-promise root, and its audit resolver are not
+accepted as options there, so a migration cannot be pointed at another handle by
+accident. When several databases need the same migrations, run them once per
+handle — pg-schemata never fans out on its own.
+
+A standalone `new MigrationManager({ ... })` still works and runs against the
+`DB` singleton unless you pass `db` and `pgp` explicitly.
 
 ## Registry mode
 

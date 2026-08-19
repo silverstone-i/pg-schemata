@@ -31,6 +31,7 @@ Define your table schemas in code, generate `ColumnSets`, and get full CRUD, fle
 - Rich WHERE modifiers: `$like`, `$ilike`, `$from`, `$to`, `$in`, `$eq`, `$ne`, `$is`, `$not`, nested `$and`/`$or`
 - Cursor-based pagination (keyset pagination) with column whitelisting
 - Multi-schema (PostgreSQL schemas) support
+- Multiple independent database handles per process via `createDb()`
 - Spreadsheet import and export support
 - Schema-based DTO validation using Zod
 - Extensible via class inheritance
@@ -171,28 +172,102 @@ declare module 'pg-schemata' {
 
 ---
 
-### 3. Initialize DB and Perform Operations
+### 3. Connect a Database
+
+`createDb()` builds an independently owned database handle. Each instance owns
+its own pool, repositories, schema cache, migration target, and lifecycle.
+
+```javascript
+import { createDb } from 'pg-schemata';
+import { User } from './models/User.js';
+
+const appDb = createDb({
+  connectionString: process.env.DATABASE_URL,
+  repositories: { users: User },
+  pool: { max: 10 },
+});
+
+await appDb.connect();
+
+const created = await appDb.db.users.insert({
+  email: 'test@example.com',
+  password: 'secret',
+});
+const one = await appDb.db.users.findById(created.id);
+const list = await appDb.db.users.findAll({ limit: 10 });
+
+await appDb.close();
+```
+
+#### Multiple databases in one process
+
+A process can hold as many handles as it needs — for example an admin database
+plus one or more cell databases:
+
+```javascript
+const adminDb = createDb({
+  connectionString: process.env.ADMIN_DATABASE_URL,
+  repositories: { tenants: Tenants },
+});
+
+const cellDb = createDb({
+  connectionString: process.env.CELL_DATABASE_URL,
+  repositories: { orders: Orders },
+});
+
+await Promise.all([adminDb.connect(), cellDb.connect()]);
+
+const tenant = await adminDb.db.tenants.findById(tenantId);
+const orders = await cellDb.db.orders.findAll({ limit: 20 });
+```
+
+Nothing is shared between instances: an operation through one never uses
+another's pool, models, schema state, or migration configuration, and closing one
+leaves the other fully usable. In TypeScript the repository types are inferred
+per call, so `adminDb.db.tenants` and `cellDb.db.orders` are typed independently.
+
+> **You own routing and secrets.** pg-schemata does not map tenants to cells,
+> discover cells, or store credentials. Your application decides which handle to
+> use and where connection details come from. `forSchema()` selects an ordinary
+> PostgreSQL schema — it is not tenant routing, and it never touches
+> `search_path` or pooled session state.
+
+#### Lifecycle
+
+`connect()` and `close()` are both idempotent and safe to call concurrently:
+
+```javascript
+await appDb.connect(); // repeated calls check the pool once
+await appDb.close(); // ends only this instance's pool
+await appDb.close(); // no-op
+```
+
+After `close()`, calls on the instance throw
+`DatabaseError('Database instance has been closed')`.
+
+> ⚠️ Never call `pgp.end()` to shut down one handle — it destroys **every**
+> pg-promise pool in the process, including other instances. Use
+> `instance.close()` (or `DB.close()` for the singleton).
+
+Handles are meant to be long-lived: pg-promise keeps closed database objects in
+process-global bookkeeping until process shutdown, so do not create one per
+request.
+
+#### Compatibility: the `DB` singleton
+
+The original singleton still works and is now a documented **default instance**
+built with the same factory:
 
 ```javascript
 import { DB, db } from 'pg-schemata';
-import { User } from './models/User.js';
 
-// Initialize with a pg connection string/object and attach repositories
 DB.init(process.env.DATABASE_URL, { users: User });
-
-async function example() {
-  const created = await db().users.insert({
-    email: 'test@example.com',
-    password: 'secret',
-  });
-  const one = await db().users.findById(created.id);
-  const updated = await db().users.update(created.id, {
-    password: 'newpassword',
-  });
-  const list = await db().users.findAll({ limit: 10 });
-  const removed = await db().users.delete(created.id);
-}
+const one = await db().users.findById(id);
+await DB.close(); // additive: closes the default instance and resets it
 ```
+
+`DB.init()` connects exactly one database. Reach for `createDb()` when you need
+more than one.
 
 ---
 
@@ -212,16 +287,25 @@ export async function up({ schema }) {
 ```
 
 ```javascript
-// migrate.mjs - Run your migrations
-import { MigrationManager } from 'pg-schemata';
-
-const manager = new MigrationManager({
+// migrate.mjs - Run migrations against one selected database
+const { applied } = await cellDb.migrate({
   schema: 'public',
   dir: './migrations',
 });
-
-const { applied, files } = await manager.applyAll();
 console.log(`Applied ${applied.length} migration(s)`);
+```
+
+`migrate()` always targets the instance it is called on — the database, its
+pg-promise root, and its audit resolver cannot be overridden through the
+options — so a migration cannot reach another handle by accident. Pass
+`dryRun: true` to preview. The standalone `MigrationManager` still works and
+falls back to the `DB` singleton:
+
+```javascript
+import { MigrationManager } from 'pg-schemata';
+
+const manager = new MigrationManager({ schema: 'public', dir: './migrations' });
+const { applied } = await manager.applyAll();
 ```
 
 ➡️ **[Complete Migration Tutorial](./Examples/migration-tutorial/README.md)**

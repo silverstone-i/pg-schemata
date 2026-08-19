@@ -51,7 +51,8 @@ Both models receive three required parameters from pg-promise's `extend` event:
 
 ## The repository pattern
 
-Models are registered as repositories during `DB.init()`. pg-promise's `extend` event instantiates each model and attaches it to the database object:
+Models are registered as repositories when the database is created — with
+`createDb({ repositories })`, or `DB.init()` for the singleton. pg-promise's `extend` event instantiates each model and attaches it to the database object:
 
 ```js
 import { DB, db } from 'pg-schemata';

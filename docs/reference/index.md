@@ -4,7 +4,8 @@ This reference covers the public exports from [`src/index.js`](https://github.co
 
 ## Classes
 
-- [DB](/reference/db) — Singleton database initialization
+- [createDb / Database](/reference/database) — Independent database handles (multiple per process)
+- [DB](/reference/db) — Compatibility default instance (single database)
 - [QueryModel](/reference/query-model) — Read-only query interface
 - [TableModel](/reference/table-model) — Full CRUD operations (extends QueryModel)
 - [MigrationManager](/reference/migration-manager) — Migration discovery and execution

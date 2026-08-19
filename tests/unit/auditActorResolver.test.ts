@@ -8,6 +8,10 @@ import {
   clearAuditActorResolver,
   getAuditActor,
 } from '../../src/auditActorResolver.js';
+import { AUDIT_RESOLVER } from '../../src/auditScope.js';
+import { instantiateBound } from '../../src/migrate/modelPlanner.js';
+import type { DbConnection, RepositoryCtor } from '../../src/schemaTypes.js';
+import type { IMain } from 'pg-promise';
 
 describe('auditActorResolver', () => {
   beforeEach(() => {
@@ -57,5 +61,47 @@ describe('auditActorResolver', () => {
     });
     expect(getAuditActor()).toBe('actor-1');
     expect(getAuditActor()).toBe('actor-2');
+  });
+});
+
+describe('scoped audit resolver', () => {
+  /** Records the schema it was bound to, and clones like a real model. */
+  class Probe {
+    schema = 'unbound';
+    forSchema(name: string): this {
+      const clone = Object.create(
+        Object.getPrototypeOf(this) as object
+      ) as this;
+      Object.assign(clone, this);
+      clone.schema = name;
+      return clone;
+    }
+  }
+
+  test('instantiateBound stamps the resolver before schema binding', () => {
+    const bound = instantiateBound(
+      Probe,
+      'tenant_a',
+      {} as DbConnection,
+      {} as IMain,
+      null,
+      () => 'scoped-actor'
+    ) as Probe & Record<symbol, () => string | null>;
+
+    // The stamp must survive the Object.assign clone forSchema performs.
+    expect(bound.schema).toBe('tenant_a');
+    expect(AUDIT_RESOLVER in bound).toBe(true);
+    expect(bound[AUDIT_RESOLVER]?.()).toBe('scoped-actor');
+  });
+
+  test('instantiateBound leaves models unstamped when no resolver is given', () => {
+    const bound = instantiateBound(
+      Probe,
+      'tenant_a',
+      {} as DbConnection,
+      {} as IMain
+    ) as Probe;
+
+    expect(AUDIT_RESOLVER in bound).toBe(false);
   });
 });

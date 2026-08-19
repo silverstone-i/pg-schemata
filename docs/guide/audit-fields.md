@@ -89,7 +89,27 @@ setAuditActorResolver(() => {
 
 The resolver must be a synchronous function that returns a `string` or `null`.
 
+### Scoped to one database instance
+
+A resolver passed to `createDb()` applies to every model that instance builds,
+including the models its migrations and bootstrap create:
+
+```js
+const appDb = createDb({
+  connectionString: process.env.DATABASE_URL,
+  repositories,
+  auditActorResolver: () => als.getStore()?.userId ?? null,
+});
+```
+
+Factory instances do not read the process-wide resolver, so an actor configured
+for one database cannot leak into another.
+
 ### Via DB.init options
+
+`setAuditActorResolver()` and the `DB.init()` option below are process-wide and
+apply to the `DB` singleton's models. `DB.close()` clears the registered
+resolver.
 
 You can also pass the resolver as an option to `DB.init()`:
 

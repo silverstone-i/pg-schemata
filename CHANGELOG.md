@@ -55,6 +55,22 @@ Latest commit: `99c75e3`
 
 ### ✨ Added
 
+- **`createDb(config)` — a database factory, so one process can hold several independent PostgreSQL handles.** Each instance owns its own pg-promise root, connection pool, repository registry, logger, audit actor resolver, schema cache, migration target, and lifecycle. An operation through one instance never uses another's pool, models, schema state, or migration configuration, and closing one leaves the others usable:
+
+  ```js
+  const adminDb = createDb({ connectionString: ADMIN_URL, repositories: { tenants: Tenants } });
+  const cellDb = createDb({ connectionString: CELL_URL, repositories: { orders: Orders } });
+  ```
+
+  Repository types are inferred per call, so `adminDb.db.tenants` and `cellDb.db.orders` are typed independently. Routing, cell discovery, and credentials stay with the consuming application — this package only owns connections
+- **`Database` lifecycle is idempotent.** `connect()` memoizes concurrent calls and clears the memo on failure so a retry is possible; `close()` ends only that instance's pool (`db.$pool.end()`), shares one shutdown across concurrent and repeated calls, and leaves the instance logically closed even if ending the pool rejects. Afterwards the instance methods throw `DatabaseError('Database instance has been closed')`
+- **`Database.forSchema(name)`** binds every repository an instance owns to one ordinary PostgreSQL schema, cached per name in a bounded LRU and cleared on close. It selects a schema and nothing more — no `search_path`, no pooled session state, no tenant routing
+- **`Database.migrate()` / `migrationManager()` / `bootstrap()` are locked to their instance.** The `db`, `pgp`, `owner`, and `auditActorResolver` keys are omitted from their option types and assigned after the caller's options, so a migration or bootstrap cannot be pointed at another database by accident
+- **Per-instance audit actor resolver.** `createDb({ auditActorResolver })` scopes the resolver to every model that instance builds — repositories, migration models, and bootstrap models alike — and factory instances never fall through to the process-wide `setAuditActorResolver()` value. A resolver returning `null` stays isolated rather than deferring to the global one
+- **`callDb(name, schema, instance)`** resolves a repository name against a specific instance, routing through its `forSchema()` so the schema cache and closed-state guard apply. The two-argument forms are unchanged
+- **`DB.close()`** closes the default instance, clears `DB.db` / `DB.pgp` and — only when a default instance existed — the resolver registered through `DB.init()`, and leaves the singleton ready for a fresh `init()`. Safe before initialization and when called repeatedly or concurrently
+- **`MigrationManager` accepts `db`, `pgp`, and `auditActorResolver`; `bootstrap()` accepts `pgp`, `owner`, and `auditActorResolver`.** Both still fall back to the `DB` singleton when the options are absent, so existing calls are unchanged
+- **[ADR-0016](prd/adr/ADR-0016-database-factory.md)** records the factory decision — separate pg-promise roots, `$pool.end()` over `pgp.end()`, unique database contexts, non-overridable ownership, and the scoped resolver. It supersedes [ADR-0004](prd/adr/ADR-0004-singleton-db-pattern.md) and amends [ADR-0010](prd/adr/ADR-0010-audit-actor-resolver.md)
 - **One-dimensional array types** — `text[]`, `uuid[]`, `varchar(10)[]`, and so on map to `z.array(...)` with the element validator intact, so `varchar(10)[]` still enforces the per-element length. Whitespace and declared dimensions (`text[3]`, `text [ ]`) are tolerated
 - **`time` and `timetz`** map to a string with a time pattern. `pg` leaves OID 1083 unparsed, so a `time` column round-trips as `'07:00:00'` — `z.coerce.date()` would have failed every `time` column in existence. The pattern is hand-rolled rather than `z.iso.time()`, which rejects `24:00:00`, a legal end-of-day value Postgres accepts
 - **New scalar aliases** — `bool`, `float`, `float(n)`, `serial2`, `serial4`, `serial8`, `citext`, `inet`, `cidr`, `macaddr`, `macaddr8`, and bare `char` / `bpchar` / `character`
@@ -94,6 +110,10 @@ Latest commit: `99c75e3`
 
 ### 📚 Documentation
 
+- **New [createDb / Database reference](docs/reference/database.md)**, plus multi-database sections in the README, getting-started, migrations, multi-schema, and audit-fields guides. They cover the single-database and admin-plus-cell shapes, lifecycle guidance, migrating a selected database, and state explicitly that callers own tenant-to-cell routing, cell discovery, and secrets
+- **`pgp.end()` is documented as unsafe for shutting down one handle** — it destroys every pg-promise pool in the process. Use `instance.close()`, or `DB.close()` for the singleton. The four test teardowns that called it were converted
+- **`DB` is documented as the compatibility default instance.** `DB.db` and `DB.pgp` remain writable fields; reassignment is discouraged, and `DB.close()` is the supported reset. The PRD no longer claims one database or one audit resolver per process
+- **`Database.info` / `toJSON()` are documented as sanitized, not secret-proof.** They never carry a password or connection string, and values that would require parsing a connection string are absent rather than guessed — but the public `instance.db.$cn` still holds whatever pg-promise was given
 - **`constraints.primaryKey` is documented as driving both DDL and row targeting**, with the scalar and object key forms and the composite-key example, in the schema-definition guide, the schema-types and table-model references, and the PRD. An interim version of these pages recorded the single-`id` requirement as a permanent limitation; that is no longer true — see the Breaking entry above
 - **`count()` removed from the docs — it never existed.** `docs/reference/query-model.md` documented it as an alias for `countWhere`, and two method lists named it, but there is no `count` on `QueryModel` or `TableModel`. Anyone who followed the reference got `TypeError: db().users.count is not a function`. The entry and both list mentions now say `countWhere`, which is the method that exists and already carried the fuller parameter table. Nothing is removed from the package
 - **Partial-update semantics are stated where callers read them.** The CRUD guide, the `update()` and `touch()` reference entries, and their JSDoc now say that only the DTO's own keys are written, that `updated_at` is library-owned and a supplied value discarded, and that `updated_by` is honored when supplied — an asymmetry nothing documented before
@@ -105,6 +125,8 @@ Latest commit: `99c75e3`
 
 ### 📝 Notes
 
+- **Existing single-database consumers need no changes.** `DB.init`, `db()`, `pgp()`, `callDb`, `MigrationManager`, and `bootstrap` keep their signatures and behaviour. Applications adopting multiple handles must replace `pgp.end()` with per-instance `close()`
+- **Database handles are meant to be long-lived.** pg-promise keeps closed database objects in process-global bookkeeping until process shutdown, so do not create one per request. The raw `instance.db` handle and repository references captured before `close()` also bypass the closed-state guard and surface pg-promise's own error instead
 - **`interval` and `bytea` remain unmapped by design.** Both round-trip asymmetrically — `pg` returns an object or a `Buffer` while inserts accept a string — so any built-in validator would have to be a union broad enough to accept nearly anything, which is worse than no validator because it looks like protection. Use `colProps.validator`
 - **`text[][]` throws.** Postgres does not enforce declared array dimensions: `text[][]` and `text[]` are the same type, and a `text[][]` column happily stores a flat array, so a nested validator would reject rows the database accepts
 - **`_text` throws**, naming `text[]` as the intended spelling. It is the `pg_type` internal name for `text[]`, but also a legal user-defined identifier, so guessing would eventually be wrong

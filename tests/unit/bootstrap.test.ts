@@ -8,6 +8,7 @@ import type { IMain } from 'pg-promise';
 import { DB } from '../../src/DB.js';
 import { bootstrap } from '../../src/migrate/bootstrap.js';
 import type { DbConnection, RepositoryCtor } from '../../src/schemaTypes.js';
+import { AUDIT_RESOLVER } from '../../src/auditScope.js';
 
 const pgp = pgPromise({});
 
@@ -95,6 +96,86 @@ describe('bootstrap', () => {
         db: makeStubT(),
       })
     ).rejects.toThrow(/Cyclic foreign-key dependency detected/);
+  });
+
+  it('opens the transaction on the owner rather than the DB singleton', async () => {
+    const created: string[] = [];
+    const ownerCalls: string[] = [];
+    const singletonCalls: string[] = [];
+    const owner = {
+      tx: async (work: (t: DbConnection) => Promise<void>) => {
+        ownerCalls.push('owner');
+        return work(makeStubT());
+      },
+    } as unknown as DbConnection;
+    const savedDb = DB.db;
+    DB.db = {
+      tx: async () => {
+        singletonCalls.push('singleton');
+      },
+    } as unknown as typeof DB.db;
+
+    try {
+      await bootstrap({
+        models: { users: recordingCtor('users', created) },
+        schema: 'tenant_x',
+        owner,
+        pgp,
+      });
+    } finally {
+      DB.db = savedDb;
+    }
+
+    expect(ownerCalls).toEqual(['owner']);
+    expect(singletonCalls).toEqual([]);
+    expect(created).toEqual(['users']);
+  });
+
+  it('stamps the audit resolver on the models it creates', async () => {
+    const created: string[] = [];
+    const stamped: (string | null)[] = [];
+    class Probe {
+      forSchema(): this {
+        const clone = Object.create(
+          Object.getPrototypeOf(this) as object
+        ) as this;
+        Object.assign(clone, this);
+        return clone;
+      }
+      async createTable(): Promise<null> {
+        const scoped = this as unknown as Record<symbol, () => string | null>;
+        stamped.push(scoped[AUDIT_RESOLVER]?.() ?? null);
+        created.push('probe');
+        return null;
+      }
+    }
+
+    await bootstrap({
+      models: { probe: Probe },
+      schema: 'tenant_x',
+      db: makeStubT(),
+      auditActorResolver: () => 'scoped-actor',
+    });
+
+    expect(stamped).toEqual(['scoped-actor']);
+  });
+
+  it('fails clearly when no pg-promise instance is available', async () => {
+    const created: string[] = [];
+    const savedPgpValue = DB.pgp;
+    DB.pgp = undefined as unknown as IMain;
+
+    try {
+      await expect(
+        bootstrap({
+          models: { users: recordingCtor('users', created) },
+          schema: 'tenant_x',
+          db: makeStubT(),
+        })
+      ).rejects.toThrow(/bootstrap has no pg-promise instance/);
+    } finally {
+      DB.pgp = savedPgpValue;
+    }
   });
 
   it('rejects a non-object models option', async () => {
