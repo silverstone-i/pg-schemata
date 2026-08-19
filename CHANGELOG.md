@@ -10,6 +10,8 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+## [v3.1.0] - 2026-08-19
+
 ## [v3.0.0] - 2026-08-16
 
 ### 💥 Breaking
