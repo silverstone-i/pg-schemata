@@ -41,6 +41,7 @@ export default defineConfig({
           text: 'Reference',
           items: [
             { text: 'Overview', link: '/reference/' },
+            { text: 'createDb / Database', link: '/reference/database' },
             { text: 'DB', link: '/reference/db' },
             { text: 'QueryModel', link: '/reference/query-model' },
             { text: 'TableModel', link: '/reference/table-model' },

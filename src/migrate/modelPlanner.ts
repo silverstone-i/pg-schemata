@@ -11,7 +11,13 @@
 // the message.
 
 import type { IMain } from 'pg-promise';
-import type { DbConnection, Logger, RepositoryCtor } from '../schemaTypes.js';
+import { stampAuditResolver } from '../auditScope.js';
+import type {
+  AuditActorResolver,
+  DbConnection,
+  Logger,
+  RepositoryCtor,
+} from '../schemaTypes.js';
 import type { ModuleDescriptor } from './types.js';
 
 /**
@@ -160,6 +166,7 @@ export function orderModels<T>(models: Record<string, T>): T[] {
  * @param db - Executor used to construct model instances.
  * @param pgp - pg-promise root library instance.
  * @param logger - Optional logger passed to model constructors.
+ * @param auditActorResolver - Optional resolver stamped onto each model.
  * @returns Module names in execution order.
  * @throws {Error} On duplicate module names or a cyclic module dependency.
  */
@@ -168,7 +175,8 @@ export function resolveModuleOrder(
   schema: string,
   db: DbConnection,
   pgp: IMain,
-  logger: Logger | null = null
+  logger: Logger | null = null,
+  auditActorResolver: AuditActorResolver | null = null
 ): string[] {
   const tableToModule = new Map<string, string>();
   const instancesByModule = new Map<string, TableModelLike[]>();
@@ -181,7 +189,14 @@ export function resolveModuleOrder(
     }
     const instances: TableModelLike[] = [];
     for (const Ctor of Object.values(moduleDef.models ?? {})) {
-      const instance = instantiateBound(Ctor, schema, db, pgp, logger);
+      const instance = instantiateBound(
+        Ctor,
+        schema,
+        db,
+        pgp,
+        logger,
+        auditActorResolver
+      );
       if (isTableModel(instance)) {
         instances.push(instance);
         tableToModule.set(getModelKey(instance), moduleDef.name);
@@ -214,6 +229,8 @@ export function resolveModuleOrder(
  * @param db - Executor passed to the constructor.
  * @param pgp - pg-promise root library instance.
  * @param logger - Optional logger.
+ * @param auditActorResolver - Optional resolver stamped onto the instance
+ *   before schema binding, so the schema-bound clone inherits it.
  * @returns The (possibly rebound) instance.
  */
 export function instantiateBound(
@@ -221,9 +238,11 @@ export function instantiateBound(
   schema: string,
   db: DbConnection,
   pgp: IMain,
-  logger: Logger | null = null
+  logger: Logger | null = null,
+  auditActorResolver: AuditActorResolver | null = null
 ): unknown {
   const instance = new Ctor(db, pgp, logger);
+  stampAuditResolver(instance, auditActorResolver);
   const bindable = instance as Partial<SchemaBindable>;
   if (typeof bindable.forSchema === 'function') {
     return bindable.forSchema(schema);

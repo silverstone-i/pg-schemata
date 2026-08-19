@@ -44,7 +44,8 @@ describe('pg-schemata integration', () => {
   afterAll(async () => {
     // Clean up after tests
     await db.none(`DROP TABLE IF EXISTS test_schema.test_users`);
-    pgp.end(); // close db connection
+    // Per-instance shutdown; pgp.end() would close unrelated pools too.
+    await DB.close();
   });
 
   it('should create a table successfully', async () => {

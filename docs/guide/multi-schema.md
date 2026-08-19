@@ -6,6 +6,23 @@ pg-schemata supports PostgreSQL's schema feature for per-tenant data isolation. 
 
 A PostgreSQL schema is a namespace within a database. Tables in different schemas can have the same name without conflict. This makes schemas ideal for multi-tenant applications where each tenant gets an isolated set of tables.
 
+`forSchema()` selects a PostgreSQL schema and nothing more. It does not touch
+`search_path` or pooled session state, and it is not tenant-to-database routing —
+if tenants live in separate databases, create one handle per database with
+[`createDb()`](../reference/database.md) and choose between them in your
+application.
+
+## Binding a whole instance
+
+`Database.forSchema()` binds every repository an instance owns at once:
+
+```js
+const tenantA = appDb.forSchema('tenant_a');
+await tenantA.users.findAll();
+```
+
+The result is bound to that instance only, and is cached per schema name.
+
 ## Setting the schema on a model
 
 ### forSchema

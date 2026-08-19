@@ -3,11 +3,12 @@
  */
 
 // DB.test.js
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { DB } from '../../src/DB.js'; // Adjust path
+import { DB, db, pgp } from '../../src/DB.js'; // Adjust path
 import type { ExtendedDb } from '../../src/DB.js';
 import { callDb } from '../../src/utils/callDB.js'; // Adjust path
+import { getAuditActor } from '../../src/auditActorResolver.js';
 import pgPromise from 'pg-promise';
 import type { IMain } from 'pg-promise';
 import type { DbConnection } from '../../src/schemaTypes.js';
@@ -20,7 +21,11 @@ vi.mock('pg-promise', () => {
   return {
     default: vi.fn((initOptions: MockInitOptions | undefined) => {
       return (connection: unknown) => {
-        const db = { mockDb: true };
+        const db = {
+          mockDb: true,
+          // Database.close() ends this instance's pool and nothing else.
+          $pool: { end: vi.fn().mockResolvedValue(undefined) },
+        };
         if (initOptions && typeof initOptions.extend === 'function') {
           initOptions.extend(db, null);
         }
@@ -40,10 +45,72 @@ class FakeRepo {
 }
 
 describe('DB', () => {
-  beforeEach(() => {
-    DB.db = undefined as unknown as ExtendedDb;
-    DB.pgp = undefined as unknown as IMain;
+  beforeEach(async () => {
+    await DB.close();
     (pgPromise as unknown as Mock).mockClear();
+  });
+
+  afterEach(async () => {
+    await DB.close();
+  });
+
+  it('leaves db and pgp undefined before initialization', () => {
+    expect(DB.db).toBeUndefined();
+    expect(DB.pgp).toBeUndefined();
+    expect(db()).toBeUndefined();
+    expect(pgp()).toBeUndefined();
+  });
+
+  it('supports the documented `if (!DB.db) DB.init(...)` guard', () => {
+    if (!DB.db) DB.init({}, { users: FakeRepo });
+    if (!DB.db) DB.init({}, { users: FakeRepo });
+    expect(pgPromise).toHaveBeenCalledTimes(1);
+    expect(db()).toBe(DB.db);
+    expect(pgp()).toBe(DB.pgp);
+  });
+
+  it('keeps DB.db and DB.pgp writable for legacy callers', () => {
+    DB.init({}, { users: FakeRepo });
+    const replacement = { replaced: true } as unknown as ExtendedDb;
+    // Reassignment is discouraged, but it remains part of the 3.x contract.
+    DB.db = replacement;
+    DB.pgp = undefined as unknown as IMain;
+    expect(DB.db).toBe(replacement);
+    expect(DB.pgp).toBeUndefined();
+  });
+
+  it('does not replace the audit resolver on a second init', () => {
+    DB.init({}, { users: FakeRepo }, null, {
+      auditActorResolver: () => 'first',
+    });
+    DB.init({}, { users: FakeRepo }, null, {
+      auditActorResolver: () => 'second',
+    });
+    expect(getAuditActor()).toBe('first');
+  });
+
+  it('close() clears the singleton, its resolver, and allows a fresh init', async () => {
+    DB.init({}, { users: FakeRepo }, null, {
+      auditActorResolver: () => 'first',
+    });
+    const firstDb = DB.db;
+
+    await DB.close();
+
+    expect(DB.db).toBeUndefined();
+    expect(DB.pgp).toBeUndefined();
+    expect(getAuditActor()).toBeNull();
+
+    DB.init({}, { users: FakeRepo });
+    expect(DB.db).toBeDefined();
+    expect(DB.db).not.toBe(firstDb);
+  });
+
+  it('close() is safe before initialization and when repeated', async () => {
+    await expect(DB.close()).resolves.toBeUndefined();
+    DB.init({}, { users: FakeRepo });
+    await Promise.all([DB.close(), DB.close()]);
+    expect(DB.db).toBeUndefined();
   });
 
   it('should initialize db and pgp properly', () => {
@@ -134,10 +201,13 @@ class FakeSchemaRepo {
 }
 
 describe('callDb logic', () => {
-  beforeEach(() => {
-    DB.db = undefined as unknown as ExtendedDb;
-    DB.pgp = undefined as unknown as IMain;
+  beforeEach(async () => {
+    await DB.close();
     (pgPromise as unknown as Mock).mockClear();
+  });
+
+  afterEach(async () => {
+    await DB.close();
   });
 
   it('callDb(<model>, <schema>) should return model instance with correct schema', () => {

@@ -68,9 +68,41 @@ export class Users extends TableModel {
 }
 ```
 
-## Initialize the database
+## Connect the database
 
-Use `DB.init()` once at startup with a connection string and a repository map. Each repository is automatically attached to the database instance via pg-promise's `extend` event.
+Use `createDb()` at startup with a connection and a repository map. Each
+repository is attached to that instance's database object via pg-promise's
+`extend` event, and the instance owns its own pool.
+
+```js
+import { createDb } from 'pg-schemata';
+import { Users } from './models/Users.js';
+
+const appDb = createDb({
+  connectionString: process.env.DATABASE_URL,
+  repositories: { users: Users },
+});
+
+await appDb.connect();
+
+const alice = await appDb.db.users.insert({
+  email: 'alice@example.com',
+  first_name: 'Alice',
+});
+
+await appDb.close(); // at shutdown
+```
+
+Need more than one database in the process — an admin database plus a cell, for
+example? Call `createDb()` once per handle; see
+[createDb / Database](../reference/database.md). Your application owns which
+handle to use and where credentials come from.
+
+### The `DB` singleton
+
+For a single-database application the original singleton still works and is now a
+documented default instance built by the same factory. `DB.init()` runs once at
+startup with a connection string and a repository map.
 
 ```js
 import { DB, db } from 'pg-schemata';

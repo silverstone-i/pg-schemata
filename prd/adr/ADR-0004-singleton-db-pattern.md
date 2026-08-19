@@ -1,6 +1,6 @@
 # ADR-0004: Singleton DB Pattern via DB.init()
 
-**Status:** Accepted
+**Status:** Superseded by ADR-0016
 **Date:** 2025-04-17
 
 ## Context
@@ -17,6 +17,6 @@ Static `DB.init()` singleton. Repositories auto-attached via pg-promise `extend(
 
 ## Consequences
 
-- **Accepted trade-off:** Only one database connection per process. Cannot connect to multiple databases simultaneously (see PRD §7 Constraints).
+- **Accepted trade-off:** Only one database connection per process. Cannot connect to multiple databases simultaneously (see PRD §7 Constraints). **Superseded by ADR-0016:** `createDb()` builds independent handles, and `DB` is now the compatibility default instance built on that factory.
 - **Accepted trade-off:** Global state. Initialization order matters.
 - **Benefit:** Idiomatic pg-promise pattern. Clean access: `db().users.findById(id)`.

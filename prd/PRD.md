@@ -50,7 +50,8 @@ The following exports from `src/index.js` constitute the **stable public API**. 
 
 | Export                  | Source                        | Stability                                                |
 | ----------------------- | ----------------------------- | -------------------------------------------------------- |
-| `DB`                    | `DB.js`                       | Stable — `DB.init()`, `DB.db`, `DB.pgp`                  |
+| `Database`              | `Database.js`                 | Stable — instance returned by `createDb()`               |
+| `DB`                    | `DB.js`                       | Stable — `DB.init()`, `DB.db`, `DB.pgp`, `DB.close()`    |
 | `TableModel`            | `TableModel.js`               | Stable — all public methods                              |
 | `QueryModel`            | `QueryModel.js`               | Stable — all public methods                              |
 | `MigrationManager`      | `migrate/MigrationManager.js` | Stable                                                   |
@@ -63,6 +64,7 @@ The following exports from `src/index.js` constitute the **stable public API**. 
 
 | Export                      | Source                  | Stability                                |
 | --------------------------- | ----------------------- | ---------------------------------------- |
+| `createDb(config)`          | `Database.js`           | Stable — builds an independent handle    |
 | `db()`                      | `DB.js`                 | Stable — returns initialized db instance |
 | `pgp()`                     | `DB.js`                 | Stable — returns pg-promise root         |
 | `callDb()`                  | `utils/callDB.js`       | Stable — schema-aware model binding      |
@@ -110,6 +112,46 @@ The following are implementation details and may change without a major version 
 
 This section defines every public method signature, parameter contract, return type, and SQL generation pattern. Together with §6 Behavioral Contracts, it provides sufficient detail to reimplement pg-schemata from scratch.
 
+### 5.0 createDb (Database Factory)
+
+#### `createDb(config)`
+
+| Option                                                     | Type                       | Required | Description                                                          |
+| ---------------------------------------------------------- | -------------------------- | -------- | -------------------------------------------------------------------- |
+| `connection`                                               | `object \| string`         | One of   | pg-promise connection config or connection string                    |
+| `connectionString`                                         | `string`                   | One of   | PostgreSQL connection string                                         |
+| `host` / `port` / `database` / `user` / `password` / `ssl` | various                    | One of   | Discrete connection fields                                           |
+| `pool`                                                     | `object`                   | No       | `{ max?, idleTimeoutMillis?, connectionTimeoutMillis? }`             |
+| `repositories`                                             | `Object<string, Function>` | No       | Repository constructors attached to this instance only               |
+| `logger`                                                   | `object \| null`           | No       | Logger passed to every repository this instance builds               |
+| `auditActorResolver`                                       | `() => string \| null`     | No       | Audit actor resolver scoped to this instance                         |
+| `capSQL`                                                   | `boolean`                  | No       | Capitalize generated SQL (default `true`)                            |
+| `context`                                                  | `unknown`                  | No       | pg-promise database context; defaults to a unique per-instance value |
+
+**Returns:** `Database<R>`, with `R` inferred from `repositories`.
+
+**Throws:** `TypeError` when zero or more than one connection source is given, when the repositories map is not a plain object, or when any repository value is not a constructor.
+
+**Behavior:**
+
+1. Validates and freezes a clone of the repositories map before any pool exists
+2. Resolves exactly one connection source, cloning a caller-supplied connection object before merging `pool` options into it
+3. Initializes its **own** pg-promise root with `{ capSQL, extend }` and creates the database object with a unique database context
+4. The `extend()` hook constructs each repository with `(obj, instance.pgp, logger)` and stamps the instance's audit resolver on it
+
+**Invariants:**
+
+- Nothing is shared between instances: pool, pg-promise root, repository registry, logger, audit resolver, schema cache, migration target, and lifecycle are all per instance
+- `close()` ends only that instance's pool via `db.$pool.end()`; `pgp.end()` is never used
+- `connect()` and `close()` are idempotent; a failed `connect()` is not memoized; the instance is logically closed even if ending the pool rejects
+- `migrate()`, `migrationManager()`, and `bootstrap()` always target the owning instance — `db`, `pgp`, `owner`, and `auditActorResolver` cannot be supplied through them
+- `forSchema()` selects a PostgreSQL schema only; it never touches `search_path` or pooled session state
+- `info` / `toJSON()` never carry a password or connection string; `instance.db.$cn` still does
+
+#### `Database.close()`
+
+**Returns:** `Promise<void>`. Ends this instance's pool, clears its schema cache, and marks it closed. Subsequent instance-method calls throw `DatabaseError('Database instance has been closed')`; the raw `instance.db` handle bypasses that guard.
+
 ### 5.1 DB (Singleton Initialization)
 
 #### `DB.init(connection, repositories, logger?, options?)`
@@ -135,9 +177,13 @@ This section defines every public method signature, parameter contract, return t
 
 **Invariants:**
 
-- Only one initialization per process (singleton)
+- Only one initialization per `DB` singleton (a process may hold any number of additional handles created with `createDb()`)
 - Each repository constructor receives `(db, pgp, logger)` — the `db` argument is the pg-promise connection/task object, not `DB.db`
 - The `extend()` hook fires on every new connection/task, so repositories are available within transactions
+
+#### `DB.close()`
+
+**Returns:** `Promise<void>`. Closes the default instance, clears `DB.db`, `DB.pgp`, and any resolver registered through `DB.init()`, and leaves the singleton ready for a fresh `init()`. Safe before initialization and when called repeatedly or concurrently.
 
 #### `db()`
 
@@ -1216,7 +1262,7 @@ Two helpers on `QueryModel` back this: `_primaryKeyCondition()` returns a condit
 - Timestamps do not depend on actor resolution. `update()`, `removeWhere` and `restoreWhere` advance `updated_at` whenever audit fields are enabled; `updated_by` is written only when the resolver returns a non-null actor, so an unconfigured resolver leaves the previously recorded actor intact rather than nulling it
 - `touch()` requires audit fields and rejects with `SchemaDefinitionError` without them. With them, it works whether or not an actor resolves — the timestamp still moves
 - The resolver must be synchronous — async functions are not supported
-- Only one resolver can be active (module-level singleton)
+- Only one **global** resolver can be active (module-level). Instances built with `createDb()` carry their own scoped resolver and never read the global one
 - `clearAuditActorResolver()` resets to null (for test cleanup)
 
 ### 6.4 WHERE Modifiers
@@ -1337,16 +1383,16 @@ and §5.8 above. zod is a **peer dependency** (`^4.0.0`) — see ADR-0014.
 
 Decisions the project has explicitly accepted. These are not bugs — they are intentional boundaries.
 
-| Constraint                               | Rationale                                                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| PostgreSQL only — no MySQL, SQLite, etc. | Principle #1: PostgreSQL-first. Multi-database support would water down every feature.           |
-| Single database connection per process   | pg-promise best practice. Multi-db would require architectural changes to DB singleton.          |
-| ESM only — no CommonJS                   | Aligns with Node.js ecosystem direction. CJS consumers must use dynamic `import()`.              |
-| Synchronous audit actor resolver         | Keeps the insert/update hot path simple. Async resolution would complicate every write method.   |
-| One resolver at a time (global)          | Module-level singleton. Per-model resolvers would add complexity for a rare use case.            |
-| `deactivated_at` column name is fixed    | Standardization across all pg-schemata consumers. Custom column names would multiply code paths. |
-| No eager/lazy relationship loading       | Principle #3: stay close to SQL. Relationship loading is an ORM pattern that hides queries.      |
-| No connection pooling management         | Deferred to pg-promise, which handles this well. Duplicating it adds no value.                   |
+| Constraint                               | Rationale                                                                                                       |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| PostgreSQL only — no MySQL, SQLite, etc. | Principle #1: PostgreSQL-first. Multi-database support would water down every feature.                          |
+| One database per `DB` singleton          | The singleton connects exactly one database. `createDb()` builds additional independent handles (ADR-0016).     |
+| ESM only — no CommonJS                   | Aligns with Node.js ecosystem direction. CJS consumers must use dynamic `import()`.                             |
+| Synchronous audit actor resolver         | Keeps the insert/update hot path simple. Async resolution would complicate every write method.                  |
+| One **global** resolver at a time        | Module-level, for the singleton and hand-constructed models. `createDb()` instances scope their own (ADR-0016). |
+| `deactivated_at` column name is fixed    | Standardization across all pg-schemata consumers. Custom column names would multiply code paths.                |
+| No eager/lazy relationship loading       | Principle #3: stay close to SQL. Relationship loading is an ORM pattern that hides queries.                     |
+| No connection pooling management         | Deferred to pg-promise, which handles this well. Duplicating it adds no value.                                  |
 
 ---
 

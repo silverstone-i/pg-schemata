@@ -140,7 +140,8 @@ describe('MigrationManager (integration)', () => {
     for (const schema of createdSchemas) {
       await db.none(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
     }
-    pgp.end();
+    // Per-instance shutdown; pgp.end() would close unrelated pools too.
+    await DB.close();
   });
 
   it('applies registry migrations with three-part tracking and FK module order', async () => {

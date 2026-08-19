@@ -20,9 +20,11 @@ Why synchronous-only: keeps the insert/update hot path simple. Async resolution 
 
 Why module-level singleton (not per-model): one resolver per process matches the one-db-per-process pattern (ADR-0004). Per-model resolvers would add complexity for a use case no one has needed.
 
+**Amended by ADR-0016.** Once a process can hold several database handles, one resolver per process no longer holds: a handle built with `createDb()` carries its own scoped resolver, stamped onto every model it builds (repositories, migration models, bootstrap models) and never falling through to the module-level one. The module-level resolver remains for the `DB` compatibility singleton and for models constructed by hand.
+
 ## Consequences
 
-- **Accepted trade-off:** Global state — only one resolver at a time (see PRD §7 Constraints).
+- **Accepted trade-off:** Global state — only one _global_ resolver at a time (see PRD §7 Constraints). Factory instances are unaffected (ADR-0016).
 - **Accepted trade-off:** Synchronous only.
 - **Benefit:** Clean integration with AsyncLocalStorage. No prototype patching. Backward compatible.
 

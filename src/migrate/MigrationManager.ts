@@ -23,6 +23,7 @@ import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { DB } from '../DB.js';
 import { SchemaMigrations } from '../models/SchemaMigrations.js';
+import { stampAuditResolver } from '../auditScope.js';
 import { instantiateBound, resolveModuleOrder } from './modelPlanner.js';
 import type {
   Migration,
@@ -30,7 +31,12 @@ import type {
   MigrationModule,
   ModuleDescriptor,
 } from './types.js';
-import type { DbConnection, Logger } from '../schemaTypes.js';
+import type {
+  AuditActorResolver,
+  DbConnection,
+  Logger,
+} from '../schemaTypes.js';
+import type { IMain } from 'pg-promise';
 
 /** Options accepted by the {@link MigrationManager} constructor. */
 export interface MigrationManagerOptions {
@@ -46,6 +52,22 @@ export interface MigrationManagerOptions {
   moduleName?: string;
   /** Logger passed into migration contexts and model construction. */
   logger?: Logger | null;
+  /**
+   * Database this manager runs against. Defaults to the `DB` compatibility
+   * singleton. `Database.migrationManager()` always supplies its own.
+   */
+  db?: DbConnection;
+  /**
+   * pg-promise root used to construct models. Defaults to the `DB`
+   * compatibility singleton's root.
+   */
+  pgp?: IMain;
+  /**
+   * Audit actor resolver stamped onto every model this manager builds, so
+   * migrations run with the owning database's actor rather than the global
+   * one. Defaults to leaving models on the legacy global resolver.
+   */
+  auditActorResolver?: AuditActorResolver;
 }
 
 /** A migration known to the manager, in either mode. */
@@ -139,6 +161,9 @@ export class MigrationManager {
   private readonly modules: ModuleDescriptor[];
   private readonly dir: string;
   private readonly moduleName: string;
+  private readonly injectedDb: DbConnection | null;
+  private readonly injectedPgp: IMain | null;
+  private readonly auditActorResolver: AuditActorResolver | null;
 
   /**
    * Constructs a manager in registry mode (pass `modules`) or directory
@@ -152,6 +177,9 @@ export class MigrationManager {
     dir,
     moduleName,
     logger = null,
+    db,
+    pgp,
+    auditActorResolver,
   }: MigrationManagerOptions = {}) {
     if (modules && (dir !== undefined || moduleName !== undefined)) {
       throw new TypeError(
@@ -164,6 +192,9 @@ export class MigrationManager {
     this.modules = modules ?? [];
     this.dir = dir ?? 'migrations';
     this.moduleName = moduleName ?? 'default';
+    this.injectedDb = db ?? null;
+    this.injectedPgp = pgp ?? null;
+    this.auditActorResolver = auditActorResolver ?? null;
 
     if (this.mode === 'registry') {
       const seen = new Set<string>();
@@ -185,6 +216,40 @@ export class MigrationManager {
         }
       }
     }
+  }
+
+  /**
+   * The database this manager runs against: the injected one, else the `DB`
+   * compatibility singleton.
+   *
+   * @throws {Error} If neither is available.
+   */
+  private get dbRef(): DbConnection {
+    if (this.injectedDb) return this.injectedDb;
+    const target: DbConnection | undefined = DB.db;
+    if (!target) {
+      throw new Error(
+        'MigrationManager has no database: pass `db` (or use Database.migrate()), or call DB.init() first'
+      );
+    }
+    return target;
+  }
+
+  /**
+   * The pg-promise root used to construct models: the injected one, else the
+   * `DB` compatibility singleton's.
+   *
+   * @throws {Error} If neither is available.
+   */
+  private get pgpRef(): IMain {
+    if (this.injectedPgp) return this.injectedPgp;
+    const target: IMain | undefined = DB.pgp;
+    if (!target) {
+      throw new Error(
+        'MigrationManager has no pg-promise instance: pass `pgp` (or use Database.migrate()), or call DB.init() first'
+      );
+    }
+    return target;
   }
 
   /**
@@ -219,7 +284,8 @@ export class MigrationManager {
    */
   async ensure(t: DbConnection): Promise<void> {
     await this.assertNotLegacy(t);
-    const migrationsRepo = new SchemaMigrations(t, DB.pgp, this.logger);
+    const migrationsRepo = new SchemaMigrations(t, this.pgpRef, this.logger);
+    stampAuditResolver(migrationsRepo, this.auditActorResolver);
     await migrationsRepo.forSchema(this.schema).createTable();
   }
 
@@ -280,8 +346,9 @@ export class MigrationManager {
         this.modules,
         this.schema,
         t,
-        DB.pgp,
-        this.logger
+        this.pgpRef,
+        this.logger,
+        this.auditActorResolver
       );
       const byName = new Map(this.modules.map(m => [m.name, m]));
       return order.map(name => {
@@ -292,8 +359,9 @@ export class MigrationManager {
             Ctor,
             this.schema,
             t,
-            DB.pgp,
-            this.logger
+            this.pgpRef,
+            this.logger,
+            this.auditActorResolver
           );
         }
         return {
@@ -399,7 +467,8 @@ export class MigrationManager {
    * @param t - pg-promise transaction or connection. Defaults to the pool.
    * @returns Pending migrations in execution order.
    */
-  async listPending(t: DbConnection = DB.db): Promise<PendingMigrationInfo[]> {
+  async listPending(t?: DbConnection): Promise<PendingMigrationInfo[]> {
+    t ??= this.dbRef;
     await this.assertNotLegacy(t);
     const applied = (await this.trackingTableExists(t))
       ? await this.loadApplied(t)
@@ -440,7 +509,7 @@ export class MigrationManager {
   async applyAll({
     dryRun = false,
   }: { dryRun?: boolean } = {}): Promise<ApplyAllResult> {
-    return DB.db.tx(async t => {
+    return this.dbRef.tx(async t => {
       // Serialize migration runs per schema.
       await t.one('SELECT pg_advisory_xact_lock(hashtext($1))', [this.schema]);
 
@@ -483,7 +552,7 @@ export class MigrationManager {
           schema: this.schema,
           module: entry.module,
           db: t,
-          pgp: DB.pgp,
+          pgp: this.pgpRef,
           logger: this.logger,
           models: modelsByModule.get(entry.module) ?? {},
           ensureExtensions: extensions => ensureExtensions(t, extensions),

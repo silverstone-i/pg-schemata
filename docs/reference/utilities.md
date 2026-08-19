@@ -12,10 +12,10 @@ Returns a model bound to a specific PostgreSQL schema. Useful for multi-tenant a
 import { callDb } from 'pg-schemata';
 ```
 
-| Parameter     | Type               | Description                                                    |
-| ------------- | ------------------ | -------------------------------------------------------------- |
-| `modelOrName` | `string \| object` | Repository name (as registered in `DB.init`) or model instance |
-| `schemaName`  | `string`           | PostgreSQL schema to bind                                      |
+| Parameter     | Type               | Description                                                                  |
+| ------------- | ------------------ | ---------------------------------------------------------------------------- |
+| `modelOrName` | `string \| object` | Repository name (as registered in `DB.init` or `createDb`) or model instance |
+| `schemaName`  | `string`           | PostgreSQL schema to bind                                                    |
 
 **Returns:** The model instance with the schema set
 
@@ -27,6 +27,11 @@ const tenantUsers = callDb('users', 'tenant_abc');
 
 // By instance
 const tenantUsers = callDb(db().users, 'tenant_abc');
+
+// Resolve a name against a specific instance instead of the DB singleton.
+// This routes through appDb.forSchema(), so the instance's schema cache and
+// closed-state guard both apply.
+const scoped = callDb('users', 'tenant_abc', appDb);
 ```
 
 ## bootstrap(options)

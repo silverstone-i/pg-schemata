@@ -12,6 +12,7 @@ import { MigrationManager } from '../../src/migrate/MigrationManager.js';
 import { defineMigration } from '../../src/migrate/defineMigration.js';
 import { columnSetCache } from '../../src/utils/schemaBuilder.js';
 import type { DbConnection } from '../../src/schemaTypes.js';
+import { AUDIT_RESOLVER } from '../../src/auditScope.js';
 
 const pgp = pgPromise({});
 
@@ -99,6 +100,71 @@ describe('MigrationManager', () => {
             ],
           })
       ).toThrow('Duplicate migration id "a" in module "core"');
+    });
+  });
+
+  describe('injected ownership', () => {
+    it('uses the injected db and pgp rather than the DB singleton', async () => {
+      const singletonCaptured: string[] = [];
+      const injectedCaptured: string[] = [];
+      const singletonDb = makeStubT(singletonCaptured);
+      const injectedDb = makeStubT(injectedCaptured);
+      const savedDb = DB.db;
+      // The singleton is deliberately pointed at a different stub so a fallback
+      // would show up as traffic on the wrong executor.
+      DB.db = singletonDb as unknown as typeof DB.db;
+      DB.pgp = undefined as unknown as IMain;
+
+      try {
+        const manager = new MigrationManager({
+          schema: 'tenant_abc',
+          db: injectedDb,
+          pgp,
+        });
+        await manager.listPending();
+      } finally {
+        DB.db = savedDb;
+        DB.pgp = pgp;
+      }
+
+      expect(injectedCaptured.length).toBeGreaterThan(0);
+      expect(singletonCaptured).toEqual([]);
+    });
+
+    it('stamps the injected audit resolver onto the models it builds', async () => {
+      const seen: (string | null)[] = [];
+      class Probe {
+        _resolveAuditActor: () => string | null;
+        constructor() {
+          this._resolveAuditActor = () => null;
+        }
+        forSchema(): this {
+          const clone = Object.create(
+            Object.getPrototypeOf(this) as object
+          ) as this;
+          Object.assign(clone, this);
+          return clone;
+        }
+      }
+      const manager = new MigrationManager({
+        schema: 'tenant_abc',
+        modules: [{ name: 'core', models: { probe: Probe }, migrations: [] }],
+        auditActorResolver: () => 'scoped-actor',
+      });
+
+      const catalog = (
+        await (
+          manager as unknown as {
+            loadCatalog(
+              t: DbConnection
+            ): Promise<{ models: Record<string, unknown> }[]>;
+          }
+        ).loadCatalog(makeStubT([]))
+      )[0];
+      const probe = catalog?.models.probe as Record<symbol, () => string>;
+      seen.push(probe[AUDIT_RESOLVER]?.() ?? null);
+
+      expect(seen).toEqual(['scoped-actor']);
     });
   });
 

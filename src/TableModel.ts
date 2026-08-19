@@ -13,6 +13,8 @@ import { isPlainObject } from './utils/validation.js';
 import { logMessage } from './utils/pg-util.js';
 import { generateZodFromTableSchema } from './utils/generateZodValidator.js';
 import { getAuditActor } from './auditActorResolver.js';
+import { AUDIT_RESOLVER } from './auditScope.js';
+import type { AuditScoped } from './auditScope.js';
 import { auditEnabled, isAuditConfigObject } from './internalTypes.js';
 import { ZodError } from 'zod';
 import type { IMain, IResultExt, ITask } from 'pg-promise';
@@ -110,13 +112,24 @@ class TableModel<TRow = any> extends QueryModel<TRow> {
 
   /**
    * Resolves the current audit actor.  Priority:
-   * 1. auditActorResolver callback (if registered and returns non-null)
-   * 2. _auditUserDefault (static fallback from schema config)
+   * 1. the resolver scoped to the database instance that built this model,
+   *    when there is one
+   * 2. otherwise the process-wide auditActorResolver callback
+   * 3. _auditUserDefault (static fallback from schema config)
+   *
+   * The scoped resolver is checked by presence, not by result: an instance
+   * resolver that deliberately returns null must stay isolated rather than
+   * falling through to another database's global resolver.
    *
    * @private
    */
   _resolveAuditActor(): string | null {
-    return getAuditActor() ?? this._auditUserDefault;
+    const scoped = this as unknown as AuditScoped;
+    const actor =
+      AUDIT_RESOLVER in scoped
+        ? (scoped[AUDIT_RESOLVER]?.() ?? null)
+        : getAuditActor();
+    return actor ?? this._auditUserDefault;
   }
 
   /**

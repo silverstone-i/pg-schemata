@@ -16,8 +16,14 @@
 // have the required tables. Use it from within a migration or during initial setup.
 
 import { DB } from '../DB.js';
+import { stampAuditResolver } from '../auditScope.js';
 import { isTableModel, orderModels } from './modelPlanner.js';
-import type { DbConnection, RepositoryCtor } from '../schemaTypes.js';
+import type {
+  AuditActorResolver,
+  DbConnection,
+  RepositoryCtor,
+} from '../schemaTypes.js';
+import type { IMain } from 'pg-promise';
 
 /** Options accepted by {@link bootstrap}. */
 export interface BootstrapOptions {
@@ -29,6 +35,22 @@ export interface BootstrapOptions {
   extensions?: string[];
   /** Optional pg-promise transaction/connection to use (avoids nested transaction deadlock). */
   db?: DbConnection | null;
+  /**
+   * Database whose pool opens the transaction when no `db` executor is given.
+   * Defaults to the `DB` compatibility singleton. `Database.bootstrap()`
+   * always supplies its own.
+   */
+  owner?: DbConnection | null;
+  /**
+   * pg-promise root used to construct models. Defaults to the `DB`
+   * compatibility singleton's root.
+   */
+  pgp?: IMain | null;
+  /**
+   * Audit actor resolver stamped onto every model created here, so bootstrap
+   * runs with the owning database's actor rather than the global one.
+   */
+  auditActorResolver?: AuditActorResolver | null;
 }
 
 /**
@@ -50,6 +72,9 @@ export async function bootstrap({
   schema = 'public',
   extensions = [],
   db = null,
+  owner = null,
+  pgp = null,
+  auditActorResolver = null,
 }: BootstrapOptions): Promise<void> {
   if (!models || typeof models !== 'object') {
     throw new TypeError(
@@ -72,7 +97,9 @@ export async function bootstrap({
     for (const [name, ModelClass] of Object.entries(models)) {
       // Skip values that are not classes
       if (typeof ModelClass !== 'function') continue;
-      let instance = new ModelClass(t, DB.pgp) as BootstrapModel;
+      let instance = new ModelClass(t, pgp ?? DB.pgp) as BootstrapModel;
+      // Stamped before schema binding so the bound clone inherits it.
+      stampAuditResolver(instance, auditActorResolver);
       if (schema && typeof instance.forSchema === 'function') {
         instance = instance.forSchema(schema);
       }
@@ -93,10 +120,17 @@ export async function bootstrap({
     }
   }
 
-  // Use provided transaction or create a new one
+  // Use provided transaction, otherwise open one on the owning database.
   if (db) {
     await doBootstrap(db);
   } else {
-    await DB.db.tx(doBootstrap);
+    const fallback: DbConnection | undefined = DB.db;
+    const pool = owner ?? fallback;
+    if (!pool) {
+      throw new Error(
+        'bootstrap has no database: pass `db` or `owner` (or use Database.bootstrap()), or call DB.init() first'
+      );
+    }
+    await pool.tx(doBootstrap);
   }
 }

@@ -28,6 +28,8 @@ features:
     details: MigrationManager discovers, applies, and tracks versioned migration scripts with SHA-256 integrity verification and advisory locking.
   - title: Multi-schema tenancy
     details: Switch PostgreSQL schemas at runtime with forSchema or callDb for per-tenant data isolation.
+  - title: Multiple databases
+    details: createDb builds independent handles — separate pools, repositories, migrations, and lifecycles — so one process can serve an admin database plus any number of cells.
   - title: Audit fields
     details: Automatic created_at, updated_at, created_by, updated_by tracking with a pluggable actor resolver for dynamic user injection.
 ---
@@ -43,4 +45,5 @@ features:
 - See [Models](/guide/models) for QueryModel vs TableModel and extending them.
 - Use [CRUD Operations](/guide/crud-operations) for day-to-day insert, update, delete, and bulk ops.
 - See [WHERE Modifiers](/guide/where-modifiers) for the full query operator reference.
+- See [createDb / Database](/reference/database) when a process needs more than one database.
 - Browse the [API Reference](/reference/) for method signatures and parameters.

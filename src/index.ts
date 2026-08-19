@@ -9,6 +9,17 @@ export type {
   ExtendedDb,
   RepositoryMap,
 } from './DB.js';
+export { createDb, Database } from './Database.js';
+export type {
+  DatabaseBootstrapOptions,
+  DatabaseConfig,
+  DatabaseInfo,
+  DatabaseMigrateOptions,
+  DatabaseMigrationManagerOptions,
+  DatabasePoolConfig,
+  RepositoryInstances,
+  SchemaDatabase,
+} from './Database.js';
 export { TableModel } from './TableModel.js';
 export { QueryModel } from './QueryModel.js';
 export { callDb } from './utils/callDB.js';
