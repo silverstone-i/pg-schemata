@@ -160,6 +160,24 @@ describe('bootstrap', () => {
     expect(stamped).toEqual(['scoped-actor']);
   });
 
+  it('fails clearly when no pg-promise instance is available', async () => {
+    const created: string[] = [];
+    const savedPgpValue = DB.pgp;
+    DB.pgp = undefined as unknown as IMain;
+
+    try {
+      await expect(
+        bootstrap({
+          models: { users: recordingCtor('users', created) },
+          schema: 'tenant_x',
+          db: makeStubT(),
+        })
+      ).rejects.toThrow(/bootstrap has no pg-promise instance/);
+    } finally {
+      DB.pgp = savedPgpValue;
+    }
+  });
+
   it('rejects a non-object models option', async () => {
     await expect(
       bootstrap({ models: null as unknown as Record<string, RepositoryCtor> })

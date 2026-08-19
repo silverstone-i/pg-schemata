@@ -168,6 +168,9 @@ class DB {
    * Closes the default instance's pool and resets the singleton so a later
    * `DB.init()` can start cleanly.
    *
+   * Clears `DB.db`, `DB.pgp`, and — only when a default instance existed —
+   * the audit resolver registered through `DB.init()`.
+   *
    * Safe before initialization, and safe to call repeatedly or concurrently.
    * The static fields stay populated until shutdown finishes, so an ordinary
    * `DB.init()` cannot start a second singleton mid-close. Cleanup runs even
@@ -182,7 +185,9 @@ class DB {
         DB._instance = undefined;
         DB.db = undefined as unknown as ExtendedDb;
         DB.pgp = undefined as unknown as IMain;
-        clearAuditActorResolver();
+        // Only what init() registered. Closing an uninitialized singleton must
+        // not reset a resolver set for hand-constructed models.
+        if (instance) clearAuditActorResolver();
       }
     }
   }

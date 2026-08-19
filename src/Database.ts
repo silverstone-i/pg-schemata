@@ -137,6 +137,13 @@ const DISCRETE_KEYS = [
   'ssl',
 ] as const;
 
+/**
+ * Keys {@link Database.forSchema} uses for the bound result's own metadata. A
+ * repository named after one of these would overwrite it, so they are rejected
+ * at construction rather than producing a malformed SchemaDatabase.
+ */
+const RESERVED_REPOSITORY_NAMES = new Set(['db', 'pgp', 'schema']);
+
 /** Pool keys forwarded onto the connection object. */
 const POOL_KEYS = [
   'max',
@@ -255,7 +262,8 @@ function buildInfo(cn: ConnectionInput): DatabaseInfo {
  *
  * @param repositories - The caller's constructor map.
  * @returns A frozen clone the extend hook closes over.
- * @throws {TypeError} If the map or any constructor is invalid.
+ * @throws {TypeError} If the map or any constructor is invalid, or a name
+ *   collides with the SchemaDatabase metadata keys.
  */
 function freezeRepositories(
   repositories: Record<string, RepositoryCtor> | undefined
@@ -270,6 +278,11 @@ function freezeRepositories(
   }
   const clone: Record<string, RepositoryCtor> = {};
   for (const [name, RepoClass] of Object.entries(repositories)) {
+    if (RESERVED_REPOSITORY_NAMES.has(name)) {
+      throw new TypeError(
+        `Repository name "${name}" is reserved: forSchema() uses "db", "pgp", and "schema" for the bound result's own metadata`
+      );
+    }
     if (typeof RepoClass !== 'function') {
       throw new TypeError(`Repository "${name}" is not a valid constructor`);
     }

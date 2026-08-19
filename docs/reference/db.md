@@ -56,8 +56,10 @@ is ignored.
 ## DB.close()
 
 Closes the default instance's pool and resets the singleton so a later
-`DB.init()` starts cleanly. It clears `DB.db`, `DB.pgp`, and any audit resolver
-registered through `DB.init()`.
+`DB.init()` starts cleanly. It clears `DB.db`, `DB.pgp`, and — only when a
+default instance existed — the audit resolver registered through `DB.init()`.
+Closing an uninitialized singleton leaves a resolver set by
+`setAuditActorResolver()` alone.
 
 **Returns:** `Promise<void>`
 

@@ -82,6 +82,19 @@ export async function bootstrap({
     );
   }
 
+  // Resolved once, with the same explicit failure as the transaction owner
+  // below: passing an undefined root into model constructors surfaces as a
+  // missing-parameter error that says nothing about the real cause.
+  function resolvePgp(): IMain {
+    const root = pgp ?? (DB.pgp as IMain | undefined);
+    if (!root) {
+      throw new Error(
+        'bootstrap has no pg-promise instance: pass `pgp` (or use Database.bootstrap()), or call DB.init() first'
+      );
+    }
+    return root;
+  }
+
   async function doBootstrap(t: DbConnection): Promise<void> {
     // Enable PostgreSQL extensions if specified
     if (extensions && Array.isArray(extensions)) {
@@ -97,7 +110,7 @@ export async function bootstrap({
     for (const [name, ModelClass] of Object.entries(models)) {
       // Skip values that are not classes
       if (typeof ModelClass !== 'function') continue;
-      let instance = new ModelClass(t, pgp ?? DB.pgp) as BootstrapModel;
+      let instance = new ModelClass(t, resolvePgp()) as BootstrapModel;
       // Stamped before schema binding so the bound clone inherits it.
       stampAuditResolver(instance, auditActorResolver);
       if (schema && typeof instance.forSchema === 'function') {

@@ -112,6 +112,17 @@ describe('createDb — repository registry', () => {
     ).toThrow(/Repository "users" is not a valid constructor/);
   });
 
+  it('rejects repository names that would overwrite forSchema metadata', () => {
+    for (const name of ['db', 'pgp', 'schema']) {
+      expect(() =>
+        createDb({
+          connectionString: ADMIN_URL,
+          repositories: { [name]: Users },
+        })
+      ).toThrow(/is reserved/);
+    }
+  });
+
   it('rejects a non-object repositories map', () => {
     expect(() =>
       createDb({
@@ -394,22 +405,30 @@ describe('createDb — audit resolver scoping', () => {
 
 describe('createDb — ownership is not overridable', () => {
   it('ignores db/pgp/auditActorResolver passed to migrationManager', () => {
-    const admin = track(createDb({ connectionString: ADMIN_URL }));
+    const admin = track(
+      createDb({
+        connectionString: ADMIN_URL,
+        auditActorResolver: () => 'admin-actor',
+      })
+    );
     const foreign = track(createDb({ connectionString: CELL_URL }));
+    const foreignResolver = (): string => 'foreign';
     const manager = admin.migrationManager({
       schema: 'public',
       db: foreign.db,
       pgp: foreign.pgp,
-      auditActorResolver: () => 'foreign',
+      auditActorResolver: foreignResolver,
     } as never);
     const internals = manager as unknown as {
       injectedDb: unknown;
       injectedPgp: unknown;
-      auditActorResolver: unknown;
+      auditActorResolver: (() => string | null) | null;
     };
     expect(internals.injectedDb).toBe(admin.db);
     expect(internals.injectedPgp).toBe(admin.pgp);
-    expect(internals.auditActorResolver).not.toBe(foreign.pgp);
+    expect(internals.auditActorResolver).not.toBe(foreignResolver);
+    // It carries the owning instance's resolver instead.
+    expect(internals.auditActorResolver?.()).toBe('admin-actor');
   });
 
   it('ignores db/owner/pgp passed to bootstrap', async () => {

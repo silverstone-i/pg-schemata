@@ -8,7 +8,11 @@ import type { Mock } from 'vitest';
 import { DB, db, pgp } from '../../src/DB.js'; // Adjust path
 import type { ExtendedDb } from '../../src/DB.js';
 import { callDb } from '../../src/utils/callDB.js'; // Adjust path
-import { getAuditActor } from '../../src/auditActorResolver.js';
+import {
+  clearAuditActorResolver,
+  getAuditActor,
+  setAuditActorResolver,
+} from '../../src/auditActorResolver.js';
 import pgPromise from 'pg-promise';
 import type { IMain } from 'pg-promise';
 import type { DbConnection } from '../../src/schemaTypes.js';
@@ -104,6 +108,16 @@ describe('DB', () => {
     DB.init({}, { users: FakeRepo });
     expect(DB.db).toBeDefined();
     expect(DB.db).not.toBe(firstDb);
+  });
+
+  it('close() leaves a resolver alone when the singleton was never initialized', async () => {
+    setAuditActorResolver(() => 'hand-constructed');
+
+    await DB.close();
+
+    // Nothing was initialized, so nothing DB owns should be reset.
+    expect(getAuditActor()).toBe('hand-constructed');
+    clearAuditActorResolver();
   });
 
   it('close() is safe before initialization and when repeated', async () => {
