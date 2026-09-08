@@ -550,6 +550,8 @@ function createIndexesSQL(
       if (typeof col === 'string') {
         // Simple column name
         return `"${col}"`;
+      } else if (typeof col === 'object' && 'expression' in col) {
+        return `(${col.expression})`;
       } else if (typeof col === 'object' && col.column) {
         // Column with options: { column: 'name', opclass: 'text_ops', order: 'DESC' }
         let expr = `"${col.column}"`;
@@ -561,9 +563,7 @@ function createIndexesSQL(
         }
         return expr;
       } else {
-        // Treat as expression string
-        // eslint-disable-next-line @typescript-eslint/no-base-to-string -- runtime fallback for raw expression inputs outside the declared type
-        return String(col);
+        throw new SchemaDefinitionError('Invalid index column definition');
       }
     });
 

@@ -127,6 +127,27 @@ constraints: {
 | `indexes` | `IndexDefinition[]` | Index definitions for query optimization |
 
 ::: info
+Index entries accept column names (`'email'`), column option objects
+(`{ column: 'email', opclass: 'text_ops', order: 'DESC' }`), or explicit expressions:
+
+```ts
+constraints: {
+  indexes: [{
+    name: 'portal_users_active_email',
+    columns: [{ expression: 'lower(email)' }],
+    unique: true,
+    where: 'deactivated_at IS NULL',
+  }],
+}
+```
+
+This creates a unique index on `lower(email)` for active rows only. Expression
+indexes require an explicit, valid identifier as their name. Expressions must be
+non-empty strings, and an entry cannot combine `column` and `expression`.
+Plain strings always mean column identifiers; `'lower(email)'` is rejected.
+Expression SQL is emitted as written inside parentheses: it must be trusted,
+developer-authored SQL, never user input. PostgreSQL validates its SQL semantics.
+
 Check expressions and index predicates are deliberately raw SQL — they are emitted into the DDL as written. Column `default` strings, by contrast, are quoted and escaped when they are not a function call, number, or already-quoted literal.
 :::
 

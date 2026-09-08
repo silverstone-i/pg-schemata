@@ -1050,6 +1050,7 @@ CREATE [UNIQUE] INDEX [IF NOT EXISTS] "indexName"
 
 - Simple string: `"colName"`
 - Object: `{ column: 'name', opclass: 'text_ops', order: 'DESC' }`
+- Expression: `{ expression: 'lower(email)' }` — trusted developer-authored SQL, never user input; emitted inside parentheses. Requires a non-empty string and an explicit index name. Cannot be combined with `column`. Plain strings remain validated column identifiers.
 
 #### `addAuditFields(schema)`
 

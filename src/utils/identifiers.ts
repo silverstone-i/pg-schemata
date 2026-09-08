@@ -187,7 +187,23 @@ export function assertSchemaIdentifiers(schema: {
       assertValidIdentifier(index.name, 'Index name');
     }
     for (const col of index?.columns ?? []) {
-      // Index columns accept an object form carrying sort options.
+      if (col && typeof col === 'object' && 'expression' in col) {
+        if (typeof col.expression !== 'string' || !col.expression.trim()) {
+          throw new SchemaDefinitionError(
+            'Index expression must be a non-empty trusted SQL string'
+          );
+        }
+        if ('column' in col)
+          throw new SchemaDefinitionError(
+            'Index column cannot combine an identifier and expression'
+          );
+        if (!index.name)
+          throw new SchemaDefinitionError(
+            'Expression indexes require an explicit index name'
+          );
+        continue;
+      }
+      // Identifier inputs retain the strict guard; SQL requires the explicit expression field.
       const columnName =
         typeof col === 'string'
           ? col
