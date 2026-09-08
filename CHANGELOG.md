@@ -10,6 +10,8 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+## [v3.1.1] - 2026-09-08
+
 ### Fixed
 
 - Support explicitly named expression indexes via `{ expression: string }`, including unique partial indexes. Preserve identifier validation and reject empty expressions or mixed column/expression definitions; plain strings remain column names.
