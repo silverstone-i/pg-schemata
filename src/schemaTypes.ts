@@ -154,11 +154,19 @@ export interface CheckConstraintDefinition {
 }
 
 /**
- * Index columns may be plain column names, option objects, or raw
- * SQL expression strings.
+ * Index columns may be plain identifiers, identifier option objects, or explicit
+ * SQL expressions. Expressions are trusted developer-authored SQL, never user input.
+ * Expression indexes require an explicit index name.
  */
 export type IndexColumn =
-  string | { column: string; opclass?: string; order?: 'ASC' | 'DESC' };
+  | string
+  | {
+      column: string;
+      expression?: never;
+      opclass?: string;
+      order?: 'ASC' | 'DESC';
+    }
+  | { expression: string; column?: never };
 
 /**
  * Index definition supporting the full CREATE INDEX option surface.
@@ -167,7 +175,7 @@ export interface IndexDefinition {
   /** Documented discriminator; not read by the SQL generator. */
   type?: 'Index';
   columns: IndexColumn[];
-  /** Custom index name. Auto-generated when omitted. */
+  /** Custom index name. Required for expression indexes; otherwise auto-generated. */
   name?: string;
   unique?: boolean;
   /** Index method: btree, gin, gist, hash, spgist, brin. */
