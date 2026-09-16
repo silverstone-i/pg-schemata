@@ -763,7 +763,7 @@ describe('Schema Utilities', () => {
 
       expect(updatedSchema.columns).toHaveLength(4);
 
-      // Verify timestamp fields remain unchanged
+      // Verify timestamp fields keep fixed metadata regardless of user field config
       const createdAt = updatedSchema.columns.find(
         col => col.name === 'created_at'
       );
