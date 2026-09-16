@@ -763,7 +763,7 @@ describe('Schema Utilities', () => {
 
       expect(updatedSchema.columns).toHaveLength(4);
 
-      // Verify timestamp fields remain unchanged
+      // Verify timestamp fields keep fixed metadata regardless of user field config
       const createdAt = updatedSchema.columns.find(
         col => col.name === 'created_at'
       );
@@ -772,7 +772,10 @@ describe('Schema Utilities', () => {
       );
       expect(createdAt!.type).toBe('timestamptz');
       expect(updatedAt!.type).toBe('timestamptz');
+      expect(createdAt!.notNull).toBe(true);
+      expect(updatedAt!.notNull).toBe(true);
       expect(createdAt!.default).toBe('now()');
+      expect(updatedAt!.default).toBe('now()');
 
       // Verify user fields use uuid type
       const createdBy = updatedSchema.columns.find(
