@@ -427,6 +427,7 @@ function addAuditFields(schema: TableSchema): TableSchema {
       {
         name: 'created_at',
         type: 'timestamptz',
+        notNull: true,
         default: 'now()',
         immutable: true,
       },
@@ -435,7 +436,12 @@ function addAuditFields(schema: TableSchema): TableSchema {
         ...userFieldDef,
         immutable: true,
       },
-      { name: 'updated_at', type: 'timestamptz', default: 'now()' },
+      {
+        name: 'updated_at',
+        type: 'timestamptz',
+        notNull: true,
+        default: 'now()',
+      },
       { name: 'updated_by', ...userFieldDef },
     ];
 

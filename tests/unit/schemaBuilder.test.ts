@@ -772,7 +772,10 @@ describe('Schema Utilities', () => {
       );
       expect(createdAt!.type).toBe('timestamptz');
       expect(updatedAt!.type).toBe('timestamptz');
+      expect(createdAt!.notNull).toBe(true);
+      expect(updatedAt!.notNull).toBe(true);
       expect(createdAt!.default).toBe('now()');
+      expect(updatedAt!.default).toBe('now()');
 
       // Verify user fields use uuid type
       const createdBy = updatedSchema.columns.find(
