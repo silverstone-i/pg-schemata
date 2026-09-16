@@ -15,8 +15,8 @@ const schema = {
 
 Adds four columns:
 
-- `created_at` — `timestamptz`, defaults to `NOW()`
-- `updated_at` — `timestamptz`, defaults to `NOW()`
+- `created_at` — `timestamptz`, `NOT NULL`, defaults to `NOW()`
+- `updated_at` — `timestamptz`, `NOT NULL`, defaults to `NOW()`
 - `created_by` — `varchar(50)`, defaults to `'system'`
 - `updated_by` — `varchar(50)`, nullable
 

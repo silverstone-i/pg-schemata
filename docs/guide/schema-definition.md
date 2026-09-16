@@ -215,8 +215,8 @@ A column still passing `nullable` also throws; use `notNull`
 
 When `hasAuditFields` is enabled, pg-schemata automatically adds four columns to your schema:
 
-- `created_at` — `timestamptz`, defaults to `NOW()`
-- `updated_at` — `timestamptz`, defaults to `NOW()`
+- `created_at` — `timestamptz`, `NOT NULL`, defaults to `NOW()`
+- `updated_at` — `timestamptz`, `NOT NULL`, defaults to `NOW()`
 - `created_by` — user identifier, set on insert
 - `updated_by` — user identifier, set on update
 
