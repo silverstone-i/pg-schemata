@@ -10,6 +10,8 @@ Latest commit: `99c75e3`
 
 ## [Unreleased]
 
+## [v3.1.2] - 2026-09-16
+
 ### Fixed
 
 - Audit timestamp columns injected by `hasAuditFields` are now `NOT NULL DEFAULT now()` in the generated table schema.
